@@ -52,6 +52,18 @@ float[][] RIBBON_TONES = {
 // Light comes from the upper left (y grows downwards); only used for the soft glaze sheen
 final float LIGHT_X = -0.6, LIGHT_Y = -0.8;
 
+// The glazes of Park Güell: nearest one to a hue (violets → indigo, pinks → red)
+float[] GLAZE_HUES = { 2, 12, 18, 30, 42, 72, 142, 185, 210 };
+
+float ceramicHue(float h) {
+  h = (h % 360 + 360) % 360;
+  if (h >= 225 && h < 315) return 210;   // violet / indigo → cobalt (no violet blues)
+  if (h >= 315)            return 354;   // pink / magenta → red
+  float best = GLAZE_HUES[0];
+  for (float g : GLAZE_HUES) if (abs(g - h) < abs(best - h)) best = g;
+  return best;
+}
+
 // Stable seed (String.hashCode style, same on every run and machine)
 long wordSeed(String word, int... params) {
   long h = 1125899906842597L;
@@ -118,7 +130,12 @@ Patch freePatch(Random r, float w, float h) {
 class Piece {
   float[] x, y;        // tile-local outline, already inside the grout
   float[] u, v;        // texture coordinates (null = plain colour)
-  float[] sheen;       // per-vertex glaze sheen 0..1
+  float[] grad;        // per-vertex: where each corner lies along the tilt (−1 shaded side … 1 lit side)
+  float[] rx, ry;      // inner edge of the rounded rim (null = too small for a rim)
+  float[] rimLit;      // per edge: how much it faces the light (−1 … 1)
+  boolean[] chipped;   // per edge: glaze chipped off, the pale biscuit shows
+  float lit;           // how much the shard's tilted face catches the light (−1 … 1)
+  float spec;          // strength of the glaze highlight on this shard (0 … 1)
   float h, s, b;       // plain colour; for painted shards only b is used (glaze tint)
   float cx, cy, area;
   float delay;         // assembly: when it settles (0..1)
@@ -160,12 +177,12 @@ class TrencadisTile {
     float cellH = (patch.bot[0].y - patch.top[0].y + patch.bot[patch.bot.length-1].y - patch.top[patch.top.length-1].y) / 2;
     rib = (band >= 0) ? cellH * 0.13 : 0;
     CH  = H - rib;
-    u   = (cellH - rib) * map(abstraction, 1, 7, 0.17, 0.34);
+    u   = (cellH - rib) * map(abstraction, 1, 7, 0.19, 0.34);
     quadProb = CUT_STYLE[phen - 1][0];
     jit      = CUT_STYLE[phen - 1][1] * map(organic, 1, 7, 0.7, 1.3);
 
     makePalette(col, band);
-    if (phen >= 3) tex = paint();
+    tex = paint();
 
     ArrayList<PVector> content = outline;
     if (rib > 0) content = ribbon();
@@ -180,39 +197,44 @@ class TrencadisTile {
   float[] cBase, cLight, cDark, cAcc, cAcc2, cRib;
 
   void makePalette(color col, int band) {
-    float h0 = hue(col);
-    float s0 = constrain(saturation(col), 0, 78);
-    float b0 = constrain(brightness(col), 45, 90);
+    // Strong ceramic glazes as on Park Güell: the word's colour is moved to the nearest glaze
+    // (cobalt, navy, turquoise, deep green, olive, ochre, orange, red); violets and pinks go to
+    // indigo and red. Never pastel.
+    float h0 = ceramicHue(hue(col));
+    boolean warm = (h0 < 60 || h0 > 330);
+    float s0 = constrain(saturation(col) * 1.2, 72, 92);
+    float b0 = constrain(brightness(col), 58, 88);
+    if (h0 >= 200 && h0 <= 240) b0 = min(b0, 72);   // blues are deep
+    if (h0 >= 130 && h0 <= 160) { s0 = max(s0, 85); b0 = constrain(b0, 38, 52); }   // greens: bottle green
+    if (h0 >= 8 && h0 <= 16)    { s0 = max(s0, 80); b0 = constrain(b0, 50, 64); }   // terracotta
     cBase  = new float[] { h0, s0, b0 };
-    cLight = new float[] { lerpAngle(h0, 45, 0.35), s0 * 0.16, 95 };   // warm white glaze, a hint of the colour
-    cDark  = new float[] { h0, min(85, s0 * 1.1 + 10), b0 * 0.4 };
-    float hA = (r.nextFloat() < 0.55) ? h0 + rnd(r, 150, 210)                               // complementary
-                                      : h0 + (r.nextBoolean() ? 1 : -1) * rnd(r, 35, 60);  // neighbour
-    hA = (hA % 360 + 360) % 360;
-    cAcc  = new float[] { hA, constrain(max(s0, 45) + rnd(r, -10, 10), 40, 78), constrain(b0 + rnd(r, -5, 10), 55, 90) };
-    cAcc2 = new float[] { lerpAngle(hA, 42, 0.65), 62, 92 };   // ochre / yellow family, like the flower hearts
+    cLight = new float[] { 42, 7, 96 };                                   // the white / cream of the tiles
+    cDark  = new float[] { lerpAngle(h0, 225, 0.7), 60, 18 };             // near-black navy outlines
+    // Accent from the other family: cobalt against warm colours, orange / ochre against cool ones
+    float q = r.nextFloat();
+    float hA = warm ? (q < 0.65 ? 218 : 190) : (q < 0.6 ? 28 : 8);
+    hA = (hA + rnd(r, -6, 6) + 360) % 360;
+    cAcc  = new float[] { hA, rnd(r, 80, 92), (hA > 180 && hA < 240) ? rnd(r, 58, 70) : rnd(r, 82, 92) };
+    cAcc2 = (abs(h0 - 42) < 15) ? new float[] { 4, 82, 72 }                // ochre base → red
+                                : new float[] { 42, 85, 90 };              // otherwise ochre / saffron
     if (band >= 0) {
       float[] t = RIBBON_TONES[band % RIBBON_TONES.length];
       cRib = new float[] { lerpAngle(t[0], h0, 0.2), t[1], t[2] };
     } else {
-      cRib = new float[] { h0, min(80, s0 + 10), b0 * 0.45 };
+      cRib = new float[] { h0, min(90, s0 + 5), b0 * 0.45 };
     }
 
-    float[] white = { (h0 + 30) % 360, 6, 92 };   // white crockery
-    if (phen == 1) {
-      // One colour family
-      tones = new float[][] {
-        { h0, s0, b0 },
-        { (h0 + 14) % 360,  s0 * 0.85,          min(b0 * 1.08, 100) },
-        { (h0 + 348) % 360, min(s0 * 1.05, 100), b0 * 0.72 },
-        { (h0 + 28) % 360,  s0 * 0.6,           min(b0 + 12, 100) },
-        { h0,               s0 * 0.95,          b0 * 0.5 },
-        white };
-    } else {
-      // Shards of several plain tiles mixed together
-      tones = new float[][] { cBase, cLight, cDark, cAcc, cAcc2, white };
-    }
+    float[] white = { 42, 6, 95 };   // white crockery
+    // One colour family, many strong shades (the blue areas of the benches)
+    tones = new float[][] {
+      { h0, s0, b0 },
+      { (h0 + 8) % 360,   s0 * 0.92,          min(b0 * 1.12, 98) },
+      { (h0 + 352) % 360, min(s0 * 1.05, 100), b0 * 0.7 },
+      { (h0 + 14) % 360,  s0 * 0.8,           min(b0 + 10, 98) },
+      { h0,               min(s0 * 1.05, 100), b0 * 0.48 },
+      white };
   }
+
 
   // A colour with a little natural variation, as different firings of the same glaze
   float[] vary(float[] c, float dh, float ds, float db) {
@@ -235,7 +257,39 @@ class TrencadisTile {
 
   // ── The painted tile (texture over the cell's bounding box, cell units) ──
 
+  // Atlas (phenomena 1, 2, 4): one texture holds 6 different source tiles (3 × 2 cells);
+  // every shard takes its picture from one of them, as real trencadís is made of many tiles.
+  final int AC = 3, AR = 2;
+  boolean atlas;
+  int mapCell;                     // for the shard being added: which source tile, where, how turned
+  float mapX, mapY, mapRot;
+  float cellUnits;                 // size of one source tile, in tile units
+
   PImage paint() {
+    atlas = (phen <= 4);
+    if (atlas) {
+      cellUnits = u * (phen == 2 ? 2.6 : phen == 1 ? 1.9 : 3.2);
+      int CS = constrain(round(cellUnits * RENDER_SCALE * TEXTURE_DETAIL), 48, 512);
+      PGraphics g = createGraphics(AC * CS, AR * CS, JAVA2D);
+      g.beginDraw();
+      g.colorMode(HSB, 360, 100, 100, 100);
+      int[] order = { 0, 1, 2, 3, 4, 5 };
+      for (int i = 5; i > 0; i--) { int j = r.nextInt(i + 1), t = order[i]; order[i] = order[j]; order[j] = t; }
+      for (int k = 0; k < AC * AR; k++) {
+        g.pushMatrix();
+        g.translate((k % AC) * CS, (k / AC) * CS);
+        g.clip(0, 0, CS, CS);
+        if (phen == 4)      paintSource(g, order[k], k, CS);
+        else if (phen == 3) { if (k < 4) paintRosette(g, k, CS); else paintPlain(g, tones[k == 4 ? 0 : 2], CS); }
+        else if (phen == 1) paintModernista(g, k, CS);
+        else                paintPlain(g, tones[k], CS);
+        glazeDetail(g, CS, CS, CS / 40.0);
+        g.noClip();
+        g.popMatrix();
+      }
+      g.endDraw();
+      return g.get();
+    }
     // Enough pixels for the biggest size it is shown at (on the main wall), never more than needed
     int TW = constrain(round(W * RENDER_SCALE * TEXTURE_DETAIL), 128, 1400), TH = max(16, round(TW * H / W));
     PGraphics g = createGraphics(TW, TH, JAVA2D);
@@ -243,12 +297,11 @@ class TrencadisTile {
     g.colorMode(HSB, 360, 100, 100, 100);
     g.scale(TW / W);
     switch (phen) {
-      case 3:  paintSpiral(g);   break;   // spiral       → spiral bands
-      case 4:  paintFlowers(g);  break;   // sub-clusters → scattered flowers and leaves
-      case 5:  paintTilework(g); break;   // vibration    → fine geometric tilework
-      case 6:  paintWaves(g);    break;   // drift        → arabesque bands
+      case 5:  paintStars(g);    break;   // vibration    → Valencian eight-point stars
+      case 6:  paintBands(g);    break;   // drift        → interlaced chains and stripes
       default: paintChecker(g);           // 3 groupings  → bold two-colour geometry
     }
+    glazeDetail(g, W, H, u * 0.03);
     g.endDraw();
     return g.get();
   }
@@ -266,140 +319,372 @@ class TrencadisTile {
     }
   }
 
-  // Spiral bands winding out from an off-centre point
-  void paintSpiral(PGraphics g) {
-    g.background(cLight[0], cLight[1], cLight[2]);
-    mottle(g, cLight, 10, 12);
-    float cx = W * rnd(r, 0.25, 0.75), cy = rib + CH * rnd(r, 0.3, 0.8);
-    float reach = dist(0, 0, W, H) * 1.1;
-    int   arms  = 2 + r.nextInt(2);
-    float pitch = u * rnd(r, 1.6, 2.4) * arms;        // distance between turns of the same arm
-    float band  = pitch / arms * 0.55;
-    float dir   = r.nextBoolean() ? 1 : -1;
-    float a0    = rnd(r, 0, TWO_PI);
-    float[][] cols = { cBase, cAcc, cAcc2 };
+
+
+  // ── Small glaze imperfections: pinholes, specks and a faint crackle ──
+  void glazeDetail(PGraphics g, float w, float h, float dot) {
+    g.noStroke();
+    int n = round(w * h / sq(dot * 26));
+    for (int i = 0; i < n; i++) {
+      boolean dark = r.nextFloat() < 0.6;
+      g.fill(0, 0, dark ? 10 : 100, dark ? rnd(r, 4, 10) : rnd(r, 8, 18));
+      float d = dot * rnd(r, 0.4, 0.9);
+      g.ellipse(rnd(r, 0, w), rnd(r, 0, h), d, d);
+    }
     g.noFill();
-    for (int k = 0; k < arms; k++) {
-      float[] c = cols[k % cols.length];
-      for (int pass = 0; pass < 2; pass++) {
-        if (pass == 0) { strokeC(g, c, 100);    g.strokeWeight(band); }
-        else           { strokeC(g, cDark, 70); g.strokeWeight(u * 0.05); }
-        g.beginShape();
-        for (float t = 0; t < reach / pitch * TWO_PI; t += 0.05) {
-          float rad = pitch * t / TWO_PI + (pass == 1 ? band * 0.5 : 0);
-          float a = dir * t + a0 + k * TWO_PI / arms;
-          g.vertex(cx + cos(a) * rad, cy + sin(a) * rad);
-        }
-        g.endShape();
+    g.stroke(0, 0, 20, 4);
+    g.strokeWeight(dot * 0.5);
+    for (int i = 0, m = 3 + r.nextInt(4); i < m; i++) {
+      float x = rnd(r, 0, w), y = rnd(r, 0, h), a = rnd(r, 0, TWO_PI);
+      g.beginShape();
+      for (int j = 0; j < 6; j++) {
+        g.vertex(x, y);
+        a += rnd(r, -0.6, 0.6);
+        float l = dot * rnd(r, 8, 20);
+        x += cos(a) * l;
+        y += sin(a) * l;
       }
+      g.endShape();
     }
     g.noStroke();
-    fillC(g, cDark, 100);
-    g.ellipse(cx, cy, band * 1.2, band * 1.2);
   }
 
-  void paintFlowers(PGraphics g) {
-    float[] ground = vary(cLight, 4, 4, 2);
-    g.background(ground[0], ground[1], ground[2]);
-    mottle(g, cBase, 8, 14);
-    float[] leaf = { lerpAngle(cBase[0], 110, 0.5), min(55, cBase[1] + 10), 60 };
+  // One plain glazed tile (phenomena 1 and 2): its colour, unevenly fired
+  void paintPlain(PGraphics g, float[] c, float s) {
     g.noStroke();
+    fillC(g, c, 100);
+    g.rect(0, 0, s, s);
+    for (int i = 0; i < 9; i++) {
+      fillC(g, vary(c, 4, 6, 10), rnd(r, 8, 20));
+      float d = s * rnd(r, 0.3, 0.9);
+      g.ellipse(rnd(r, 0, s), rnd(r, 0, s), d, d * rnd(r, 0.6, 1));
+    }
+  }
+
+  // Phenomenon 4: six different decorated tiles, broken and mixed (each shard keeps
+  // the picture of the tile it came from). Inspired by the benches of Park Güell.
+  void paintSource(PGraphics g, int design, int k, float s) {
+    float[][] inks = { cBase, cAcc, cAcc2, cDark };
+    // each source tile gets its own two or three colours
+    float[] c1 = inks[(k + design) % 4], c2 = inks[(k + design + 1 + r.nextInt(2)) % 4], c3 = cDark;
+    if (c2 == c1) c2 = cAcc2;
+    float[] ground = vary(cLight, 4, 3, 2);
+    g.noStroke();
+    fillC(g, ground, 100);
+    g.rect(0, 0, s, s);
+    float lw = s * 0.018;   // painted outline
+    switch (design) {
+      case 0: {   // Valencian eight-point star, with quarter stars in the corners
+        for (int i = 0; i <= 1; i++) for (int j = 0; j <= 1; j++) star8(g, i * s, j * s, s * 0.32, c2, c3, lw);
+        star8(g, s / 2, s / 2, s * 0.34, c1, c3, lw);
+        fillC(g, c2, 100);
+        diamond(g, s / 2, s / 2, s * 0.06, s * 0.06);
+        break;
+      }
+      case 1: {   // interlaced chain between two bands
+        fillC(g, c2, 100);
+        g.rect(0, 0, s, s * 0.14);
+        g.rect(0, s * 0.86, s, s * 0.14);
+        g.noFill();
+        g.strokeJoin(MITER);
+        for (int pass = 0; pass < 2; pass++) {
+          strokeC(g, pass == 0 ? c3 : c1, 100);
+          g.strokeWeight(pass == 0 ? s * 0.12 : s * 0.075);
+          for (int row = 0; row < 2; row++) {
+            float y0 = s * (0.32 + row * 0.36), dy = s * 0.13 * (row == 0 ? 1 : -1);
+            g.beginShape();
+            for (float x = -s * 0.25; x <= s * 1.25; x += s * 0.25) g.vertex(x, y0 + ((round(x / (s * 0.25)) % 2 == 0) ? -dy : dy));
+            g.endShape();
+          }
+        }
+        g.noStroke();
+        break;
+      }
+      case 2: {   // stripes, like the green and white bands
+        float y = 0;
+        int i = 0;
+        while (y < s) {
+          float w = s * rnd(r, 0.08, 0.22);
+          fillC(g, i % 2 == 0 ? c1 : ground, 100);
+          g.rect(0, y, s, w);
+          fillC(g, c3, 70);
+          g.rect(0, y + w - lw, s, lw);
+          y += w;
+          i++;
+        }
+        break;
+      }
+      case 3: {   // dotted band with fine borders and a scroll
+        fillC(g, c2, 100);
+        g.rect(0, s * 0.3, s, s * 0.4);
+        // fine texture of small lozenges and crosses, a few tones from the band (not a contrast)
+        float[] tex2 = { c2[0], c2[1] * 0.8, c2[2] > 50 ? c2[2] * 0.7 : min(100, c2[2] + 25) };
+        fillC(g, tex2, 100);
+        int ci = 0;
+        for (float x = s * 0.035; x < s; x += s * 0.07, ci++) for (float y = s * 0.335 + (ci % 2) * s * 0.035; y < s * 0.69; y += s * 0.07) {
+          if (ci % 2 == 0) diamond(g, x, y, s * 0.012, s * 0.018);
+          else { g.rect(x - s * 0.012, y - s * 0.004, s * 0.024, s * 0.008); g.rect(x - s * 0.004, y - s * 0.012, s * 0.008, s * 0.024); }
+        }
+        fillC(g, c1, 100);
+        g.rect(0, s * 0.27, s, lw * 2.5);
+        g.rect(0, s * 0.7, s, lw * 2.5);
+        g.noFill();
+        strokeC(g, c1, 100);
+        g.strokeWeight(lw * 1.6);
+        g.arc(s * 0.3, s * 0.12, s * 0.3, s * 0.2, 0, PI);
+        g.arc(s * 0.75, s * 0.88, s * 0.3, s * 0.2, PI, TWO_PI);
+        g.noStroke();
+        break;
+      }
+      case 4: {   // sunburst of dark rays from a corner
+        float cx = s * (r.nextBoolean() ? 0.1 : 0.9), cy = s * (r.nextBoolean() ? 0.1 : 0.9);
+        int n = 20;
+        for (int i = 0; i < n; i++) {
+          float a1 = TWO_PI * i / n, a2 = TWO_PI * (i + 0.5) / n;
+          fillC(g, i % 2 == 0 ? c3 : c1, 100);
+          g.triangle(cx, cy, cx + cos(a1) * s * 1.5, cy + sin(a1) * s * 1.5, cx + cos(a2) * s * 1.5, cy + sin(a2) * s * 1.5);
+        }
+        fillC(g, c2, 100);
+        star8(g, cx, cy, s * 0.16, c2, c3, lw);
+        break;
+      }
+      default: {  // small square tiles in two close tones
+        float m = s / 8;
+        float[] c1b = { c1[0], c1[1] * 0.75, min(100, c1[2] + 10) };
+        for (int i = 0; i < 8; i++) for (int j = 0; j < 8; j++) {
+          fillC(g, (i + j) % 2 == 0 ? c1 : c1b, 100);
+          g.rect(i * m + lw * 0.6, j * m + lw * 0.6, m - 1.2 * lw, m - 1.2 * lw);
+        }
+      }
+    }
+  }
+
+  // Phenomenon 3: Moorish rosette tile — an eight-point star ringed by hexagonal petals,
+  // with quarter rosettes in the corners (so the pattern carries on across tiles)
+  void paintRosette(PGraphics g, int k, float s) {
+    float[] ground = vary(cLight, 4, 3, 2);
+    float[] cStar  = (k % 2 == 0) ? cDark : cAcc;
+    float[] cPetal = (k < 2) ? cAcc2 : cBase;
+    float[] cKite  = (k % 2 == 0) ? cAcc : cDark;
+    g.noStroke();
+    fillC(g, ground, 100);
+    g.rect(0, 0, s, s);
+    // a 2 × 2 repeat with half rosettes on the edges, so every shard shows whole rosettes
+    for (int i = 0; i <= 4; i++) for (int j = 0; j <= 4; j++) {
+      if ((i + j) % 2 != 0) continue;
+      rosette(g, i * s / 4, j * s / 4, s * 0.22, cStar, cPetal, cKite);
+    }
+  }
+
+  void rosette(PGraphics g, float x, float y, float R, float[] cStar, float[] cPetal, float[] cKite) {
+    g.pushMatrix();
+    g.translate(x, y);
     for (int i = 0; i < 8; i++) {
-      fillC(g, vary(leaf, 8, 8, 8), 90);
+      float a = TWO_PI * i / 8;
+      fillC(g, vary(cPetal, 3, 5, 6), 100);
+      hexagon(g, cos(a) * R * 0.6, sin(a) * R * 0.6, R * 0.21, a);
+      fillC(g, cKite, 90);
+      float b = a + TWO_PI / 16;
+      g.quad(cos(b) * R * 0.78, sin(b) * R * 0.78,
+             cos(b + 0.13) * R * 0.95, sin(b + 0.13) * R * 0.95,
+             cos(b) * R * 1.1,  sin(b) * R * 1.1,
+             cos(b - 0.13) * R * 0.95, sin(b - 0.13) * R * 0.95);
+    }
+    star8(g, 0, 0, R * 0.32, cStar, cStar, 0.1);
+    fillC(g, cLight, 100);
+    g.ellipse(0, 0, R * 0.14, R * 0.14);
+    g.popMatrix();
+  }
+
+  void hexagon(PGraphics g, float x, float y, float rad, float rot) {
+    g.beginShape();
+    for (int i = 0; i < 6; i++) g.vertex(x + cos(rot + TWO_PI * i / 6) * rad, y + sin(rot + TWO_PI * i / 6) * rad);
+    g.endShape(CLOSE);
+  }
+
+  // Phenomenon 1: Modernista ornamental tiles (like the benches of Park Güell): bands with
+  // scalloped arches, blue dots and little sprigs; corner fans; interlaced strapwork.
+  // Fine black outlines, as painted by hand. Six variants, three designs × two colourways.
+  void paintModernista(PGraphics g, int k, float s) {
+    float[] band = (k % 2 == 0) ? cAcc2 : cBase, other = (k % 2 == 0) ? cBase : cAcc2;
+    float[] dot = (k % 2 == 0) ? cBase : cAcc, line = cDark;
+    float lw = s * 0.012;
+    g.noStroke();
+    fillC(g, vary(cLight, 4, 3, 2), 100);
+    g.rect(0, 0, s, s);
+    switch (k % 3) {
+      case 0: {   // two bands of scalloped arches facing each other, dots in the arches, sprigs between
+        for (int side = 0; side < 2; side++) {
+          float y0 = side == 0 ? 0 : s, dir = side == 0 ? 1 : -1;
+          float[] c = side == 0 ? band : other;
+          fillC(g, c, 100);
+          g.rect(0, side == 0 ? 0 : s * 0.75, s, s * 0.25);
+          for (int i = 0; i < 3; i++) g.arc(s * (i + 0.5) / 3, y0 + dir * s * 0.25, s / 3, s * 0.3, side == 0 ? 0 : PI, side == 0 ? PI : TWO_PI);
+          g.noFill();
+          strokeC(g, line, 90);
+          g.strokeWeight(lw);
+          for (int i = 0; i < 3; i++) {
+            g.arc(s * (i + 0.5) / 3, y0 + dir * s * 0.25, s / 3, s * 0.3, side == 0 ? 0 : PI, side == 0 ? PI : TWO_PI);
+            g.arc(s * (i + 0.5) / 3, y0 + dir * s * 0.25, s / 3 * 0.7, s * 0.3 * 0.7, side == 0 ? 0 : PI, side == 0 ? PI : TWO_PI);
+          }
+          g.line(0, y0 + dir * s * 0.05, s, y0 + dir * s * 0.05);
+          g.line(0, y0 + dir * s * 0.08, s, y0 + dir * s * 0.08);
+          g.noStroke();
+          for (int i = 0; i < 3; i++) {
+            float x = s * (i + 0.5) / 3, yd = y0 + dir * s * 0.29;
+            fillC(g, line, 90);
+            diamond(g, x, yd, s * 0.045, s * 0.07);
+            fillC(g, dot, 100);
+            diamond(g, x, yd, s * 0.03, s * 0.05);
+          }
+        }
+        for (int i = 0; i < 3; i++) sprig(g, s * (i + 0.0) / 3 + s / 6 + (i % 2) * s * 0.02, s * 0.55, s * 0.08, line, cAcc);
+        break;
+      }
+      case 1: {   // fans in the four corners and a diamond in the middle
+        for (int c = 0; c < 4; c++) {
+          float cx = (c % 2) * s, cy = (c / 2) * s, R = s * 0.42;
+          float a0 = (c == 0) ? 0 : (c == 1) ? HALF_PI : (c == 2) ? -HALF_PI : PI;
+          fillC(g, c % 3 == 0 ? band : other, 100);
+          g.arc(cx, cy, 2 * R, 2 * R, a0, a0 + HALF_PI);
+          g.noFill();
+          strokeC(g, line, 90);
+          g.strokeWeight(lw);
+          g.arc(cx, cy, 2 * R, 2 * R, a0, a0 + HALF_PI);
+          g.arc(cx, cy, 1.55 * R, 1.55 * R, a0, a0 + HALF_PI);
+          for (int i = 1; i < 7; i++) {
+            float a = a0 + HALF_PI * i / 7;
+            g.line(cx + cos(a) * R * 0.78, cy + sin(a) * R * 0.78, cx + cos(a) * R, cy + sin(a) * R);
+          }
+          g.noStroke();
+          float da = a0 + QUARTER_PI;
+          fillC(g, line, 90);
+          diamond(g, cx + cos(da) * R * 0.42, cy + sin(da) * R * 0.42, s * 0.05, s * 0.075);
+          fillC(g, dot, 100);
+          diamond(g, cx + cos(da) * R * 0.42, cy + sin(da) * R * 0.42, s * 0.034, s * 0.055);
+        }
+        fillC(g, band, 100);
+        strokeC(g, line, 90);
+        g.strokeWeight(lw);
+        g.quad(s * 0.5, s * 0.34, s * 0.62, s * 0.5, s * 0.5, s * 0.66, s * 0.38, s * 0.5);
+        g.noStroke();
+        sprig(g, s * 0.5, s * 0.26, s * 0.07, line, cAcc);
+        break;
+      }
+      default: {  // interlaced strapwork: a diamond crossing a square, with a dot in the middle
+        g.noFill();
+        g.strokeJoin(MITER);
+        for (int pass = 0; pass < 2; pass++) {
+          strokeC(g, pass == 0 ? line : dot, 100);
+          g.strokeWeight(pass == 0 ? s * 0.1 : s * 0.065);
+          g.quad(s * 0.5, -s * 0.02, s * 1.02, s * 0.5, s * 0.5, s * 1.02, -s * 0.02, s * 0.5);
+          g.rect(s * 0.22, s * 0.22, s * 0.56, s * 0.56);
+        }
+        strokeC(g, cLight, 100);   // the white line along each strap
+        g.strokeWeight(s * 0.012);
+        g.quad(s * 0.5, -s * 0.02, s * 1.02, s * 0.5, s * 0.5, s * 1.02, -s * 0.02, s * 0.5);
+        g.rect(s * 0.22, s * 0.22, s * 0.56, s * 0.56);
+        g.noStroke();
+        fillC(g, band, 100);
+        diamond(g, s * 0.5, s * 0.5, s * 0.1, s * 0.1);
+        for (int i = 0; i < 4; i++) {   // small triangles in the corners
+          float cx = (i % 2) * s, cy = (i / 2) * s;
+          fillC(g, band, 100);
+          g.triangle(cx, cy, cx + (i % 2 == 0 ? 1 : -1) * s * 0.16, cy, cx, cy + (i / 2 == 0 ? 1 : -1) * s * 0.16);
+        }
+      }
+    }
+  }
+
+  // A small lozenge (half-width w, half-height h)
+  void diamond(PGraphics g, float x, float y, float w, float h) {
+    g.quad(x, y - h, x + w, y, x, y + h, x - w, y);
+  }
+
+  // A little painted sprig: three dark leaves and two coloured buds
+  void sprig(PGraphics g, float x, float y, float k, float[] leaf, float[] bud) {
+    fillC(g, leaf, 90);
+    for (int i = -1; i <= 1; i++) {
       g.pushMatrix();
-      g.translate(rnd(r, 0, W), rib + rnd(r, 0, CH));
-      g.rotate(rnd(r, 0, TWO_PI));
-      g.ellipse(0, 0, u * 1.3, u * 0.45);
+      g.translate(x, y);
+      g.rotate(i * 0.7);
+      g.triangle(-k * 0.18, 0, k * 0.18, 0, 0, -k);
       g.popMatrix();
     }
-    int nF = 2 + r.nextInt(3);
-    for (int f = 0; f < nF; f++) {
-      float x = W * rnd(r, 0.15, 0.85), y = rib + CH * rnd(r, 0.2, 0.8);
-      float fr = u * rnd(r, 1.1, 1.7);
-      int   nP = 5 + r.nextInt(2);
-      float a0 = rnd(r, 0, TWO_PI);
-      for (int i = 0; i < nP; i++) {
-        float a = a0 + i * TWO_PI / nP;
-        g.pushMatrix();
-        g.translate(x, y);
-        g.rotate(a);
-        fillC(g, vary(cAcc, 4, 6, 8), 100);
-        strokeC(g, cDark, 45);
-        g.strokeWeight(u * 0.03);
-        g.ellipse(fr * 0.5, 0, fr * 0.95, fr * 0.62);
-        g.popMatrix();
-      }
-      g.noStroke();
-      fillC(g, cAcc2, 100);
-      g.ellipse(x, y, fr * 0.55, fr * 0.55);
-      fillC(g, cDark, 70);
-      for (int i = 0; i < 7; i++) {
-        float a = TWO_PI * i / 7;
-        g.ellipse(x + cos(a) * fr * 0.13, y + sin(a) * fr * 0.13, fr * 0.06, fr * 0.06);
-      }
-    }
+    fillC(g, bud, 100);
+    g.ellipse(x - k * 0.55, y - k * 0.25, k * 0.28, k * 0.28);
+    g.ellipse(x + k * 0.55, y - k * 0.25, k * 0.28, k * 0.28);
   }
 
-  // Fine geometric tilework: diamonds with a small square inside, dark corner triangles
-  void paintTilework(PGraphics g) {
+  // An eight-point star: two overlapping squares, outlined like hand-painted tiles
+  void star8(PGraphics g, float x, float y, float rad, float[] c, float[] line, float lw) {
+    g.pushMatrix();
+    g.translate(x, y);
+    fillC(g, c, 100);
+    strokeC(g, line, 85);
+    g.strokeWeight(lw);
+    for (int k = 0; k < 2; k++) {
+      g.rotate(QUARTER_PI);
+      g.rect(-rad * 0.7, -rad * 0.7, rad * 1.4, rad * 1.4);
+    }
+    g.noStroke();
+    g.popMatrix();
+  }
+
+  // Phenomenon 5: repeated Valencian tiles — eight-point stars and small crosses
+  void paintStars(PGraphics g) {
     g.background(cLight[0], cLight[1], cLight[2]);
     mottle(g, cLight, 8, 10);
-    float m = u * rnd(r, 1.0, 1.4);
+    float m = u * rnd(r, 1.3, 1.8), lw = u * 0.035;
     float ox = rnd(r, 0, m), oy = rib + rnd(r, 0, m);
-    g.noStroke();
     for (float x = ox - m; x < W + m; x += m) {
       for (float y = oy - m; y < H + m; y += m) {
-        float h = m / 2;
-        fillC(g, cDark, 85);                               // corner triangles
-        g.triangle(x - h, y - h, x - h + m * 0.22, y - h, x - h, y - h + m * 0.22);
-        g.triangle(x + h, y + h, x + h - m * 0.22, y + h, x + h, y + h - m * 0.22);
-        fillC(g, cBase, 100);                              // diamond
-        g.quad(x, y - h * 0.82, x + h * 0.82, y, x, y + h * 0.82, x - h * 0.82, y);
-        fillC(g, cAcc, 100);                               // small square
-        g.rect(x - m * 0.12, y - m * 0.12, m * 0.24, m * 0.24);
+        star8(g, x, y, m * 0.36, cBase, cDark, lw);
+        fillC(g, new float[] { lerpAngle(cBase[0], cAcc[0], 0.4), cBase[1] * 0.7, min(100, cBase[2] + 18) }, 100);
+        diamond(g, x, y, m * 0.05, m * 0.05);
+        // small cross between the stars
+        fillC(g, cAcc2, 100);
+        float cx = x + m / 2, cy = y + m / 2, a = m * 0.09, b = m * 0.03;
+        g.rect(cx - a, cy - b, 2 * a, 2 * b);
+        g.rect(cx - b, cy - a, 2 * b, 2 * a);
       }
     }
-    g.noFill();
-    strokeC(g, cAcc2, 45);
-    g.strokeWeight(u * 0.025);
-    for (float x = ox - m/2; x < W + m; x += m) g.line(x, 0, x, H);
-    for (float y = oy - m/2; y < H + m; y += m) g.line(0, y, W, y);
   }
 
-  void paintWaves(PGraphics g) {
+  // Phenomenon 6: parallel bands — interlaced chains between plain stripes
+  void paintBands(PGraphics g) {
     g.background(cLight[0], cLight[1], cLight[2]);
     mottle(g, cLight, 8, 10);
     g.pushMatrix();
     g.translate(W / 2, rib + CH / 2);
-    g.rotate(rnd(r, -0.5, 0.5));
-    float span = dist(0, 0, W, CH);
-    float gap = u * rnd(r, 1.3, 1.9), A = u * rnd(r, 0.3, 0.6), f = TWO_PI / (u * rnd(r, 3, 5));
-    float ph = rnd(r, 0, TWO_PI);
+    g.rotate(rnd(r, -0.35, 0.35));
+    float span = dist(0, 0, W, CH), gap = u * rnd(r, 1.6, 2.2), lw = u * 0.035;
     int k = 0;
-    for (float y0 = -span; y0 < span; y0 += gap) {
-      float[] c = (k % 2 == 0) ? cBase : cAcc;
-      g.noFill();
-      strokeC(g, c, 100);
-      g.strokeWeight(gap * 0.42);
-      g.beginShape();
-      for (float x = -span; x <= span; x += u * 0.2) g.vertex(x, y0 + A * sin(x * f + ph + k));
-      g.endShape();
-      strokeC(g, cDark, 70);
-      g.strokeWeight(u * 0.05);
-      g.beginShape();
-      for (float x = -span; x <= span; x += u * 0.2) g.vertex(x, y0 + A * sin(x * f + ph + k) + gap * 0.25);
-      g.endShape();
-      g.noStroke();
-      fillC(g, cAcc2, 95);
-      for (float x = -span + rnd(r, 0, u); x < span; x += u * 1.6) {
-        float y = y0 + A * sin(x * f + ph + k) - gap * 0.32;
-        g.pushMatrix();
-        g.translate(x, y);
-        g.rotate(atan(A * f * cos(x * f + ph + k)));
-        g.ellipse(0, 0, u * 0.5, u * 0.2);
-        g.popMatrix();
+    for (float y0 = -span; y0 < span; y0 += gap, k++) {
+      if (k % 2 == 0) {
+        // stripe pair
+        fillC(g, cBase, 100);
+        g.rect(-span, y0, 2 * span, gap * 0.28);
+        fillC(g, cAcc2, 100);
+        g.rect(-span, y0 + gap * 0.36, 2 * span, gap * 0.1);
+      } else {
+        // chain of links
+        float h = gap * 0.32, step = h * 1.4;
+        g.noFill();
+        for (int pass = 0; pass < 2; pass++) {
+          strokeC(g, pass == 0 ? cDark : cAcc, 100);
+          g.strokeWeight(pass == 0 ? h * 0.42 : h * 0.26);
+          for (float x = -span; x < span; x += step) {
+            g.beginShape();
+            g.vertex(x, y0 + gap * 0.5 - h);
+            g.vertex(x + step / 2, y0 + gap * 0.5);
+            g.vertex(x, y0 + gap * 0.5 + h);
+            g.vertex(x - step / 2, y0 + gap * 0.5);
+            g.endShape(CLOSE);
+          }
+        }
+        g.noStroke();
       }
-      k++;
     }
     g.popMatrix();
   }
@@ -516,7 +801,22 @@ class TrencadisTile {
       pieces.add(p);
     }
 
-    // Neighbouring shards never share a tone
+    // Phenomena 3 and 4: neighbouring shards come in groups from the same broken source tile
+    boolean clustered = (phen == 1 || phen == 3 || phen == 4);
+    ArrayList<PVector> srcSeed = new ArrayList<PVector>();
+    IntList srcCell = new IntList();
+    FloatList srcRot = new FloatList();
+    if (clustered) {
+      int ns = max(2, round(W * CH / sq(cellUnits * 0.8)));
+      for (int i = 0; i < ns; i++) {
+        srcSeed.add(new PVector(X0 + rnd(r, 0, W), Y0 + rib + rnd(r, 0, CH)));
+        // rosettes: mostly rosette tiles, some plain ones in between
+        srcCell.append(phen == 3 ? (r.nextFloat() < 0.88 ? r.nextInt(4) : 4 + r.nextInt(2)) : r.nextInt(AC * AR));
+        srcRot.append(HALF_PI * r.nextInt(4) + rnd(r, -0.15, 0.15));
+      }
+    }
+
+    // Neighbouring shards never share a tone (phenomena 1, 2: tone = which plain tile)
     int[] tone = new int[pieces.size()];
     PVector[] cen = new PVector[pieces.size()];
     for (int i = 0; i < pieces.size(); i++) {
@@ -524,9 +824,20 @@ class TrencadisTile {
       IntList avoid = new IntList();
       for (int j = 0; j < i; j++) if (PVector.dist(cen[i], cen[j]) < u * 1.3) avoid.append(tone[j]);
       tone[i] = pickTone(avoid.array());
-      float[] col = (tex != null) ? new float[] { 0, 0, rnd(r, 88, 100) }   // painted: each shard glazed a touch differently
-                                  : vary(tones[tone[i]], 3, 4, 5);
-      addPiece(pieces.get(i), col, tex != null);
+      if (clustered) {
+        int best = 0;
+        for (int j = 1; j < srcSeed.size(); j++) if (PVector.dist(cen[i], srcSeed.get(j)) < PVector.dist(cen[i], srcSeed.get(best))) best = j;
+        mapCell = srcCell.get(best);
+        mapX = srcSeed.get(best).x;
+        mapY = srcSeed.get(best).y;
+        mapRot = srcRot.get(best);
+      } else if (atlas) {
+        mapCell = tone[i];
+        mapX = cen[i].x + rnd(r, -0.25, 0.25) * cellUnits;
+        mapY = cen[i].y + rnd(r, -0.25, 0.25) * cellUnits;
+        mapRot = rnd(r, 0, TWO_PI);
+      }
+      addPiece(pieces.get(i), new float[] { 0, 0, rnd(r, 88, 100) }, true);   // each shard glazed a touch differently
     }
   }
 
@@ -584,7 +895,26 @@ class TrencadisTile {
     Piece pc = new Piece();
     pc.x = new float[n];
     pc.y = new float[n];
-    if (painted) {
+    if (painted && atlas) {
+      // A piece of one of the source tiles in the atlas
+      pc.u = new float[n];
+      pc.v = new float[n];
+      float ca = cos(mapRot), sa = sin(mapRot), cu = cellUnits;
+      // If the shard sticks out of its source tile, take its picture around its own centre
+      // instead (same tile, same turn): never stretch the edge of the picture
+      float mx = mapX, my = mapY;
+      for (int i = 0; i < n; i++) {
+        float dx = c.get(i).x - mx, dy = c.get(i).y - my;
+        if (abs((dx * ca - dy * sa) / cu) > 0.48 || abs((dx * sa + dy * ca) / cu) > 0.48) { mx = c0.x; my = c0.y; break; }
+      }
+      for (int i = 0; i < n; i++) {
+        float dx = c.get(i).x - mx, dy = c.get(i).y - my;
+        float lu = constrain((dx * ca - dy * sa) / cu + 0.5, 0.01, 0.99);
+        float lv = constrain((dx * sa + dy * ca) / cu + 0.5, 0.01, 0.99);
+        pc.u[i] = ((mapCell % AC) + lu) / AC;
+        pc.v[i] = ((mapCell / AC) + lv) / AR;
+      }
+    } else if (painted) {
       pc.u = new float[n];
       pc.v = new float[n];
       float ang = rnd(r, -0.05, 0.05), du = rnd(r, -0.006, 0.006), dv = rnd(r, -0.006, 0.006);
@@ -603,11 +933,31 @@ class TrencadisTile {
     pc.cy = c0.y - origin.y;
     pc.area = abs(signedArea(c));
 
-    pc.sheen = new float[n];
+    // Relief: every shard sits a little tilted in the mortar and has a rounded rim
+    float ta = rnd(r, 0, TWO_PI), tm = rnd(r, 0.3, 1);
+    float tx = cos(ta) * tm, ty = sin(ta) * tm;
+    pc.lit  = tx * LIGHT_X + ty * LIGHT_Y;
+    pc.spec = pow(max(0, pc.lit), 3) * rnd(r, 0.4, 1) + (r.nextFloat() < 0.08 ? 0.5 : 0);   // a few catch a glint
     float pr = 1;
     for (int i = 0; i < n; i++) pr = max(pr, dist(pc.x[i], pc.y[i], pc.cx, pc.cy));
-    for (int i = 0; i < n; i++) {
-      pc.sheen[i] = max(0, ((pc.x[i] - pc.cx) * LIGHT_X + (pc.y[i] - pc.cy) * LIGHT_Y) / pr);
+    pc.grad = new float[n];
+    for (int i = 0; i < n; i++) pc.grad[i] = ((pc.x[i] - pc.cx) * tx + (pc.y[i] - pc.cy) * ty) / pr;
+
+    ArrayList<PVector> inner = insetPoly(c, min(RIM_PX / RENDER_SCALE, sqrt(pc.area) * 0.12));
+    pc.chipped = new boolean[n];
+    for (int i = 0; i < n; i++) pc.chipped[i] = r.nextFloat() < 0.15;
+    if (inner != null && inner.size() == n) {
+      pc.rx = new float[n];
+      pc.ry = new float[n];
+      pc.rimLit = new float[n];
+      float sg = signedArea(c) > 0 ? 1 : -1;
+      for (int i = 0; i < n; i++) {
+        pc.rx[i] = inner.get(i).x - origin.x;
+        pc.ry[i] = inner.get(i).y - origin.y;
+        PVector a = c.get(i), b = c.get((i + 1) % n);
+        PVector out = new PVector((b.y - a.y) * sg, -(b.x - a.x) * sg).normalize();   // outward normal of the edge
+        pc.rimLit[i] = out.x * LIGHT_X + out.y * LIGHT_Y;
+      }
     }
     pc.h = col[0];
     pc.s = col[1];
@@ -711,8 +1061,32 @@ class TrencadisTile {
   void drawFlat(PGraphics pg, float alpha, boolean withGrout) {
     pg.noStroke();
     pg.textureMode(NORMAL);
-    if (withGrout) drawBed(pg, alpha);
+    if (withGrout) {
+      drawBed(pg, alpha);
+      for (Piece p : pieces) drawGroutShadow(pg, p, alpha);
+    }
     for (Piece p : pieces) drawPiece(pg, p, alpha, 0, 0);
+  }
+
+  // The grout is sunk below the shards: darker right next to each one
+  void drawGroutShadow(PGraphics pg, Piece p, float alpha) {
+    if (RELIEF <= 0) return;
+    int n = p.x.length;
+    float d = AO_PX / RENDER_SCALE;
+    pg.beginShape(QUADS);
+    for (int i = 0; i < n; i++) {
+      int j = (i + 1) % n;
+      float ex = p.x[j] - p.x[i], ey = p.y[j] - p.y[i], l = max(0.001, sqrt(ex * ex + ey * ey));
+      float nx = ey / l, ny = -ex / l;
+      if ((p.x[i] - p.cx) * nx + (p.y[i] - p.cy) * ny < 0) { nx = -nx; ny = -ny; }   // outwards
+      pg.fill(0, 0, 0, alpha * 0.3 * RELIEF);
+      pg.vertex(p.x[i], p.y[i]);
+      pg.vertex(p.x[j], p.y[j]);
+      pg.fill(0, 0, 0, 0);
+      pg.vertex(p.x[j] + nx * d, p.y[j] + ny * d);
+      pg.vertex(p.x[i] + nx * d, p.y[i] + ny * d);
+    }
+    pg.endShape();
   }
 
   // a = assembly progress 0..1: small shards settle first, drifting in from just
@@ -762,7 +1136,9 @@ class TrencadisTile {
     pg.noStroke();
     pg.textureMode(NORMAL);
     float dry = smooth01(t);
-    drawBed(pg, alpha * smooth01(t / 0.45), dry);
+    float bed = alpha * smooth01(t / 0.45);
+    drawBed(pg, bed, dry);
+    for (Piece p : pieces) drawGroutShadow(pg, p, bed);
     for (Piece p : pieces) drawPiece(pg, p, alpha, 0, 0);
   }
 
@@ -770,37 +1146,106 @@ class TrencadisTile {
 
   void drawBed(PGraphics pg, float alpha, float dry) {
     if (alpha <= 0) return;
-    pg.fill(GROUT_H, lerp(min(100, GROUT_S + 12), GROUT_S, dry), lerp(GROUT_B * 0.45, GROUT_B, dry), alpha);
+    // Sandy mortar: a grain texture tinted with the grout colour (darker while wet)
+    pg.textureWrap(REPEAT);
     pg.beginShape();
-    for (int i = 0; i < gx.length; i++) pg.vertex(gx[i], gy[i]);
+    pg.texture(groutTexture());
+    pg.tint(GROUT_H, lerp(min(100, GROUT_S + 12), GROUT_S, dry), lerp(GROUT_B * 0.45, GROUT_B, dry), alpha);
+    float k = RENDER_SCALE / 128.0;   // one grain per output pixel
+    for (int i = 0; i < gx.length; i++) pg.vertex(gx[i], gy[i], gx[i] * k, gy[i] * k);
     pg.endShape(CLOSE);
+    pg.noTint();
+    pg.textureWrap(CLAMP);
   }
 
   void drawPiece(PGraphics pg, Piece p, float alpha, float ox, float oy) { drawPiece(pg, p, alpha, ox, oy, 1); }
 
   // dim < 1 darkens the piece (far away while assembling)
   void drawPiece(PGraphics pg, Piece p, float alpha, float ox, float oy, float dim) {
+    int n = p.x.length;
+    float light = 1 + RELIEF * 0.13 * p.lit;   // tilted towards the light or away from it
+
+    // The glazed face
     pg.beginShape();
     if (p.u != null) {
       pg.texture(tex);
-      pg.tint(0, 0, p.b * dim, alpha);
-      for (int i = 0; i < p.x.length; i++) pg.vertex(p.x[i] - ox, p.y[i] - oy, p.u[i], p.v[i]);
+      pg.tint(0, 0, constrain(p.b * dim * light, 0, 100), alpha);
+      for (int i = 0; i < n; i++) pg.vertex(p.x[i] - ox, p.y[i] - oy, p.u[i], p.v[i]);
     } else {
-      pg.fill(p.h, p.s, p.b * dim, alpha);
-      for (int i = 0; i < p.x.length; i++) pg.vertex(p.x[i] - ox, p.y[i] - oy);
+      pg.fill(p.h, p.s, constrain(p.b * dim * light, 0, 100), alpha);
+      for (int i = 0; i < n; i++) pg.vertex(p.x[i] - ox, p.y[i] - oy);
     }
     pg.endShape(CLOSE);
     pg.noTint();
+    if (RELIEF <= 0 && GLAZE <= 0) return;
 
-    // Very soft sheen of the glaze towards the light
-    if (GLAZE <= 0) return;
-    pg.beginShape();
-    for (int i = 0; i < p.x.length; i++) {
-      pg.fill(0, 0, 100, alpha * dim * GLAZE / 100 * p.sheen[i]);
-      pg.vertex(p.x[i] - ox, p.y[i] - oy);
+    if (RELIEF > 0) {
+      // Tilt: one side of the face a touch lighter, the other a touch darker
+      pg.beginShape();
+      for (int i = 0; i < n; i++) {
+        float g = p.grad[i];
+        if (g > 0) pg.fill(0, 0, 100, alpha * dim * RELIEF * 0.14 * g);
+        else       pg.fill(0, 0, 0,   alpha * RELIEF * 0.16 * -g);
+        pg.vertex(p.x[i] - ox, p.y[i] - oy);
+      }
+      pg.endShape(CLOSE);
+
+      // Rounded rim: lit on the edges facing the light, shaded on the others;
+      // here and there the glaze is chipped and the pale biscuit shows
+      if (p.rx != null) {
+        pg.beginShape(QUADS);
+        for (int i = 0; i < n; i++) {
+          int j = (i + 1) % n;
+          float l = p.rimLit[i], aOut, aIn;
+          if (p.chipped[i]) { pg.fill(40, 12, 90 * dim, alpha * 0.75); aIn = alpha * 0.75; }
+          else if (l > 0)   { pg.fill(0, 0, 100, aOut = alpha * dim * RELIEF * 0.55 * l); aIn = 0; }
+          else              { pg.fill(0, 0, 0,   aOut = alpha * RELIEF * 0.45 * -l);       aIn = 0; }
+          pg.vertex(p.x[i] - ox, p.y[i] - oy);
+          pg.vertex(p.x[j] - ox, p.y[j] - oy);
+          if (!p.chipped[i]) pg.fill(0, 0, l > 0 ? 100 : 0, aIn);
+          pg.vertex(p.rx[j] - ox, p.ry[j] - oy);
+          pg.vertex(p.rx[i] - ox, p.ry[i] - oy);
+        }
+        pg.endShape();
+      }
     }
-    pg.endShape(CLOSE);
+
+    // Glaze highlight: only the shards tilted towards the light catch it
+    if (GLAZE > 0 && p.spec > 0.05) {
+      float pr = 0;
+      for (int i = 0; i < n; i++) pr = max(pr, dist(p.x[i], p.y[i], p.cx, p.cy));
+      float hx = p.cx + LIGHT_X * pr * 0.3, hy = p.cy + LIGHT_Y * pr * 0.3;
+      pg.beginShape(TRIANGLE_FAN);
+      pg.fill(0, 0, 100, alpha * dim * GLAZE / 100 * min(1, p.spec));
+      pg.vertex(hx - ox, hy - oy);
+      pg.fill(0, 0, 100, 0);
+      for (int i = 0; i <= n; i++) {
+        int k = i % n;
+        pg.vertex(lerp(hx, p.x[k], 0.6) - ox, lerp(hy, p.y[k], 0.6) - oy);
+      }
+      pg.endShape();
+    }
   }
+
+}
+
+// Grain of the mortar: near-white noise, tinted with the grout colour when drawn
+PImage groutTex;
+
+PImage groutTexture() {
+  if (groutTex != null) return groutTex;
+  Random g = new Random(7);
+  groutTex = createImage(128, 128, RGB);
+  groutTex.loadPixels();
+  for (int i = 0; i < groutTex.pixels.length; i++) {
+    float v = 232 + (float) g.nextGaussian() * 10;
+    if (g.nextFloat() < 0.03) v -= 60;   // dark grains of sand
+    if (g.nextFloat() < 0.02) v += 25;
+    int c = constrain(round(v), 0, 255);
+    groutTex.pixels[i] = 0xFF000000 | (c << 16) | (c << 8) | c;
+  }
+  groutTex.updatePixels();
+  return groutTex;
 }
 
 // ********************

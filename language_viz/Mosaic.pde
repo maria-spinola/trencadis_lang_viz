@@ -198,8 +198,30 @@ void stampTile(TrencadisTile tile) {
 
 void clearLayer() {
   mosaicLayer.beginDraw();
-  mosaicLayer.background(0);
+  mosaicLayer.clear();   // transparent between tiles: the poem shards pass behind the mural
   mosaicLayer.endDraw();
+}
+
+// A dark, see-through window behind the tile assembling on the main wall,
+// so the poem drifting behind does not clutter it. Fades in and out with the tile.
+float panelAlpha = 0;
+
+void drawHoldPanel(PGraphics pg, Face f) {
+  TileFlight on = null;
+  for (TileFlight fl : flights) if (fl.onMainWall()) { on = fl; break; }
+  panelAlpha = lerp(panelAlpha, on != null ? HOLD_PANEL_ALPHA : 0, 0.04);
+  if (panelAlpha < 0.5) return;
+  float w = f.h * HOLD_HEIGHT * 1.75, h = f.h * HOLD_HEIGHT * 1.35;
+  if (on != null) { w = on.tile.tileW * on.holdScale * 1.3; h = on.tile.tileH * on.holdScale * 1.3; }
+  pg.pushStyle();
+  pg.noStroke();
+  pg.rectMode(CENTER);
+  for (int i = 0; i < 6; i++) {   // soft edges: a few growing, fainter rectangles
+    float k = 1 + i * 0.05;
+    pg.fill(0, 0, 0, panelAlpha * (i == 0 ? 1 : 0.18));
+    pg.rect(f.w / 2, f.h * HOLD_Y, w * k, h * k, f.h * 0.04 * k);
+  }
+  pg.popStyle();
 }
 
 // ********************

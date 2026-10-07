@@ -40,15 +40,18 @@ void updateWords() {
     poemWordsList.clear();
     return;
   }
-  // Spawn poem words on timer
+  // A new poem word now and then; when there are too many, the oldest little shard fades away
   poemSpawnTimer++;
   if (poemSpawnTimer >= POEM_SPAWN_INTERVAL) {
     poemSpawnTimer = 0;
-    if (poemWordsList.size() < MAX_POEM_WORDS) {
-      int n = poemWordCursor;
-      JSONObject wordObj = nextPoemWord();
-      if (wordObj != null) poemWordsList.add(new PoemWord(wordObj, n));
+    int alive = 0;
+    for (PoemWord pw : poemWordsList) if (!pw.leaving) alive++;
+    if (alive >= MAX_POEM_WORDS) {
+      for (PoemWord pw : poemWordsList) if (!pw.leaving) { pw.leave(); break; }
     }
+    int n = poemWordCursor;
+    JSONObject wordObj = nextPoemWord();
+    if (wordObj != null) poemWordsList.add(new PoemWord(wordObj, n));
   }
 
   for (int i = poemWordsList.size()-1; i >= 0; i--) {
@@ -63,39 +66,96 @@ void updateWords() {
 //    POEM WORDS
 // *****************
 
+// The poem tiles live on a strip that goes round the walls (Mosaic.pde: ring
+// coordinates c along, v from the top). They never enter the mural wall (WALL 1 / BACK)
+// nor the middle of the main wall (where the tile assembles and the text box is):
+// that leaves two free stretches, A (WALL 2 + left of WALL 3) and B (right of WALL 3 + WALL 4).
+float poemReach()  { return POEM_TILE_SIZE * (0.75 + POEM_SPREAD); }   // how far a cloud of pieces reaches
+
+float[] poemStretch(int k) {   // {from, to} in ring coordinates, already leaving room for the cloud
+  float m = poemReach();
+  if (k == 0) return new float[] { ROOM_D + m, ROOM_D + ROOM_W - m };                   // WALL 2 only
+  return new float[] { 2 * ROOM_D + ROOM_W + m, 2 * ROOM_D + 2 * ROOM_W - m };          // WALL 4 only
+}
+
+// No-floor venue: the words float along the low band of WALL 4, WALL 1 and WALL 2, never on the main wall
+float[] bandStretch() {
+  float m = POEM_TILE_SIZE * 0.6;
+  return new float[] { 2 * ROOM_D + ROOM_W + m, 2 * ROOM_D + 2 * ROOM_W + ROOM_D + ROOM_W - m };
+}
+
+PFont poemFont;
+
+// Life of a poem word:
+//   JOURNEY  out of the depth behind the main wall (where typed words appear), tiny and dark,
+//            already heading for its spot along the walls, opening more and more on the way;
+//            each piece runs ahead and falls behind the group
+//   WORD     the cloud stops; the word appears on black in the empty middle and stays 2 s;
+//            then the WORD leaves: it glides down the wall and floats on the floor
+//            (no floor in the venue: along the low band of the walls)
+//   CLOSE    meanwhile the pieces close up into the tile
+//   COLLAPSE the word fades and all the pieces fold into one small shard
+//   MINI     the little shard wanders all the walls, behind the mural and the text window.
+//            Only when there are very many does the oldest (word and shard) fade away.
 class PoemWord {
-  int face;           // surface the tile is on (index in faces[])
-  PVector pos;        // 3D room position, always on that surface
-  PVector vel;        // 3D velocity, tangent to the surface
-  PVector up;         // 3D "up" of the tile, tangent to the surface
-  float age, lifetime, seed;
-  float alpha, life;
+  String word;
+  int   stretch;              // 0 = A, 1 = B
+  float c, v;                 // centre on the ring of walls
+  float c0, v0, c1, v1;       // start (main wall) and destination
+  float vc, vPhase, vAmp;     // drift of the little shard
+  float bandV;                // no-floor venue: how far above the bottom edge it floats
+  float age, seed;
+  float tE, tT, tC, tW, tX;   // phase lengths (frames)
+  float[] sx, sy, spin;       // per piece: where it drifts to when open, how much it turns
+  float[] lag, oscF, oscP;    // per piece: place in the travelling group, back-and-forth rhythm
+  float[] goT;                // per piece: when it fades away while the tile shrinks (0..1)
+  PVector pos, vel, up;       // the little shard wandering the walls (MINI)
+  int face;
+  float wc, wv;               // the written word: on the ring of walls while it goes down…
+  PVector wpos, wvel, wup;    // …then floating on the floor
+  float wordStart;            // age at which the word leaves the tile and goes down
+  float wdir = 1;             // no-floor venue: direction along the low band
+  int   miniIdx;              // the piece that stays as the little shard
+  float miniScale, miniSpin;
+  boolean leaving = false;
+  float leaveAge;
+
+  // state of this frame
+  float alpha, apart, scl, dim, wordA, gather, pieceS;
 
   TrencadisTile tile;
 
   // n = how many poem words were spawned before → same sequence on every run
   PoemWord(JSONObject wordObj, int n) {
     Random r = new Random(MOSAIC_SEED * 7919 + n);
+    if (poemFont == null) poemFont = createFont("Georgia", 96);
 
-    // Spot anywhere in the room (more area = more tiles)
-    face = randomFaceByArea(r);
-    Face f = faces[face];
-    float vMin = (face == FLOOR) ? 0 : CEILING_MARGIN;
-    float vMax = (face == FLOOR || HAS_FLOOR) ? f.h : f.h - CEILING_MARGIN;
-    pos = f.toRoom(rnd(r, 0, f.w), rnd(r, vMin, vMax));
+    // Starts behind the middle of the main wall, at the height of the assembling tile
+    c0 = ROOM_D + ROOM_W + ROOM_D / 2;
+    v0 = WALL_H * HOLD_Y;
+    // Goes to the free spot furthest from the other poem words
+    float best = -1;
+    for (int k = 0; k < 24; k++) {
+      int st = r.nextInt(2);
+      float[] sr = poemStretch(st);
+      if (sr[1] <= sr[0]) { st = 1 - st; sr = poemStretch(st); }
+      float cc = rnd(r, sr[0], max(sr[0], sr[1])), vv = rnd(r, 0.3, 0.7) * WALL_H;
+      float d = Float.MAX_VALUE;
+      for (PoemWord o : poemWordsList) d = min(d, dist(cc, vv, o.c1, o.v1));
+      if (d > best) { best = d; stretch = st; c1 = cc; v1 = vv; }
+    }
+    c = c0;
+    v = v0;
+    vc      = rnd(r, 0.4, 1.0) * (r.nextBoolean() ? 1 : -1);   // (direction kept for the random sequence)
+    wdir    = (vc > 0) ? -1 : 1;
+    vPhase  = rnd(r, 0, TWO_PI);
+    vAmp    = rnd(r, 0.04, 0.1) * WALL_H;
+    seed    = rnd(r, 0, 1000);
+    bandV   = rnd(r, 0.08, 0.2) * WALL_H;
+    tE = POEM_EMERGE_FRAMES; tT = POEM_TRAVEL_FRAMES; tC = POEM_CLOSE_FRAMES; tW = 30 + POEM_WORD_FRAMES;
+    wordStart = tE + tT + tW; tX = POEM_COLLAPSE_FRAMES;
 
-    float dir   = rnd(r, 0, TWO_PI);
-    float speed = rnd(r, FLOAT_SPEED_MIN, FLOAT_SPEED_MAX);
-    vel = PVector.add(PVector.mult(f.eU, cos(dir) * speed), PVector.mult(f.eV, sin(dir) * speed));
-    up  = PVector.mult(f.eV, -1);
-
-    age      = 0;
-    lifetime = rnd(r, FLOAT_LIFE_MIN, FLOAT_LIFE_MAX);
-    seed     = rnd(r, 0, 1000);
-    alpha    = 0;
-    life     = 0;
-
-    String word    = wordObj.getString("word", "");
+    word           = wordObj.getString("word", "");
     String hex     = wordObj.getString("color_hex", "#FFFFFF");
     int emotion    = constrain(wordObj.getInt("emotion",         4), 1, 7);
     int wordClass  = constrain(wordObj.getInt("word_class",      1), 1, 8);
@@ -105,70 +165,254 @@ class PoemWord {
     int bOrganic   = constrain(wordObj.getInt("organic",         4), 1, 7);
     int bTime      = constrain(wordObj.getInt("time_duration",   4), 1, 7);
 
-    // Built around (0,0): position and rotation are applied per surface in display()
+    // Built around (0,0): position is applied per surface in display()
     long tseed = wordSeed(word + hex, emotion, wordClass, bAbstract, bAgency, bOrganic, phenomenon, bTime);
     Patch shape = freePatch(new Random(tseed), POEM_TILE_SIZE, POEM_TILE_SIZE * 0.8);
     tile = new TrencadisTile(tseed, parseHexColor(hex), bAbstract, bOrganic, phenomenon, wordClass, shape, -1);
+
+    // Where each piece drifts to when open: away from the centre, wider than tall (walls are low)
+    int np = tile.pieces.size();
+    sx = new float[np]; sy = new float[np]; spin = new float[np];
+    lag = new float[np]; oscF = new float[np]; oscP = new float[np];
+    float bestA = -1;
+    for (int i = 0; i < np; i++) {
+      Piece p = tile.pieces.get(i);
+      float a = atan2(p.cy, p.cx) + rnd(r, -0.7, 0.7);
+      float d = POEM_TILE_SIZE * POEM_SPREAD * rnd(r, 0.3, 1.0);
+      sx[i] = cos(a) * d;
+      sy[i] = sin(a) * d * 0.55;
+      spin[i] = rnd(r, -1, 1) * 1.2;
+      lag[i]  = rnd(r, -1, 1);
+      oscF[i] = rnd(r, 0.008, 0.02);
+      oscP[i] = rnd(r, 0, TWO_PI);
+      // the little shard: a fair-sized piece near the middle
+      float per = 0;
+      for (int j = 0; j < p.x.length; j++) { int j2 = (j + 1) % p.x.length; per += dist(p.x[j], p.y[j], p.x[j2], p.y[j2]); }
+      float chunk = p.area / max(1, per * per);   // 0.077 square … ~0.02 splinter
+      float score = p.area * sq(chunk / 0.07) / (1 + dist(p.cx, p.cy, 0, 0) / (POEM_TILE_SIZE * 0.15));
+      if (score > bestA) { bestA = score; miniIdx = i; }
+    }
+    miniScale = (np > 0) ? min(1, POEM_MINI_SIZE / max(1, sqrt(tile.pieces.get(miniIdx).area))) : 1;   // only ever shrinks
+    goT = new float[np];
+    if (np > 0) {
+      Piece keep = tile.pieces.get(miniIdx);
+      float dmax = 1;
+      for (Piece p : tile.pieces) dmax = max(dmax, dist(p.cx, p.cy, keep.cx, keep.cy));
+      for (int i = 0; i < np; i++) {
+        Piece p = tile.pieces.get(i);
+        goT[i] = 0.55 * (1 - dist(p.cx, p.cy, keep.cx, keep.cy) / dmax) + rnd(r, 0, 0.15);   // the furthest go first
+      }
+    }
+    miniSpin  = rnd(r, -1, 1) * 0.004;
   }
+
+  void leave() { leaving = true; leaveAge = age; }
+
+  float travel;   // 0..1 how far along the journey (for the group stretching along the way)
 
   void update() {
     age++;
-    float p = age / lifetime;
-
-    // Alpha -> fade in at birth, fade out at the end
-    alpha = constrain(min(p / 0.2, (1 - p) / 0.25), 0, 1) * POEM_ALPHA;
-    // Life -> the tile grows during the first part of its life
-    life  = constrain(map(p, 0, 0.6, 0.15, 1), 0.15, 1);
-
-    move();
+    float t = age;
+    gather = 0; wordA = 0; scl = 1; dim = 1; apart = 0; travel = 0; pieceS = 1;
+    float fade = 1;
+    float tJ = tE + tT;
+    if (t < tJ) {                                  // JOURNEY: out of the depth, already on its way
+      float e = easeInOutCubic(t / tJ);
+      float d = smooth01(t / tE);                  // coming out of the depth during the first part
+      scl = 1 / (1 + POEM_EMERGE_DEPTH * (1 - d));
+      dim = lerp(0.1, 1, d);
+      fade = smooth01(t / (tE * 0.25));
+      apart = lerp(0.2, 1, smooth01(t / tJ));      // keeps opening along the way
+      pieceS = lerp(POEM_BIRTH_SCALE, 1, smooth01((t / tJ - POEM_GROW_START) / (1 - POEM_GROW_START)));   // small while moving away, then they grow
+      travel = sin(PI * e);                        // stretched out while moving, gathered at the ends
+      c = lerp(c0, c1, e);
+      v = lerp(v0, v1, e) + sin(PI * e) * vAmp;
+    } else if ((t -= tJ) < tW) {                   // WORD: still and open, the word on black in the middle
+      c = c1; v = v1;
+      apart = 1;
+      wordA = smooth01(t / 30);
+    } else if ((t -= tW) < tC) {                   // CLOSE: once the word is gone, the pieces close up
+      c = c1; v = v1;
+      apart = 1 - easeInOutCubic(t / tC);
+    } else if ((t -= tC) < tX) {                   // COLLAPSE: into one little shard
+      float e = t / tX;
+      c = c1; v = v1;
+      gather = e;   // eased per piece in display()
+    } else {                                       // MINI: the little shard wanders all the walls
+      gather = 1;
+      if (pos == null) {
+        pos  = ringPoint(c, v);
+        face = ringFace(c);
+        Face f = faces[face];
+        vel = PVector.mult(f.eU, (vc > 0 ? 1 : -1) * POEM_MINI_SPEED);
+        up  = new PVector(0, 0, 1);
+      }
+      wander();
+    }
+    updateWord();
+    if (leaving) fade *= 1 - smooth01((age - leaveAge) / 600);
+    alpha = POEM_ALPHA * fade;
   }
 
-  void move() {
-    Face f = faces[face];
+  // The written word: once its 2 s are over it leaves the tile, glides down the wall and
+  // floats on the floor like a leaf on water (no floor in the venue: along the low band of the walls)
+  void updateWord() {
+    if (age < wordStart) { wc = c; wv = v; return; }
+    wordA = 1;
+    float t = age - wordStart;
+    float vEnd = HAS_FLOOR ? WALL_H : WALL_H - bandV;
+    if (t < POEM_DESCEND_FRAMES) {                 // gliding down, swaying a little
+      float e = easeInOutCubic(t / POEM_DESCEND_FRAMES);
+      wc = c1 + sin(e * PI) * POEM_TILE_SIZE * 0.3 * (vc > 0 ? 1 : -1);
+      wv = lerp(v1, vEnd, e);
+    } else if (HAS_FLOOR) {
+      if (wpos == null) {                          // onto the floor, heading into the room
+        Face w = faces[ringFace(wc)];
+        wpos = PVector.add(ringPoint(wc, WALL_H), PVector.mult(w.n, 2));
+        wpos.z = 0;
+        wvel = PVector.mult(w.n, POEM_WORD_SPEED);
+        wup  = PVector.mult(w.n, -1);              // same orientation it had on the wall (unfolded): no flip
+      }
+      floatOnFloor();
+    } else {
+      float[] br = bandStretch();
+      if (wc < br[0] - 1) wc += ringLength();   // (WALL 2 is after WALL 1 going round)
+      wc += wdir * POEM_WORD_SPEED * (0.7 + 0.6 * noise(seed, age * 0.001));
+      if ((wc < br[0] && wdir < 0) || (wc > br[1] && wdir > 0)) wdir = -wdir;   // turns back before the main wall
+      wv  = vEnd + sin(age * 0.004 + vPhase) * bandV * 0.35;
+    }
+  }
 
-    // Gentle wandering: turn the velocity inside the surface plane
-    float turn = (noise(seed, age * 0.004) - 0.5) * 0.05;
+  void floatOnFloor() {
+    float m = POEM_TILE_SIZE * 0.6;
+    float ang = noise(wpos.x * 0.00035 + seed * 0.01, wpos.y * 0.00035, age * 0.00015) * TWO_PI * 2;
+    PVector want = new PVector(cos(ang), sin(ang), 0);
+    // soft walls: steer back towards the middle near the edges
+    if (wpos.x < m)          want.x += (m - wpos.x) / m * 2;
+    if (wpos.x > ROOM_W - m) want.x -= (wpos.x - (ROOM_W - m)) / m * 2;
+    if (wpos.y < m)          want.y += (m - wpos.y) / m * 2;
+    if (wpos.y > ROOM_D - m) want.y -= (wpos.y - (ROOM_D - m)) / m * 2;
+    // a little room between the words
+    for (PoemWord o : poemWordsList) {
+      if (o == this || o.wpos == null) continue;
+      float d = dist(wpos.x, wpos.y, o.wpos.x, o.wpos.y);
+      if (d < POEM_TILE_SIZE && d > 0.01) want.add((wpos.x - o.wpos.x) / d * 0.8, (wpos.y - o.wpos.y) / d * 0.8, 0);
+    }
+    if (want.mag() < 0.2) want = new PVector(-wvel.y, wvel.x, 0);   // forces cancel out: slide along
+    want.normalize().mult(POEM_WORD_SPEED);
+    wvel.lerp(want, 0.01);                         // turns slowly: long, graceful curves
+    if (wvel.mag() < POEM_WORD_SPEED * 0.5) wvel.setMag(POEM_WORD_SPEED * 0.5);
+    wpos.add(wvel);
+    wpos.x = constrain(wpos.x, 5, ROOM_W - 5);
+    wpos.y = constrain(wpos.y, 5, ROOM_D - 5);
+    wpos.z = 0;
+    wup.lerp(wvel.copy().normalize(), 0.008);      // slowly turns to read along the way it drifts
+    if (wup.mag() < 0.01) wup.set(1, 0, 0);
+    wup.normalize();
+  }
+
+  // The little shard: free over all the walls (crossing corners), never on the floor
+  void wander() {
+    Face f = faces[face];
+    float turn = (noise(seed, age * 0.002) - 0.5) * 0.012;   // long, gentle curves
     PVector side = f.n.cross(vel);
     vel = PVector.add(PVector.mult(vel, cos(turn)), PVector.mult(side, sin(turn)));
-
-    if (face != FLOOR) {
-      // On walls, slowly turn upright again
-      PVector wallUp = PVector.mult(f.eV, -1);
-      up.lerp(wallUp, 0.005);
-      if (up.mag() < 0.01) up = wallUp;
-      up.normalize();
-
-      // Turn back before reaching the ceiling (nothing is projected there)
-      float v = PVector.sub(pos, f.O).dot(f.eV);
-      float s = vel.dot(f.eV);
-      if (v < CEILING_MARGIN && s < 0) vel.add(PVector.mult(f.eV, -2 * s));
-      // No floor in this venue: turn back before the bottom edge too
-      if (!HAS_FLOOR && v > f.h - CEILING_MARGIN && s > 0) vel.add(PVector.mult(f.eV, -2 * s));
-    }
-
+    PVector wallUp = PVector.mult(f.eV, -1);
+    up.lerp(wallUp, 0.01);
+    if (up.mag() < 0.01) up = wallUp;
+    up.normalize();
+    float vv = PVector.sub(pos, f.O).dot(f.eV), s = vel.dot(f.eV);
+    vel.add(PVector.mult(f.eV, -s * 0.01));        // mostly along the walls, not up and down
+    vel.setMag(POEM_MINI_SPEED);
+    if (vv < CEILING_MARGIN * 0.5 && s < 0) vel.add(PVector.mult(f.eV, -2 * s));
+    if (vv > f.h - CEILING_MARGIN * 0.5 && s > 0) vel.add(PVector.mult(f.eV, -2 * s));   // stays off the floor
     pos.add(vel);
-    int next = foldOver(face, pos, vel, up);   // Room.pde — crosses to the next surface
-    if (next >= 0) face = next;
+    int next = foldOver(face, pos, vel, up);
+    if (next >= 0 && next != FLOOR) face = next;
   }
+
+
 
   void display(PGraphics pg, Face target) {
     if (alpha < 1) return;
-    Face src = faces[face];
-    PVector p = target.localPoint(pos, src);
-    if (p == null) return;
-    float reach = tile.radius * life + 20;
-    if (p.x < -reach || p.x > target.w + reach || p.y < -reach || p.y > target.h + reach) return;
+    PVector P = (pos != null) ? pos : ringPoint(c, v);
+    Face src = faces[(pos != null) ? face : ringFace(c)];
+    PVector q = target.localPoint(P, src);
+    if (q == null) return;
+    float reach = poemReach() + 20;
+    if (q.x < -reach || q.x > target.w + reach || q.y < -reach || q.y > target.h + reach) return;
 
-    PVector u = target.localDir(up, src);
+    PVector u = target.localDir(pos != null ? up : new PVector(0, 0, 1), src);
     pg.push();
-    pg.translate(p.x, p.y);
+    pg.translate(q.x, q.y);
     pg.rotate(atan2(u.y, u.x) + HALF_PI);
-    pg.scale(life);
-    tile.drawFlat(pg, alpha);
+    pg.noStroke();
+    pg.textureMode(NORMAL);
+    pg.scale(scl);
+    for (int i = 0; i < tile.pieces.size(); i++) {
+      Piece p = tile.pieces.get(i);
+      boolean mini = (i == miniIdx);
+      float go = mini ? 0 : smooth01((gather - goT[i]) / 0.3);   // this piece fading away
+      if (go >= 1) continue;
+      float a = alpha * (1 - go);
+      if (a < 0.5) continue;
+      pg.pushMatrix();
+      if (mini && gather > 0) {
+        // the kept piece slowly shrinks to the little shard, drifting to the centre
+        float g = easeInOutCubic(gather);
+        pg.translate(lerp(p.cx, 0, g), lerp(p.cy, 0, g));
+        pg.rotate(age * miniSpin * g);
+        pg.scale(lerp(1, miniScale, g));
+      } else if (gather > 0) {
+        // the others shrink and fade where they are, one after another
+        pg.translate(p.cx, p.cy);
+        pg.scale(max(0.01, 1 - go * 0.6));
+      } else {
+        float k = 1;
+        float ox = p.cx + sx[i] * apart, oy = p.cy + sy[i] * apart;
+        // open: keep the middle empty for the word
+        float ex = ox / (POEM_TILE_SIZE * 0.55), ey = oy / (POEM_TILE_SIZE * 0.3), er = sqrt(ex * ex + ey * ey);
+        if (er < 1 && er > 0.001) { float push = lerp(1, 1 / er, apart); ox *= push; oy *= push; }
+        // travelling: each piece runs ahead and falls behind the group, along the way
+        float dirX = (c1 >= c0) ? 1 : -1;
+        ox += dirX * POEM_TILE_SIZE * travel * (0.6 * lag[i] + 0.35 * sin(age * oscF[i] + oscP[i]));
+        pg.translate(ox * k, oy * k);
+        pg.rotate(spin[i] * apart);
+        pg.scale(max(0.01, k) * pieceS);
+      }
+      tile.drawPiece(pg, p, a, p.cx, p.cy, dim);
+      pg.popMatrix();
+    }
+    pg.pop();
+    if (wordA > 0) drawWord(pg, target);
+  }
+
+  void drawWord(PGraphics pg, Face target) {
+    PVector P = (wpos != null) ? wpos : ringPoint(wc, wv);
+    Face src = faces[(wpos != null) ? FLOOR : ringFace(wc)];
+    PVector q = target.localPoint(P, src);
+    if (q == null) return;
+    float reach = POEM_TILE_SIZE;
+    if (q.x < -reach || q.x > target.w + reach || q.y < -reach || q.y > target.h + reach) return;
+    PVector u = target.localDir(wpos != null ? wup : new PVector(0, 0, 1), src);
+    pg.push();
+    pg.translate(q.x, q.y);
+    pg.rotate(atan2(u.y, u.x) + HALF_PI);
+    pg.textFont(poemFont);
+    pg.textAlign(CENTER, CENTER);
+    pg.textSize(POEM_TILE_SIZE * 0.22 * (age < wordStart ? scl : 1));
+    float ta = 100 * wordA * alpha / POEM_ALPHA;
+    for (int k = 0; k < 8; k++) {   // soft dark halo so it reads over anything
+      float a = TWO_PI * k / 8, d = POEM_TILE_SIZE * 0.012;
+      pg.fill(225, 50, 8, ta * 0.35);
+      pg.text(word, cos(a) * d, sin(a) * d);
+    }
+    pg.fill(40, 8, 98, ta);
+    pg.text(word, 0, 0);
     pg.pop();
   }
 
   boolean isDead() {
-    return age >= lifetime;
+    return leaving && age - leaveAge > 600;
   }
 }

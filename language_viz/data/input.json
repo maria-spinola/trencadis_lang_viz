@@ -1,11 +1,11 @@
 {
   "emotion": 3,
-  "agency": 6,
-  "word_class": 1,
+  "agency": 1,
+  "word_class": 2,
   "abstraction": 5,
-  "color_hex": "#D14EE1",
-  "time_duration": 1,
-  "word": "hpla",
+  "color_hex": "#222CB4",
+  "time_duration": 7,
+  "word": "hi",
   "organic": 4,
-  "phenomena_class": 1
+  "phenomena_class": 7
 }

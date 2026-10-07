@@ -9,7 +9,7 @@
 //   1 = La Salle IASLab immersive room: 4 walls, NO floor (Watchout, real time via NDI)
 //       FRONT / BACK 3206 x 1200 px (7 m), LEFT / RIGHT 4966 x 1200 px (10.844 m), projected height 2.7 m
 //       WALL 3 = FRONT (main wall: text input), WALL 1 = BACK (mural), WALL 2 = LEFT, WALL 4 = RIGHT
-final int VENUE = 1;
+final int VENUE = 0;
 final boolean HAS_FLOOR = (VENUE != 1);   // no floor: it is not rendered, pieces never travel over it
 // Sizes in units = output pixels at RENDER_SCALE 1.0.
 final float ROOM_W = (VENUE == 1) ? 4966 : 4250;   // length of WALL 2 / WALL 4 (floor width)
@@ -62,11 +62,7 @@ float UI_Y     = 0.72;   // top of the box, fraction of the wall height (0 = top
 // Darkness of the band behind the text input (0 = none, 100 = solid black)
 float UI_BAR_ALPHA = 35;
 
-// Floating poem figures (move across walls + floor)
-float FLOAT_SPEED_MIN = 1.5;    // matrix units per frame
-float FLOAT_SPEED_MAX = 4.0;
-float FLOAT_LIFE_MIN  = 1200;   // frames
-float FLOAT_LIFE_MAX  = 2400;
+// Poem: margin below the ceiling
 float CEILING_MARGIN  = 250;    // figures turn back before the top of the walls
 
 // ── TRENCADÍS MOSAIC (WALL 1) ───────────────────────────────
@@ -74,13 +70,17 @@ final long MOSAIC_SEED   = 1914;  // layout of the mural; change it → a differ
 int   MOSAIC_ROWS        = 5;     // wavy bands on WALL 1 (more rows = smaller tiles, more words fit)
 float MOSAIC_CELL_MIN    = 0.9;   // cell width, in band heights
 float MOSAIC_CELL_MAX    = 1.6;
-float GROUT_WIDTH        = 0.9;   // half the gap between shards, matrix units (varies a little per shard)
+float GROUT_WIDTH        = 1.2;   // half the gap between shards, matrix units (varies a little per shard)
 float GROUT_H = 38, GROUT_S = 5, GROUT_B = 80;   // grout colour (HSB): light grey cement, only once set on WALL 1
 float GROUT_SET_FRAMES   = 170;   // frames the grout takes to seep in and dry when a tile lands on WALL 1
-float GLAZE              = 7;     // soft sheen of the glaze towards the light (0 = matte)
+// Relief and finish of the shards (Trencadis.pde)
+float RELIEF             = 1.0;   // tilt shading, rounded rims, sunk grout (0 = flat)
+float RIM_PX             = 2.2;   // width of the rounded rim of each shard, output pixels
+float AO_PX              = 2.2;   // width of the shadow in the grout next to each shard, output pixels
+float GLAZE              = 30;    // glaze highlight on the shards tilted towards the light (0 = matte)
 float SCATTER            = 1.0;   // how far the pieces drift apart while travelling (0 = they travel as one tile)
-float ASSEMBLE_DEPTH     = 9;
-float ASSEMBLE_SPREAD    = 3;     // how scattered the shards are when they start far away (× tile size)     // how far behind WALL 3 the shards come from while assembling (× the camera distance)
+float ASSEMBLE_DEPTH     = 9;     // how far behind WALL 3 the shards come from while assembling (× the camera distance)
+float ASSEMBLE_SPREAD    = 3;     // how scattered the shards are when they start far away (× tile size)
 // Time on the main wall (frames, 60 = 1 s)
 float ASSEMBLE_FRAMES_MIN = 110;  // assembling, agency 7
 float ASSEMBLE_FRAMES_MAX = 220;  // assembling, agency 1
@@ -94,6 +94,7 @@ float VIEWER_HEIGHT      = WALL_H * ((VENUE == 1) ? 0.59 : 0.4);   // eye height
 float DEPTH_3D           = 1.0;            // how far into the room the pieces fly (3D)
 float HOLD_HEIGHT        = 0.45;  // size of the new tile on the main wall (fraction of its height)
 float HOLD_Y             = 0.38;  // its centre, fraction of the wall height (leaves room for the text input below)
+float HOLD_PANEL_ALPHA   = 72;    // dark see-through window behind the new tile (0 = none, 100 = black)
 String  MOSAIC_FILE      = "mosaic.json";   // in data/
 boolean MOSAIC_SAVE      = true;  // keep the mural between runs
 
@@ -128,10 +129,23 @@ String currentWord = "—";
 
 // Poem system (small floating tiles)
 boolean SHOW_POEM       = true; // false = no floating poem tiles (Ctrl+P toggles it live)
-int MAX_POEM_WORDS      = 10;
-int POEM_SPAWN_INTERVAL = 30; // frames between poem word spawns
+int MAX_POEM_WORDS      = 40;   // little shards floating at the same time (beyond that the oldest slowly fades)
+int POEM_SPAWN_INTERVAL = 600;  // frames between poem words (60 = 1 s)
 float POEM_TILE_SIZE    = 420;  // width of a poem tile, matrix units
 float POEM_ALPHA        = 70;   // 0..100, so they stay behind the mural
+float POEM_SPREAD        = 1.4;  // how wide the cloud opens (× tile size)
+float POEM_EMERGE_DEPTH  = 14;   // how far behind the main wall it comes from
+float POEM_EMERGE_FRAMES = 360;  // coming out of the depth (it already moves towards its spot)
+float POEM_TRAVEL_FRAMES = 720;  // rest of the journey, opening more and more
+float POEM_CLOSE_FRAMES  = 420;  // closing (after the word has gone)
+float POEM_WORD_FRAMES   = 120;  // the open cloud stays still with its word in the middle (60 = 1 s); then the word goes down
+float POEM_BIRTH_SCALE   = 0.25; // size of the pieces when they are born (they grow on the way)
+float POEM_GROW_START    = 0.4;  // part of the journey they travel still small before growing (0..1)
+float POEM_COLLAPSE_FRAMES = 300; // folding into one little shard
+float POEM_MINI_SIZE     = 60;   // size of the little shard, matrix units
+float POEM_MINI_SPEED     = 3.0;  // how fast the little shards wander the walls (units per frame)
+float POEM_WORD_SPEED     = 1.2;  // how fast the words float on the floor
+float POEM_DESCEND_FRAMES = 420;  // the word gliding down the wall to the floor
 
 // ****************
 // Shared utilities

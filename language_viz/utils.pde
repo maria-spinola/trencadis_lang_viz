@@ -130,7 +130,7 @@ void parseResponse() {
 
 // Colour from the emotion, as the system prompt asks the LLM to do:
 // base hue per emotion, intensity (saturation / brightness) varies
-float[] EMOTION_HUES = { 0, 50, 290, 330, 120, 225, 35 };   // anger, surprise, fear, love, disgust, sadness, joy
+float[] EMOTION_HUES = { 2, 42, 12, 354, 142, 210, 28 };   // anger red, surprise ochre, fear terracotta, love red, disgust bottle green, sadness cobalt, joy orange
 
 String emotionHex(int emotion, float hueJitter, float sat, float bri) {
   float h = (EMOTION_HUES[constrain(emotion, 1, 7) - 1] + hueJitter + 360) % 360;

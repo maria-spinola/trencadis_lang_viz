@@ -20,7 +20,15 @@ Alberto Benavent Ramón, Francisco A. Rodríguez, Lerie Pemanagpo, María Spíno
 4. **It travels.** The tile comes apart and its pieces travel as a loose cloud — round by WALL 2, round by WALL 4 or across the floor — to the tile's slot on WALL 1. Optionally they fly through the air of the room in 3D.
 5. **It settles.** The pieces close up in the slot, the grout seeps in under them and dries, and the tile stays in the mural.
 
-Over the exhibition WALL 1 fills up with a wavy mosaic made of all the visitors' words. Words of a poem (`poem_words.json`) float through the room as small tiles.
+Over the exhibition WALL 1 fills up with a wavy mosaic made of all the visitors' words. A dark see-through window sits behind the tile while it assembles (`HOLD_PANEL_ALPHA`).
+
+### The poem
+Words of a poem (`poem_words.json`) live in the background, behind the mural and the text window:
+1. Every 10 s one comes out of the depth behind the main wall, its pieces tiny, already heading for a free spot on a side wall; they grow and open on the way, each piece running ahead and falling behind the group.
+2. The open cloud stops; the word appears on black in the middle and stays 2 s.
+3. The **word** glides down to the floor and floats there like a leaf on water (no floor in the venue: along the low band of the side walls and the mural wall, never on the main wall).
+4. The **tile** closes, then shrinks: pieces fade one by one until one small shard is left, which wanders all the walls.
+Up to `MAX_POEM_WORDS` at a time; beyond that the oldest slowly fades. Timings and sizes: `POEM_*` in `Config.pde`.
 
 ### Deterministic
 Every tile comes from a seed made of the word, its colour and its parameters. The same word with the same parameters always gives the same tile, and the same words in the same order always give the same mural. Without an API key the parameters themselves are derived from the word.
@@ -58,25 +66,29 @@ Each wall touches the floor with its bottom edge. Everything is drawn on the sur
 | `emotion` | 1–7 | The colour (the LLM picks `color_hex` from the emotion) and how the travelling pieces split between routes (see below) |
 | `color_hex` | `#RRGGBB` | The palette: base, warm light, dark, an accent (complementary or neighbouring hue) and ochre |
 
-The shape depends on the phenomenon, not on the word class, because visitors mostly type nouns. Colours are kept to ceramic glazes (saturation and brightness are capped).
+The shape depends on the phenomenon, not on the word class, because visitors mostly type nouns.
+
+**Palette.** Strong glazes as on Park Güell: every colour is moved to the nearest glaze — red, terracotta, orange, ochre, olive, bottle green, turquoise, cobalt, navy. Violets and indigo become cobalt, pinks become red; never pastel. The accent comes from the opposite family (cobalt against warm colours, orange against cool ones), on a cream ground with near-black outlines. Emotion → colour (test mode / no API key): anger red, surprise ochre, fear terracotta, love red, disgust bottle green, sadness cobalt, joy orange.
+
+**Relief.** Every shard sits slightly tilted in the mortar (lighter or darker), has a rounded rim (lit edge / shaded edge), chipped glaze where the pale biscuit shows, a glaze highlight on the shards facing the light, and the grout is sandy and sunk next to the shards. Tuned with `RELIEF`, `RIM_PX`, `AO_PX`, `GLAZE`.
 
 ### Phenomenon → motif and breakage
 
 | Value | Phenomenon | Painted motif | Breakage |
 |---|---|---|---|
-| 1 | Static | Plain shards in tones of one colour | clean |
-| 2 | Soft dispersion | Plain shards of several colours mixed (classic trencadís) | very chipped |
-| 3 | Spiral deformation | Spiral bands winding out from an off-centre point | medium |
-| 4 | Noisy sub-clusters | Scattered flowers and leaves | medium |
-| 5 | High-frequency vibration | Fine geometric tilework: diamonds, small squares, dark corners | the most chipped |
-| 6 | Directional drift | Arabesque wave bands with little leaves | crooked |
+| 1 | Static | Modernista ornamental tiles: scalloped arches, corner fans, interlaced strapwork, small sprigs | clean |
+| 2 | Soft dispersion | Plain shards in many shades of one colour | very chipped |
+| 3 | Spiral deformation | Moorish rosettes (eight-point star ringed by hexagonal petals) | medium |
+| 4 | Noisy sub-clusters | Six different decorated tiles, broken and mixed (stars, chains, stripes, small crosses, sunburst, small squares) | medium |
+| 5 | High-frequency vibration | Valencian eight-point stars with small crosses | the most chipped |
+| 6 | Directional drift | Interlaced chains and stripes | crooked |
 | 7 | Three groupings | Bold two-colour checker of triangles | clean |
 
 The tile is broken like real ceramic: straight cracks cut the biggest pieces again and again, some areas are crushed into small chips, and some pieces lose a corner — so shards have 3 to 7 sides and irregular angles. Each shard is set back slightly off, so the motif is cut by the cracks. Every tile also has a ribbon of dark pieces along its top edge; on WALL 1 each band has its own ribbon tone, which draws the wavy lines of the mural.
 
 ### Word class → how the shards come in
 
-All shards come from far behind WALL 3, scattered, dark and out of focus, and become sharp and lit as they reach their place — small ones first, the big ones at the back last. The word class sets their path:
+All shards come from far behind WALL 3 (`ASSEMBLE_DEPTH`), scattered wide (`ASSEMBLE_SPREAD`), dark and out of focus, and become sharp and lit as they reach their place — small ones first, the big ones at the back last. The word class sets their path:
 
 | Value | Class | Entrance |
 |---|---|---|

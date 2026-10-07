@@ -79,11 +79,12 @@ void renderFaces() {
 
     // Flat world: 1 unit = 1 media matrix unit, shapes cross seams continuously
     flatCamera(pg, f);
-    if (f.id == W1) pg.image(mosaicLayer, 0, 0, f.w, f.h);   // the trencadís mural (Mosaic.pde)
-    if (SHOW_POEM) {
+    if (SHOW_POEM) {                                           // the poem goes behind everything else
       for (PoemWord pw : poemWordsList) pw.display(pg, f);
     }
+    if (f.id == W1) pg.image(mosaicLayer, 0, 0, f.w, f.h);   // the trencadís mural (Mosaic.pde, transparent between tiles)
     for (TileFlight fl : flights) fl.displayFlat(pg, f);      // tiles travelling to WALL 1
+    if (f.id == W3) drawHoldPanel(pg, f);                      // dark window behind the new tile (Mosaic.pde)
     if (showTest) drawTestPattern(pg, f);
 
     // WALL 3: the new tile assembles here in 3D (path in Mosaic.pde starts on WALL 3)
@@ -281,18 +282,6 @@ int foldOver(int fi, PVector P, PVector... dirs) {
     if (dist < bestDist) { bestDist = dist; best = g.id; }
   }
   return best;
-}
-
-int randomFaceByArea(Random rng) {
-  float total = 0;
-  for (Face f : faces) if (f.id != FLOOR || HAS_FLOOR) total += f.w * f.h;
-  float r = rnd(rng, 0, total);
-  for (Face f : faces) {
-    if (f.id == FLOOR && !HAS_FLOOR) continue;
-    r -= f.w * f.h;
-    if (r <= 0) return f.id;
-  }
-  return FLOOR;
 }
 
 class Face {
