@@ -156,7 +156,7 @@ language_viz_original/    — Earlier version of the sketch (particles, single s
 
 ### Running
 1. Open `language_viz/language_viz.pde` in Processing.
-2. Optional: create a file `language_viz/api_key.txt` with your Anthropic API key on the first line (or set the `ANTHROPIC_API_KEY` environment variable). The file is ignored by git, so the key is never uploaded.
+2. Optional: put your API key in `Config.pde` (`API_KEY`). **Never commit it.**
 3. Run. Type a word and press Enter.
 
 ### Typing words
@@ -192,7 +192,7 @@ final String prompt_path = "prompts/haiku_art_system_prompt.md";
 | `UI_WIDTH`, `UI_Y`, `UI_SCALE`, `UI_BAR_ALPHA` | The text box |
 | `SHOW_POEM` | Floating poem tiles on / off |
 | `TEST_MODE` | Start in test mode |
-| `MODEL`, `MIDI_PORT` | LLM model and sound (the API key goes in `api_key.txt`, see Running) |
+| `API_KEY`, `MODEL`, `MIDI_PORT` | LLM and sound |
 
 ---
 
