@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# The mural saved on each computer (created automatically)
+language_viz/data/mosaic.json
+
+# Local safety copy made before switching to the trencadís version
+language_viz_backup_particulas/
+
+# Processing exports
+application.*/
+
+# Processing IDE autosaves
+*.autosave
