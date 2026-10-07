@@ -89,7 +89,12 @@ void sendOut(int i, PImage img) {
   try {
     sendMethod.invoke(senders.get(i), img);
   } catch (Exception e) {
-    println("Sending by " + OUTPUT_SEND + " failed, stopped: " + e);
+    Throwable cause = (e.getCause() != null) ? e.getCause() : e;
+    println("Sending by " + OUTPUT_SEND + " failed, stopped: " + cause);
+    if (cause instanceof UnsatisfiedLinkError && OUTPUT_SEND.equals("syphon")) {
+      println("  The Syphon library for Processing only exists for Intel Macs. On Apple Silicon (M1–M4)");
+      println("  run the sketch with the Intel version of Processing (macOS x64 build, runs under Rosetta).");
+    }
     sendFailed = true;
   }
 }
