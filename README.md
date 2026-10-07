@@ -196,6 +196,15 @@ final String prompt_path = "prompts/haiku_art_system_prompt.md";
 
 ---
 
+## Venues (`VENUE` in `Config.pde`)
+
+| `VENUE` | Room | Surfaces | Default output |
+|---|---|---|---|
+| `0` | Florida media matrix (PIXERA) | 4 walls + floor, 6650 × 6700 matrix | the media matrix |
+| `1` | La Salle IASLab immersive room (Watchout, real time via NDI) | 4 walls, **no floor**: FRONT / BACK 3206 × 1200, LEFT / RIGHT 4966 × 1200 | one strip 16344 × 1200: FRONT \| RIGHT \| BACK \| LEFT |
+
+In the IASLab, FRONT is the main wall (text input and assembling), BACK holds the mural, and the pieces travel along LEFT and RIGHT. With no floor, the floor is not rendered, pieces never travel over it (in 3D they fly around eye level so they are seen on the walls), and the floating poem tiles stay on the walls. The audience eye height is set to 1.6 m of the 2.7 m projected height.
+
 ## Output to the room (PIXERA)
 
 The whole room is always composed as one image laid out like the media matrix (`matrixOut`). If the venue wants it split, `OUTPUT_GROUPS` makes one image per group of surfaces, side by side, upright, in the order written:

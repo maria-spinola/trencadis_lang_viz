@@ -37,6 +37,7 @@ void setup() {
   noiseSeed((int) MOSAIC_SEED);   // poem tiles wander the same way on every run
   setupRoom();    // Room.pde — walls + floor buffers and media matrix
   setupOutputs(); // Output.pde — output images / windows (OUTPUT_GROUPS)
+  if (OUTPUT_GROUPS.length > 0) viewMode = faces.length + 1;   // preview the first output
   setupMosaic();  // Mosaic.pde — trencadís mural on WALL 1 (restores data/mosaic.json)
   setupWords();   // WordsSystem.pde
   setupLLM();     // ClaudeSketch.pde — carga system prompt
@@ -56,7 +57,7 @@ void draw() {
   updateWords();       // WordsSystem.pde — poem tiles
   updateMosaic();      // Mosaic.pde — word tiles assembling / travelling / landing
   renderFaces();       // Room.pde — draws each wall + floor (camera, words, text input)
-  composeMatrix();     // Room.pde — packs them into the media matrix → matrixOut
+  if (OUTPUT_GROUPS.length == 0 || viewMode == 0) composeMatrix();   // Room.pde — media matrix → matrixOut (only if used)
   composeOutputs();    // Output.pde — the output images, sent out
   drawPreview();       // Room.pde — shows it in this window
 }

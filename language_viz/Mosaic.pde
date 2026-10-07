@@ -312,6 +312,7 @@ int stripFace(float s) {
 final int ROUTE_W2 = 0, ROUTE_W4 = 1, ROUTE_FLOOR = 2;
 
 int fragmentsFor(int emotion) {
+  if (!HAS_FLOOR) return (emotion == 4 || emotion == 6) ? 1 : 2;   // only the two side walls
   switch (emotion) {
     case 4: case 6: return 1;    // love, sadness
     case 2: case 7: return 2;    // surprise, joy
@@ -374,10 +375,10 @@ class TileFlight {
     float cutAng;   // direction of the cut between fragments
     if (k == 1) {
       int[] one = { ROUTE_W2, ROUTE_W4, ROUTE_FLOOR };
-      routes = new int[] { one[r.nextInt(3)] };
+      routes = new int[] { one[r.nextInt(HAS_FLOOR ? 3 : 2)] };
       cutAng = 0;
     } else if (k == 2) {
-      if (r.nextFloat() < 0.7) { routes = new int[] { ROUTE_W2, ROUTE_W4 }; cutAng = rnd(r, -0.5, 0.5); }               // left | right
+      if (r.nextFloat() < 0.7 || !HAS_FLOOR) { routes = new int[] { ROUTE_W2, ROUTE_W4 }; cutAng = rnd(r, -0.5, 0.5); }  // left | right
       else { routes = new int[] { r.nextBoolean() ? ROUTE_W2 : ROUTE_W4, ROUTE_FLOOR }; cutAng = HALF_PI + rnd(r, -0.5, 0.5); }  // top | bottom
     } else {
       routes = new int[] { ROUTE_W2, ROUTE_W4, ROUTE_FLOOR };
@@ -484,12 +485,15 @@ class TileFlight {
       float side = (f.route == ROUTE_W2 ? -1 : 1) * ROOM_D * rnd(r, 0.15, 0.35);
       f.a1.add(0, side, 0);
       f.a2.add(0, side * rnd(r, 0.6, 1.0), 0);
-      f.a1.z = eyeZ * rnd(r, 0.25, 0.6);                            // on that side of the room, well below the eyes
-      f.a2.z = eyeZ * rnd(r, 0.25, 0.6);   // (close to eye level they would stretch hugely over the floor)
+      // Well below the eyes (close to eye level they would stretch hugely over the floor);
+      // with no floor, around eye level instead, so they are seen on the walls
+      float lo = HAS_FLOOR ? 0.25 : 0.8, hi = HAS_FLOOR ? 0.6 : 1.15;
+      f.a1.z = eyeZ * rnd(r, lo, hi);
+      f.a2.z = eyeZ * rnd(r, lo, hi);
     }
     for (PVector q : new PVector[] { f.a1, f.a2 }) {
       q.y = constrain(q.y, ROOM_D * 0.05, ROOM_D * 0.95);
-      q.z = constrain(q.z, WALL_H * 0.03, VIEWER_HEIGHT * 0.6);
+      q.z = constrain(q.z, WALL_H * 0.03, HAS_FLOOR ? VIEWER_HEIGHT * 0.6 : WALL_H * 0.85);
     }
     float a = rnd(r, 0, TWO_PI), b = rnd(r, -1, 1);
     f.sc3 = new PVector(sqrt(1 - b * b) * cos(a), sqrt(1 - b * b) * sin(a), b).mult(tile.radius * SCATTER * rnd(r, 0.4, 1.2));

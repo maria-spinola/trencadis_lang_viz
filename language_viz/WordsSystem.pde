@@ -81,7 +81,8 @@ class PoemWord {
     face = randomFaceByArea(r);
     Face f = faces[face];
     float vMin = (face == FLOOR) ? 0 : CEILING_MARGIN;
-    pos = f.toRoom(rnd(r, 0, f.w), rnd(r, vMin, f.h));
+    float vMax = (face == FLOOR || HAS_FLOOR) ? f.h : f.h - CEILING_MARGIN;
+    pos = f.toRoom(rnd(r, 0, f.w), rnd(r, vMin, vMax));
 
     float dir   = rnd(r, 0, TWO_PI);
     float speed = rnd(r, FLOAT_SPEED_MIN, FLOAT_SPEED_MAX);
@@ -141,6 +142,8 @@ class PoemWord {
       float v = PVector.sub(pos, f.O).dot(f.eV);
       float s = vel.dot(f.eV);
       if (v < CEILING_MARGIN && s < 0) vel.add(PVector.mult(f.eV, -2 * s));
+      // No floor in this venue: turn back before the bottom edge too
+      if (!HAS_FLOOR && v > f.h - CEILING_MARGIN && s > 0) vel.add(PVector.mult(f.eV, -2 * s));
     }
 
     pos.add(vel);

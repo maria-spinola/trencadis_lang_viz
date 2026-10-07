@@ -44,8 +44,18 @@ void setupRoom() {
   faces[W3]   .place(WALL_H + ROOM_W, WALL_H,           90);
   faces[W4]   .place(WALL_H,          WALL_H + ROOM_D, 180);
 
+  // IASLab names
+  if (VENUE == 1) {
+    faces[W1].name = "BACK";
+    faces[W2].name = "LEFT";
+    faces[W3].name = "FRONT";
+    faces[W4].name = "RIGHT";
+  }
+
   for (Face f : faces) {
-    f.pg = createGraphics(round(f.w * RENDER_SCALE), round(f.h * RENDER_SCALE), P3D);
+    boolean unused = (f.id == FLOOR && !HAS_FLOOR);   // no floor in this venue: a tiny black buffer
+    f.pg = createGraphics(unused ? 4 : round(f.w * RENDER_SCALE), unused ? 4 : round(f.h * RENDER_SCALE), P3D);
+    if (unused) { f.pg.beginDraw(); f.pg.background(0); f.pg.endDraw(); }
   }
   matrixOut = createGraphics(round(MATRIX_W * RENDER_SCALE), round(MATRIX_H * RENDER_SCALE), P2D);
   testFont  = createFont("SansSerif", 96);
@@ -59,6 +69,7 @@ void setupRoom() {
 
 void renderFaces() {
   for (Face f : faces) {
+    if (f.id == FLOOR && !HAS_FLOOR) continue;   // not projected in this venue
     PGraphics pg = f.pg;
     pg.beginDraw();
     pg.colorMode(HSB, 360, 100, 100, 100);
@@ -274,9 +285,10 @@ int foldOver(int fi, PVector P, PVector... dirs) {
 
 int randomFaceByArea(Random rng) {
   float total = 0;
-  for (Face f : faces) total += f.w * f.h;
+  for (Face f : faces) if (f.id != FLOOR || HAS_FLOOR) total += f.w * f.h;
   float r = rnd(rng, 0, total);
   for (Face f : faces) {
+    if (f.id == FLOOR && !HAS_FLOOR) continue;
     r -= f.w * f.h;
     if (r <= 0) return f.id;
   }

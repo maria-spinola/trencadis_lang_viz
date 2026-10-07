@@ -4,11 +4,17 @@
 // ═══════════════════════════════════════════════════════════
 
 // ── VENUE / OUTPUT ──────────────────────────────────────────
-// Sizes in MEDIA MATRIX units (Florida Media Matrix: 6650 x 6700).
-// To adapt to another room, change only these three numbers.
-final float ROOM_W = 4250;   // floor width  = length of WALL 2 / WALL 4
-final float ROOM_D = 4300;   // floor depth  = length of WALL 1 / WALL 3
-final float WALL_H = 1200;   // wall height
+// Which room:
+//   0 = Florida media matrix: 4 walls + floor, 6650 x 6700 matrix (PIXERA)
+//   1 = La Salle IASLab immersive room: 4 walls, NO floor (Watchout, real time via NDI)
+//       FRONT / BACK 3206 x 1200 px (7 m), LEFT / RIGHT 4966 x 1200 px (10.844 m), projected height 2.7 m
+//       WALL 3 = FRONT (main wall: text input), WALL 1 = BACK (mural), WALL 2 = LEFT, WALL 4 = RIGHT
+final int VENUE = 1;
+final boolean HAS_FLOOR = (VENUE != 1);   // no floor: it is not rendered, pieces never travel over it
+// Sizes in units = output pixels at RENDER_SCALE 1.0.
+final float ROOM_W = (VENUE == 1) ? 4966 : 4250;   // length of WALL 2 / WALL 4 (floor width)
+final float ROOM_D = (VENUE == 1) ? 3206 : 4300;   // length of WALL 1 / WALL 3 (floor depth)
+final float WALL_H = 1200;                         // wall height
 final float MATRIX_W = ROOM_W + 2 * WALL_H;   // 6650
 final float MATRIX_H = ROOM_D + 2 * WALL_H;   // 6700
 
@@ -30,7 +36,10 @@ final int FLOOR = 0, W1 = 1, W2 = 2, W3 = 3, W4 = 4;   // surface ids (Room.pde)
 //   { {W1, W2}, {W3, W4}, {FLOOR} }       → three images (2 + 2 + 1)
 //   { {W1, W2}, {W3, W4, FLOOR} }         → two images (2 + 3)
 //   { {W1}, {W2}, {W3}, {W4}, {FLOOR} }   → one image per surface
-int[][] OUTPUT_GROUPS   = {};
+// IASLab default: one strip 16344 x 1200, FRONT | RIGHT | BACK | LEFT (going round the room,
+// so every seam is a real corner). Ask the technicians which order / split Watchout expects;
+// the four walls as separate images: { {W3}, {W4}, {W1}, {W2} }.
+int[][] OUTPUT_GROUPS   = (VENUE == 1) ? new int[][] { {W3, W4, W1, W2} } : new int[][] {};
 boolean OUTPUT_WINDOWS  = false;   // also open each output image in its own window (copies through the CPU: much slower, ~14 fps with 3 outputs on a laptop)
 int[]   OUTPUT_DISPLAYS = {};      // display for each window, full screen (1 = main, 2 = second...); 0 / missing = small window
 
@@ -75,7 +84,7 @@ float HOLD_FRAMES_MAX    = 240;   // still, once assembled, time_duration 7
 // anywhere); true = they fly through the air of the room (3D, perfect from the
 // viewer's point, more distorted the further you are). Ctrl+D toggles it live.
 boolean TRAVEL_3D        = false;
-float VIEWER_HEIGHT      = WALL_H * 0.4;   // eye height of the audience (matrix units): set it to the real proportion
+float VIEWER_HEIGHT      = WALL_H * ((VENUE == 1) ? 0.59 : 0.4);   // eye height of the audience: IASLab 1.6 m of 2.7 m projected
 float DEPTH_3D           = 1.0;            // how far into the room the pieces fly (3D)
 float HOLD_HEIGHT        = 0.45;  // size of the new tile on the main wall (fraction of its height)
 float HOLD_Y             = 0.38;  // its centre, fraction of the wall height (leaves room for the text input below)
