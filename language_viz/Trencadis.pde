@@ -1,17 +1,15 @@
 // ═══════════════════════════════════════════════════════════
 // Trencadis.pde
 // Each word becomes one TILE of a Catalan trencadís mosaic:
-// a cell with STRAIGHT edges, cut into straight-edged shards
-// (quads and triangles) set with thin grey grout.
+// a cell with STRAIGHT edges, broken into straight-edged shards
+// set with thin grey grout.
 //
-// Based on TrencadisTest.pde (by our teammate):
-//   · per phenomenon: how regular the shards are and how many of them
-//     keep 4 sides (CUT_STYLE)
-//   · a 6-tone palette from the word's colour, with a few white
-//     "crockery" shards, and neighbouring shards never share a tone
-// (its glitter, glow and shape silhouettes are not used here).
 // The tile is broken like real ceramic: straight cracks, again and
 // again, plus chipped corners → shards of 3 to 7 sides (shatter()).
+// Per phenomenon: how regular the shards are and how many keep
+// 4 sides (CUT_STYLE). Plain shards use a 6-tone palette from the
+// word's colour, with a few white "crockery" shards, and
+// neighbouring shards never share a tone.
 //
 // On top of that, some phenomena first PAINT a decorated tile
 // (spiral, flowers, tilework, waves, checker) and the shards cut
@@ -29,7 +27,7 @@
 
 import java.util.Random;
 
-// Per phenomenon 1..7: { share of 4-sided shards (fewer chipped corners), irregularity of the cracks }  (TrencadisTest.pde)
+// Per phenomenon 1..7: { share of 4-sided shards (fewer chipped corners), irregularity of the cracks }
 float[][] CUT_STYLE = {
   { 0.6, 0.12 },   // 1 static
   { 0.1, 0.30 },   // 2 soft dispersion
@@ -202,7 +200,7 @@ class TrencadisTile {
 
     float[] white = { (h0 + 30) % 360, 6, 92 };   // white crockery
     if (phen == 1) {
-      // One colour family (TrencadisTest.pde palette)
+      // One colour family
       tones = new float[][] {
         { h0, s0, b0 },
         { (h0 + 14) % 360,  s0 * 0.85,          min(b0 * 1.08, 100) },
@@ -223,7 +221,7 @@ class TrencadisTile {
                          constrain(c[2] + rnd(r, -db, db), 0, 100) };
   }
 
-  // Tone index avoiding the neighbours' tones; a few white crockery shards (TrencadisTest.pde)
+  // Tone index avoiding the neighbours' tones; a few white crockery shards
   int pickTone(int... avoid) {
     int k = 0;
     for (int tries = 0; tries < 30; tries++) {
@@ -518,7 +516,7 @@ class TrencadisTile {
       pieces.add(p);
     }
 
-    // Neighbouring shards never share a tone (TrencadisTest.pde)
+    // Neighbouring shards never share a tone
     int[] tone = new int[pieces.size()];
     PVector[] cen = new PVector[pieces.size()];
     for (int i = 0; i < pieces.size(); i++) {

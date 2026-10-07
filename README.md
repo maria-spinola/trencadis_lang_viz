@@ -6,9 +6,8 @@ An immersive installation made with Processing: every word typed by a visitor be
 ## Authors
 Alberto Benavent Ramón, Francisco A. Rodríguez, Lerie Pemanagpo, María Spínola Lasso and Marta Alavedra Marion
 
-### Credits and inspiration
+### Inspiration
 - Gaudí's *trencadís* in Park Güell, Barcelona.
-- The shard style per phenomenon, the 6-tone palette with white "crockery" shards and the rule that neighbouring shards never share a tone are based on `TrencadisTest.pde`, by our teammate.
 - The first, particle-based version of the project was inspired by *Genuary2026_16: Order and disorder* by KaitoFMS and *260401 Particles* by Vivian.
 
 ---
