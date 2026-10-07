@@ -21,6 +21,26 @@ boolean cursorVisible = true;
 // ── Called from main setup() ──────────────────────────────────────
 void setupLLM() {
   SYSTEM_PROMPT = loadSystemPrompt(prompt_path);
+  API_KEY = loadApiKey();
+}
+
+// api_key.txt (next to the sketch, ignored by git) or the ANTHROPIC_API_KEY environment variable
+String loadApiKey() {
+  File f = new File(sketchPath("api_key.txt"));
+  if (f.exists()) {
+    String[] lines = loadStrings(f.getAbsolutePath());
+    if (lines != null && lines.length > 0 && lines[0].trim().length() > 0) {
+      println("API key loaded from api_key.txt");
+      return lines[0].trim();
+    }
+  }
+  String env = System.getenv("ANTHROPIC_API_KEY");
+  if (env != null && env.trim().length() > 0) {
+    println("API key loaded from ANTHROPIC_API_KEY");
+    return env.trim();
+  }
+  println("No API key: words get parameters derived from the word itself");
+  return "";
 }
 
 // ── Called from main draw() ───────────────────────────────────────

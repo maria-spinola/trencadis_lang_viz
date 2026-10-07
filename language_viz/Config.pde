@@ -94,7 +94,11 @@ int CH_LEAD  = 1;
 boolean TEST_MODE = false;
 
 // ── LLM API CONFIG ───────────────────────────────────────────────────
-final String API_KEY     = "";  // ← your key
+// The Anthropic API key is NOT written here (this file is on GitHub). It is read at
+// start-up from the file api_key.txt next to this sketch (ignored by git), or from
+// the environment variable ANTHROPIC_API_KEY. Without a key, words get parameters
+// derived from the word itself.
+String API_KEY = "";   // filled by loadApiKey() (ClaudeSketch.pde)
 final String MODEL       = "claude-haiku-4-5-20251001";
 final String prompt_path = "prompts/haiku_art_system_prompt.md";
 String SYSTEM_PROMPT;

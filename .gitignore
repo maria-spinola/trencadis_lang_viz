@@ -12,3 +12,6 @@ application.*/
 
 # Processing IDE autosaves
 *.autosave
+
+# Anthropic API key (never commit it)
+language_viz/api_key.txt
