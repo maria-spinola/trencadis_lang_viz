@@ -40,6 +40,12 @@ final int FLOOR = 0, W1 = 1, W2 = 2, W3 = 3, W4 = 4;   // surface ids (Room.pde)
 // so every seam is a real corner). Ask the technicians which order / split Watchout expects;
 // the four walls as separate images: { {W3}, {W4}, {W1}, {W2} }.
 int[][] OUTPUT_GROUPS   = (VENUE == 1) ? new int[][] { {W3, W4, W1, W2} } : new int[][] {};
+// How the output images leave Processing (Output.pde):
+//   "none"   → not sent (preview only, or OUTPUT_WINDOWS)
+//   "syphon" → macOS, one Syphon stream per output: "language_viz 1", "language_viz 2"…
+//   "spout"  → Windows, one Spout sender per output, same names
+// Needs the library installed and its import line enabled at the top of language_viz.pde.
+String  OUTPUT_SEND     = "none";
 boolean OUTPUT_WINDOWS  = false;   // also open each output image in its own window (copies through the CPU: much slower, ~14 fps with 3 outputs on a laptop)
 int[]   OUTPUT_DISPLAYS = {};      // display for each window, full screen (1 = main, 2 = second...); 0 / missing = small window
 

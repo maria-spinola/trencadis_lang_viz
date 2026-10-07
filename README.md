@@ -217,7 +217,8 @@ int[][] OUTPUT_GROUPS = { {W1}, {W2}, {W3}, {W4}, {FLOOR} };  // one per surface
 ```
 
 Sending them out (`Output.pde`):
-- **Syphon (macOS) / Spout (Windows)** — the efficient way when PIXERA runs on the same computer: install the library and uncomment the lines marked `SYPHON` or `SPOUT` in `Output.pde` and `language_viz.pde`. Each output appears in PIXERA as "language_viz 1", "language_viz 2"…
+- **Syphon (macOS) / Spout (Windows)** — the efficient way: set `OUTPUT_SEND = "syphon"` or `"spout"` in `Config.pde`, install that library (*Sketch → Import Library → Manage Libraries*) and remove the `//` before its `import` line at the top of `language_viz.pde` (Processing needs the import to load a library). Each output is sent as "language_viz 1", "language_viz 2"… If the library is missing, the sketch keeps running and the console says what to do.
+- **NDI** (e.g. Watchout in the IASLab): Processing has no simple NDI output; bridge it with OBS (Syphon / Spout source + DistroAV NDI output) or TouchDesigner (Syphon Spout In → NDI Out).
 - **Windows** — `OUTPUT_WINDOWS = true` opens each output in its own window, full screen on the display set in `OUTPUT_DISPLAYS`. No library needed, but every frame is copied through the CPU (much slower).
 - If PIXERA runs on another computer, use NDI or a video output / capture card.
 

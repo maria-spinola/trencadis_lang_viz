@@ -15,18 +15,21 @@
 // Each image can go out:
 //   · in its own window (OUTPUT_WINDOWS), full screen on a given display —
 //     no library needed, but every frame is copied through the CPU (slower)
-//   · to PIXERA by Syphon (macOS) or Spout (Windows), one input per image —
-//     the efficient way when PIXERA runs on the same computer. Install the
-//     library and uncomment the lines marked SYPHON or SPOUT below and in
-//     language_viz.pde.
+//   · by Syphon (macOS) or Spout (Windows), one stream per image — the
+//     efficient way (to PIXERA, or to OBS / TouchDesigner → NDI → Watchout).
+//     Set OUTPUT_SEND in Config.pde and enable that library's import line at
+//     the top of language_viz.pde (Processing needs it when compiling). The
+//     senders are made by reflection, so the sketch still compiles and runs
+//     without the library: it just says in the console what is missing.
 // Ctrl+V also cycles through the output images in the preview.
 // ═══════════════════════════════════════════════════════════
 
 ArrayList<PGraphics> outImgs = new ArrayList<PGraphics>();
 ArrayList<OutputWindow> outWins = new ArrayList<OutputWindow>();
 
-// SYPHON (macOS):  ArrayList<SyphonServer> syphons = new ArrayList<SyphonServer>();
-// SPOUT (Windows): ArrayList<Spout> spouts = new ArrayList<Spout>();
+ArrayList<Object> senders = new ArrayList<Object>();   // SyphonServer / Spout objects
+java.lang.reflect.Method sendMethod;                   // their send call
+boolean sendFailed = false;
 
 void setupOutputs() {
   for (int g = 0; g < OUTPUT_GROUPS.length; g++) {
@@ -39,12 +42,56 @@ void setupOutputs() {
     println("Output " + (g + 1) + ": " + outputName(g) + "  —  " + w + " x " + h + " px");
 
     if (OUTPUT_WINDOWS) outWins.add(new OutputWindow(g, w, h));   // opened after the first frame (openOutputWindows)
-    // SYPHON: syphons.add(new SyphonServer(this, "language_viz " + (g + 1)));
-    // SPOUT:  Spout sp = new Spout(this); sp.setSenderName("language_viz " + (g + 1)); spouts.add(sp);
   }
-  // Only the media matrix:
-  // SYPHON: if (OUTPUT_GROUPS.length == 0) syphons.add(new SyphonServer(this, "language_viz"));
-  // SPOUT:  if (OUTPUT_GROUPS.length == 0) { Spout sp = new Spout(this); sp.setSenderName("language_viz"); spouts.add(sp); }
+  // Syphon / Spout: one stream per output image, or one for the media matrix
+  if (!OUTPUT_SEND.equals("none")) {
+    int n = max(1, OUTPUT_GROUPS.length);
+    for (int g = 0; g < n && !OUTPUT_SEND.equals("none"); g++) {
+      senders.add(makeSender(OUTPUT_GROUPS.length == 0 ? "language_viz" : "language_viz " + (g + 1)));
+    }
+    if (!OUTPUT_SEND.equals("none")) println("Sending " + senders.size() + " stream(s) by " + OUTPUT_SEND + ": \"language_viz" + (OUTPUT_GROUPS.length == 0 ? "\"" : " 1\" …"));
+  }
+}
+
+// A SyphonServer or a Spout sender, made by reflection (no compile-time dependency)
+Object makeSender(String name) {
+  try {
+    if (OUTPUT_SEND.equals("syphon")) {
+      Class<?> c = Class.forName("codeanticode.syphon.SyphonServer");
+      if (sendMethod == null) sendMethod = c.getMethod("sendImage", PImage.class);
+      return c.getConstructor(PApplet.class, String.class).newInstance(this, name);
+    }
+    if (OUTPUT_SEND.equals("spout")) {
+      Class<?> c = Class.forName("spout.Spout");
+      Object sp = c.getConstructor(PApplet.class).newInstance(this);
+      c.getMethod("setSenderName", String.class).invoke(sp, name);
+      if (sendMethod == null) {
+        try { sendMethod = c.getMethod("sendTexture", PGraphics.class); }
+        catch (NoSuchMethodException e) { sendMethod = c.getMethod("sendTexture", PImage.class); }
+      }
+      return sp;
+    }
+    println("OUTPUT_SEND must be \"none\", \"syphon\" or \"spout\" (it is \"" + OUTPUT_SEND + "\"): not sending.");
+  } catch (ClassNotFoundException e) {
+    println("OUTPUT_SEND = \"" + OUTPUT_SEND + "\" but the library is not loaded. To fix it:");
+    println("  1. Sketch → Import Library → Manage Libraries… → install " + (OUTPUT_SEND.equals("syphon") ? "Syphon" : "Spout"));
+    println("  2. At the top of language_viz.pde, remove the // before: import " + (OUTPUT_SEND.equals("syphon") ? "codeanticode.syphon.*;" : "spout.*;"));
+    println("  The sketch keeps running without sending.");
+  } catch (Exception e) {
+    println("Could not start " + OUTPUT_SEND + ": " + e);
+  }
+  OUTPUT_SEND = "none";
+  return null;
+}
+
+void sendOut(int i, PImage img) {
+  if (sendFailed || sendMethod == null || i >= senders.size() || senders.get(i) == null) return;
+  try {
+    sendMethod.invoke(senders.get(i), img);
+  } catch (Exception e) {
+    println("Sending by " + OUTPUT_SEND + " failed, stopped: " + e);
+    sendFailed = true;
+  }
 }
 
 String outputName(int g) {
@@ -72,12 +119,9 @@ void composeOutputs() {
     }
     o.endDraw();
     if (OUTPUT_WINDOWS && frameCount > 2) outWins.get(g).push(o);
-    // SYPHON: syphons.get(g).sendImage(o);
-    // SPOUT:  spouts.get(g).sendTexture(o);
+    sendOut(g, o);
   }
-  // Only the media matrix:
-  // SYPHON: if (OUTPUT_GROUPS.length == 0) syphons.get(0).sendImage(matrixOut);
-  // SPOUT:  if (OUTPUT_GROUPS.length == 0) spouts.get(0).sendTexture(matrixOut);
+  if (OUTPUT_GROUPS.length == 0) sendOut(0, matrixOut);
 }
 
 // One output image in its own window. Full screen on OUTPUT_DISPLAYS[index]

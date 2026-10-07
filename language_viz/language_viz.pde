@@ -17,8 +17,11 @@ boolean soundReady = false;
 // The whole media matrix is the image 'matrixOut' (Room.pde); other layouts
 // (one image per surface, 2 + 2 + 1...) are set with OUTPUT_GROUPS in Config.pde.
 // Sending them (windows, Syphon, Spout): see Output.pde.
-// SYPHON (macOS):  import codeanticode.syphon.*;
-// SPOUT (Windows): import spout.*;
+// To send by Syphon / Spout (OUTPUT_SEND in Config.pde), install the library and remove
+// the // before its line. Processing needs the import to load the library; leave the
+// other one commented (Syphon only exists on macOS, Spout only on Windows).
+// import codeanticode.syphon.*;   // OUTPUT_SEND = "syphon"  (macOS)
+// import spout.*;                 // OUTPUT_SEND = "spout"   (Windows)
 
 void settings() {
   if (FULLSCREEN) fullScreen(P3D);
