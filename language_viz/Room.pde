@@ -84,9 +84,9 @@ void renderFaces() {
     if (SHOW_POEM) {                                           // the poem goes behind everything else
       for (PoemWord pw : poemByDepth) pw.display(pg, f);   // far ones first, near ones over them
     }
-    if (f.id == W1) pg.image(mosaicLayer, 0, 0, f.w, f.h);   // the trencadís mural (Mosaic.pde, transparent between tiles)
+    if (mosaicLayers[f.id] != null) pg.image(mosaicLayers[f.id], 0, 0, f.w, f.h);   // the trencadís mural (Mosaic.pde, transparent between tiles)
+    if (f.id == W3) drawHoldPanel(pg, f);                      // dark window behind the new tile (Mosaic.pde), always behind it
     for (TileFlight fl : flights) fl.displayFlat(pg, f);      // tiles travelling to WALL 1
-    if (f.id == W3) drawHoldPanel(pg, f);                      // dark window behind the new tile (Mosaic.pde)
     if (showTest) drawTestPattern(pg, f);
 
     // WALL 3: the new tile assembles here in 3D (path in Mosaic.pde starts on WALL 3)

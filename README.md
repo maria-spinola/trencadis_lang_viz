@@ -27,7 +27,7 @@ Words of a poem (`poem_words.json`) live in the background, behind the mural and
 1. Every 10 s one comes out of the depth behind the main wall, its pieces tiny, already heading for a free spot on a side wall; they grow and open on the way, each piece running ahead and falling behind the group.
 2. The open cloud stops; the word appears on black in the middle and stays 2 s.
 3. The **word** glides down to the floor and floats there like a leaf on water (no floor in the venue: along the low band of the side walls and the mural wall, never on the main wall).
-4. The **tile** closes, then shrinks: pieces fade one by one until one small shard is left, which wanders all the walls.
+4. The **tile** closes; its pieces vanish quickly one by one until one is left, which then shrinks, starts turning and wanders all the walls. The words stay on the floor (up to `MAX_FLOOR_WORDS`); old shards fade after `MAX_POEM_WORDS`.
 Each poem word has its own depth (size, brightness, transparency, speed) and pace; the shards and floor words drift in and out of the depth, wander with changing speed, and the clouds settle anywhere on the side walls (high, low, centred, in a corner) without piling up. Up to `MAX_POEM_WORDS` at a time; beyond that the oldest slowly fades. Timings and sizes: `POEM_*` in `Config.pde`.
 
 ### Deterministic
@@ -121,6 +121,7 @@ The left part of the tile goes round by WALL 2, the right part by WALL 4, the lo
 ### The mural (WALL 1)
 
 - WALL 1 is divided once (`MOSAIC_SEED`) into wavy bands (`MOSAIC_ROWS`) of straight-edged cells; the waves are faceted. With the defaults there are 69 cells. They fill from the centre outwards; when the wall is full new tiles cover the oldest.
+- When WALL 1 is full the mural grows on both side walls at once, from the back corner towards the front; every new tile touches one already placed (`MOSAIC_SIDES`). The poem keeps to the part of the side walls the mural hasn't reached.
 - The grout (thin grey cement) only appears when a tile lands: it seeps in under the shards, dark and wet, and dries to its final colour.
 - The mural is saved in `data/mosaic.json` and restored on start. `Ctrl+N` clears it.
 

@@ -67,6 +67,7 @@ float CEILING_MARGIN  = 250;    // figures turn back before the top of the walls
 
 // ── TRENCADÍS MOSAIC (WALL 1) ───────────────────────────────
 final long MOSAIC_SEED   = 1914;  // layout of the mural; change it → a different mural
+boolean MOSAIC_SIDES     = true;  // when WALL 1 is full, the mural grows on both side walls (back → front)
 int   MOSAIC_ROWS        = 5;     // wavy bands on WALL 1 (more rows = smaller tiles, more words fit)
 float MOSAIC_CELL_MIN    = 0.9;   // cell width, in band heights
 float MOSAIC_CELL_MAX    = 1.6;
@@ -129,10 +130,11 @@ String currentWord = "—";
 
 // Poem system (small floating tiles)
 boolean SHOW_POEM       = true; // false = no floating poem tiles (Ctrl+P toggles it live)
-int MAX_POEM_WORDS      = 40;   // little shards floating at the same time (beyond that the oldest slowly fades)
+int MAX_POEM_WORDS      = 200;   // little shards wandering at the same time (beyond that the oldest shard fades; its word stays)
+int MAX_FLOOR_WORDS     = 400;  // words floating on the floor (repeats included); only beyond that the oldest fades
 int POEM_SPAWN_INTERVAL = 600;  // frames between poem words (60 = 1 s)
 float POEM_TILE_SIZE    = 420;  // width of a poem tile, matrix units
-float POEM_ALPHA        = 70;   // 0..100, so they stay behind the mural
+float POEM_ALPHA        = 100;  // 0..100: fully opaque (only the fades in and out are see-through)
 float POEM_SPREAD        = 1.4;  // how wide the cloud opens (× tile size)
 float POEM_EMERGE_DEPTH  = 14;   // how far behind the main wall it comes from
 float POEM_EMERGE_FRAMES = 360;  // coming out of the depth (it already moves towards its spot)
@@ -142,6 +144,7 @@ float POEM_WORD_FRAMES   = 120;  // the open cloud stays still with its word in 
 float POEM_BIRTH_SCALE   = 0.25; // size of the pieces when they are born (they grow on the way)
 float POEM_GROW_START    = 0.4;  // part of the journey they travel still small before growing (0..1)
 float POEM_COLLAPSE_FRAMES = 300; // folding into one little shard
+float POEM_VANISH_PART   = 0.45; // first part of it: the other pieces vanish one by one; then the kept one shrinks and turns
 float POEM_MINI_SIZE     = 60;   // size of the little shard, matrix units
 float POEM_FAR_SCALE     = 0.45; // size of the farthest poem words (nearest = 1): depth, sense of 3D
 float POEM_SIZE_MIN      = 0.6;  // on top of the depth, each word is a bit smaller or bigger

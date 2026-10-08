@@ -151,6 +151,7 @@ class TrencadisTile {
   ArrayList<Piece> pieces = new ArrayList<Piece>();
   float radius, tileW, tileH;
   PImage tex;                     // the painted tile before breaking (null = plain shards)
+  int face = 1;                   // the wall of its slot in the mural (W1, or W2 / W4)
 
   // Generation only (cell coordinates, before moving the origin to the centre)
   Random r;

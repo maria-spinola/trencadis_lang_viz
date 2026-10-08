@@ -45,10 +45,15 @@ void updateWords() {
   poemSpawnTimer++;
   if (poemSpawnTimer >= POEM_SPAWN_INTERVAL) {
     poemSpawnTimer = 0;
-    int alive = 0;
-    for (PoemWord pw : poemWordsList) if (!pw.leaving) alive++;
-    if (alive >= MAX_POEM_WORDS) {
+    // Too many little shards: the oldest one fades away (its word stays on the floor)
+    int shards = 0, words = 0;
+    for (PoemWord pw : poemWordsList) { if (!pw.leaving) shards++; if (!pw.wordLeaving) words++; }
+    if (shards >= MAX_POEM_WORDS) {
       for (PoemWord pw : poemWordsList) if (!pw.leaving) { pw.leave(); break; }
+    }
+    // Only with very many words on the floor does the oldest word fade
+    if (words >= MAX_FLOOR_WORDS) {
+      for (PoemWord pw : poemWordsList) if (!pw.wordLeaving) { pw.wordLeave(); break; }
     }
     int n = poemWordCursor;
     JSONObject wordObj = nextPoemWord();
@@ -144,7 +149,13 @@ class PoemWord {
     float best = -1;
     for (int k = 0; k < 80; k++) {
       int st = rd.nextInt(2);
+      // only the part of the wall the mural hasn't reached yet (it grows from the back corner)
+      float gap = POEM_TILE_SIZE * 0.3 + footprint() * 0.55;   // the whole open cloud clear of the mural
+      float cov2 = MOSAIC_SIDES ? sideCovered(W2) + gap : 0, cov4 = MOSAIC_SIDES ? sideCovered(W4) + gap : 0;
+      if (st == 0 && cov2 > ROOM_W - footprint()) st = 1;
+      if (st == 1 && cov4 > ROOM_W - footprint()) st = 0;
       float w0 = (st == 0) ? ROOM_D : 2 * ROOM_D + ROOM_W, w1 = w0 + ROOM_W;   // WALL 2 or WALL 4
+      if (st == 0) w0 += min(cov2, ROOM_W - footprint()); else w1 -= min(cov4, ROOM_W - footprint());
       float hw = footprint() * 0.45, hv = vfootprint() * 0.6;   // may lean over a corner a little
       float cc = rnd(rd, w0 + hw, max(w0 + hw, w1 - hw));
       float vv = rnd(rd, min(hv, WALL_H / 2), max(WALL_H / 2, WALL_H - hv));
@@ -220,13 +231,17 @@ class PoemWord {
     miniSpin  = rnd(r, -1, 1) * 0.004;
   }
 
-  void leave() { leaving = true; leaveAge = age; }
+  void leave() { leaving = true; leaveAge = age; }   // the little shard fades; the word stays
+  boolean shrunk = false;
+  boolean wordLeaving = false;
+  float wordLeaveAge, wordAlpha;
+  void wordLeave() { wordLeaving = true; wordLeaveAge = age; }
 
   void setDepth(float d) {
     depth  = constrain(d, 0, 1);
     depS   = lerp(1.0, POEM_FAR_SCALE, depth) * sizeK;
     dimK   = lerp(1.0, 0.55, depth);
-    alphaK = lerp(1.0, 0.65, depth);
+    alphaK = 1;                     // no transparency with depth: smaller and dimmer only
     spdK   = lerp(1.0, 0.55, depth);
   }
 
@@ -266,6 +281,14 @@ class PoemWord {
       gather = e;   // eased per piece in display()
     } else {                                       // MINI: the little shard wanders all the walls
       gather = 1;
+      if (!shrunk && tile != null) {               // it is tiny now: a tiny texture is enough (memory)
+        shrunk = true;
+        if (tile.tex != null && tile.tex.width > 128) {
+          PImage small = tile.tex.copy();
+          small.resize(128, 0);
+          tile.tex = small;
+        }
+      }
       if (pos == null) {
         pos  = ringPoint(c, v);
         face = ringFace(c);
@@ -281,8 +304,12 @@ class PoemWord {
       setDepth(depth0 + k * (noise(seed + 300, age * 0.0012 * pace) - 0.5) * 1.6);
     }
     updateWord();
-    if (leaving) fade *= 1 - smooth01((age - leaveAge) / 600);
+    if (leaving) {
+      fade *= 1 - smooth01((age - leaveAge) / 600);
+      if (age - leaveAge > 600) tile = null;     // the shard is gone: free its tile (the word stays)
+    }
     alpha = POEM_ALPHA * fade * alphaK;
+    wordAlpha = POEM_ALPHA * alphaK * (wordLeaving ? 1 - smooth01((age - wordLeaveAge) / 600) : 1);
   }
 
   // The written word: once its 2 s are over it leaves the tile, glides down the wall and
@@ -370,12 +397,16 @@ class PoemWord {
 
 
   void display(PGraphics pg, Face target) {
-    if (alpha < 1) return;
+    if (tile != null && alpha >= 1) drawCloud(pg, target);
+    if (wordA > 0 && wordAlpha >= 1) drawWord(pg, target);   // drawn wherever the word is, whatever the shard does
+  }
+
+  void drawCloud(PGraphics pg, Face target) {
     PVector P = (pos != null) ? pos : ringPoint(c, v);
     Face src = faces[(pos != null) ? face : ringFace(c)];
     PVector q = target.localPoint(P, src);
     if (q == null) return;
-    float reach = poemReach() * max(1, depS) + 20;
+    float reach = (poemReach() + POEM_TILE_SIZE * 1.5) * max(1, depS) + 20;   // the cloud stretches out while travelling
     if (q.x < -reach || q.x > target.w + reach || q.y < -reach || q.y > target.h + reach) return;
 
     PVector u = target.localDir(pos != null ? up : new PVector(0, 0, 1), src);
@@ -388,21 +419,19 @@ class PoemWord {
     for (int i = 0; i < tile.pieces.size(); i++) {
       Piece p = tile.pieces.get(i);
       boolean mini = (i == miniIdx);
-      float go = mini ? 0 : smooth01((gather - goT[i]) / 0.3);   // this piece fading away
-      if (go >= 1) continue;
-      float a = alpha * (1 - go);
+      // First the other pieces vanish, quickly, one by one (no fade); only then does the kept one
+      // shrink to the little shard, drifting to the centre and starting to turn
+      if (!mini && gather > 0 && gather >= POEM_VANISH_PART * goT[i] / 0.7) continue;
+      float a = alpha;
       if (a < 0.5) continue;
       pg.pushMatrix();
       if (mini && gather > 0) {
-        // the kept piece slowly shrinks to the little shard, drifting to the centre
-        float g = easeInOutCubic(gather);
+        float g = easeInOutCubic(constrain((gather - POEM_VANISH_PART) / (1 - POEM_VANISH_PART), 0, 1));
         pg.translate(lerp(p.cx, 0, g), lerp(p.cy, 0, g));
-        pg.rotate(age * miniSpin * g);
+        pg.rotate(max(0, age - (wordStart + tC + POEM_VANISH_PART * tX)) * miniSpin * g);   // starts turning from still
         pg.scale(lerp(1, miniScale, g));
       } else if (gather > 0) {
-        // the others shrink and fade where they are, one after another
-        pg.translate(p.cx, p.cy);
-        pg.scale(max(0.01, 1 - go * 0.6));
+        pg.translate(p.cx, p.cy);   // still in place until its turn to vanish
       } else {
         float k = 1;
         float ox = p.cx + sx[i] * apart, oy = p.cy + sy[i] * apart;
@@ -423,7 +452,6 @@ class PoemWord {
       pg.popMatrix();
     }
     pg.pop();
-    if (wordA > 0) drawWord(pg, target);
   }
 
   void drawWord(PGraphics pg, Face target) {
@@ -437,13 +465,16 @@ class PoemWord {
     pg.push();
     pg.translate(q.x, q.y);
     pg.rotate(atan2(u.y, u.x) + HALF_PI);
+    // Always the same text size (each new size would cache a new font in OpenGL and leak memory):
+    // the size of the word comes from scaling instead
     pg.textFont(poemFont);
     pg.textAlign(CENTER, CENTER);
-    pg.textSize(POEM_TILE_SIZE * 0.22 * depS * (age < wordStart ? scl : 1));
-    float ta = 100 * wordA * alpha / POEM_ALPHA * dimK;
-    for (int k = 0; k < 8; k++) {   // soft dark halo so it reads over anything
-      float a = TWO_PI * k / 8, d = POEM_TILE_SIZE * 0.012;
-      pg.fill(225, 50, 8, ta * 0.35);
+    pg.textSize(96);
+    pg.scale(POEM_TILE_SIZE * 0.22 * depS * (age < wordStart ? scl : 1) / 96);
+    float ta = 100 * wordA * wordAlpha / POEM_ALPHA * dimK;
+    for (int k = 0; k < 4; k++) {   // soft dark halo so it reads over anything
+      float a = TWO_PI * k / 4 + QUARTER_PI, d = 96 * 0.055;
+      pg.fill(225, 50, 8, ta * 0.4);
       pg.text(word, cos(a) * d, sin(a) * d);
     }
     pg.fill(40, 8, 98, ta);
@@ -452,6 +483,6 @@ class PoemWord {
   }
 
   boolean isDead() {
-    return leaving && age - leaveAge > 600;
+    return wordLeaving && age - wordLeaveAge > 600;
   }
 }

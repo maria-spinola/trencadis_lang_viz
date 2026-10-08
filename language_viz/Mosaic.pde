@@ -10,8 +10,9 @@
 //   SET      in its slot, the grout seeps in under the shards and dries
 //   landed   it is stamped into the mural (mosaicLayer) for good
 //
-// Slots fill from the centre outwards; when the wall is full it
-// starts again over the oldest tiles. The placed words are saved in
+// Slots fill from the centre outwards; when WALL 1 is full the mural grows on both side
+// walls at once, from the back corner towards the front (MOSAIC_SIDES). When everything is
+// full it starts again over the oldest tiles. The placed words are saved in
 // data/mosaic.json, so the mural survives a restart (Ctrl+N clears it).
 // ═══════════════════════════════════════════════════════════
 
@@ -20,20 +21,23 @@ final float TILT_FRAMES = 45;   // frames to straighten up before leaving the ma
 
 ArrayList<Patch> slots = new ArrayList<Patch>();
 IntList slotBands = new IntList();
+IntList slotFaces = new IntList();   // which wall each slot is on (W1, then W2 / W4 when it grows)
+FloatList slotX0 = new FloatList(), slotX1 = new FloatList();   // side slots: horizontal extent on their wall
+int wall1Slots;                      // how many slots WALL 1 has (they come first in slotOrder)
 int[] slotOrder;                // fill order (indices into slots)
 int mosaicCount = 0;            // tiles placed so far = next position in slotOrder
 JSONArray mosaicTiles = new JSONArray();
-PGraphics mosaicLayer;          // finished mural, WALL 1 pixels
+PGraphics[] mosaicLayers = new PGraphics[5];   // finished mural, per wall (WALL 1, and WALL 2 / 4 when it grows)
 ArrayList<TileFlight> flights = new ArrayList<TileFlight>();
 float waveA, waveL, waveP1, waveP2;
 
 void setupMosaic() {
   buildSlots();
-  Face f = faces[W1];
-  mosaicLayer = createGraphics(f.pg.width, f.pg.height, P2D);
+  int[] walls = MOSAIC_SIDES ? new int[] { W1, W2, W4 } : new int[] { W1 };
+  for (int w : walls) mosaicLayers[w] = createGraphics(faces[w].pg.width, faces[w].pg.height, P2D);
   clearLayer();
   loadMosaic();
-  println("Mosaic: " + slots.size() + " slots on " + f.name + ", " + mosaicCount + " tiles placed");
+  println("Mosaic: " + slots.size() + " slots (" + faces[W1].name + (MOSAIC_SIDES ? " + " + faces[W2].name + " + " + faces[W4].name : "") + "), " + mosaicCount + " tiles placed");
 }
 
 void updateMosaic() {
@@ -91,7 +95,9 @@ void toggleTestMode() {
 //   Layout of WALL 1
 // ********************
 
-// Boundary k between bands (0 = top edge, MOSAIC_ROWS = bottom edge)
+// Boundary k between bands (0 = top edge, MOSAIC_ROWS = bottom edge).
+// x runs along the ring of walls with WALL 1's own u in [0, ROOM_D], so the waves carry on
+// round the corners: WALL 2 is x = ROOM_D + u, WALL 4 is x = u - ROOM_W (it meets WALL 1 at x = 0).
 float bandY(int k, float x) {
   Face f = faces[W1];
   if (k <= 0) return 0;
@@ -161,8 +167,111 @@ void buildSlots() {
     idx[i] = i;
   }
   java.util.Arrays.sort(idx, (a, b) -> Float.compare(key[a], key[b]));
-  slotOrder = new int[idx.length];
-  for (int i = 0; i < idx.length; i++) slotOrder[i] = idx[i];
+  for (int i = 0; i < slots.size(); i++) slotFaces.append(W1);
+  IntList order = new IntList();
+  for (Integer i : idx) order.append(i);
+
+  // When WALL 1 is full the mural grows on both side walls at once, from the back corner
+  // towards the front. Every new tile always touches one already placed (gaps are fine,
+  // a tile floating on its own is not).
+  wall1Slots = slots.size();
+  if (MOSAIC_SIDES) {
+    int first = slots.size();
+    buildWallSlots(W2, ROOM_D, new Random(MOSAIC_SEED + 2));
+    buildWallSlots(W4, -ROOM_W, new Random(MOSAIC_SEED + 4));
+    Random rs = new Random(MOSAIC_SEED + 6);
+    int n = slots.size();
+    float[] sk = new float[n];
+    boolean[] placed = new boolean[n];
+    for (int i = first; i < n; i++) sk[i] = fromBack(i) + abs(slots.get(i).center().y - WALL_H / 2) * 0.6 + rnd(rs, 0, 1) * WALL_H * 0.6;
+    int wall = W2;
+    for (int done = first; done < n; done++) {
+      int pick = -1;
+      for (int pass = 0; pass < 2 && pick < 0; pass++) {
+        int w = (pass == 0) ? wall : (wall == W2 ? W4 : W2);   // alternate walls; the other one if this is full
+        for (int i = first; i < n; i++) {
+          if (placed[i] || slotFaces.get(i) != w) continue;
+          if (!touchesPlaced(i, placed, first)) continue;
+          if (pick < 0 || sk[i] < sk[pick]) pick = i;
+        }
+      }
+      if (pick < 0) break;
+      placed[pick] = true;
+      order.append(pick);
+      wall = (wall == W2) ? W4 : W2;
+    }
+  }
+  slotOrder = order.array();
+}
+
+// Cells on a side wall, the same wavy bands as WALL 1 (xOff: where this wall starts on the ring)
+void buildWallSlots(int wall, float xOff, Random r) {
+  Face f = faces[wall];
+  float bh = f.h / MOSAIC_ROWS;
+  for (int k = 0; k < MOSAIC_ROWS; k++) {
+    FloatList tx = new FloatList(), bx = new FloatList();
+    tx.append(0); bx.append(0);
+    float x = 0;
+    while (true) {
+      x += bh * rnd(r, MOSAIC_CELL_MIN, MOSAIC_CELL_MAX);
+      if (f.w - x < bh * 0.6) break;
+      float sl = rnd(r, -0.3, 0.3) * bh;
+      tx.append(x + sl); bx.append(x - sl);
+    }
+    tx.append(f.w); bx.append(f.w);
+    for (int i = 0; i < tx.size() - 1; i++) {
+      PVector[] top = wavyEdge(k,     tx.get(i), tx.get(i + 1), xOff);
+      PVector[] bot = wavyEdge(k + 1, bx.get(i), bx.get(i + 1), xOff);
+      slots.add(new Patch(top, bot));
+      slotBands.append(k);
+      slotFaces.append(wall);
+      slotX0.append(min(top[0].x, bot[0].x));
+      slotX1.append(max(top[top.length - 1].x, bot[bot.length - 1].x));
+    }
+  }
+}
+
+// Side slots: distance from the back corner (where the wall meets WALL 1)
+float fromBack(int i) {
+  int j = i - wall1Slots;
+  return (slotFaces.get(i) == W2) ? slotX0.get(j) : ROOM_W - slotX1.get(j);
+}
+
+// Does side slot i touch the back wall (already full) or a slot already placed?
+boolean touchesPlaced(int i, boolean[] placed, int first) {
+  if (fromBack(i) < 1) return true;
+  int j = i - wall1Slots, band = slotBands.get(i);
+  for (int o = first; o < slots.size(); o++) {
+    if (!placed[o] || slotFaces.get(o) != slotFaces.get(i)) continue;
+    int k = o - wall1Slots, ob = slotBands.get(o);
+    if (ob == band && (abs(slotX1.get(k) - slotX0.get(j)) < 2 || abs(slotX1.get(j) - slotX0.get(k)) < 2)) return true;   // neighbours in the band
+    if (abs(ob - band) == 1 && min(slotX1.get(k), slotX1.get(j)) - max(slotX0.get(k), slotX0.get(j)) > WALL_H / MOSAIC_ROWS * 0.3) return true;   // above / below
+  }
+  return false;
+}
+
+// How far from the back corner the mural already reaches on a side wall (tiles placed or on their way)
+float sideCovered(int wall) {
+  float m = 0;
+  for (int n = wall1Slots; n < min(mosaicCount, slotOrder.length); n++) {
+    int i = slotOrder[n];
+    if (slotFaces.get(i) != wall) continue;
+    int j = i - wall1Slots;
+    m = max(m, (wall == W2) ? slotX1.get(j) : ROOM_W - slotX0.get(j));
+  }
+  if (mosaicCount >= slotOrder.length) m = ROOM_W;   // everything covered (it wraps over the oldest)
+  return m;
+}
+
+// A straight-faceted piece of band boundary k between x0 and x1 (wall coordinates)
+PVector[] wavyEdge(int k, float x0, float x1, float xOff) {
+  int n = max(2, ceil((x1 - x0) / (WALL_H / MOSAIC_ROWS * 0.5)));
+  PVector[] p = new PVector[n + 1];
+  for (int i = 0; i <= n; i++) {
+    float x = lerp(x0, x1, i / (float) n);
+    p[i] = new PVector(x, bandY(k, x + xOff));
+  }
+  return p;
 }
 
 // ********************
@@ -171,7 +280,9 @@ void buildSlots() {
 
 TrencadisTile tileFor(JSONObject rec, int n) {
   int slot = slotOrder[n % slots.size()];
-  return makeWordTile(rec, slots.get(slot), slotBands.get(slot));
+  TrencadisTile t = makeWordTile(rec, slots.get(slot), slotBands.get(slot));
+  t.face = slotFaces.get(slot);
+  return t;
 }
 
 TrencadisTile makeWordTile(JSONObject rec, Patch patch, int band) {
@@ -186,20 +297,24 @@ TrencadisTile makeWordTile(JSONObject rec, Patch patch, int band) {
 }
 
 void stampTile(TrencadisTile tile) {
-  mosaicLayer.beginDraw();
-  mosaicLayer.colorMode(HSB, 360, 100, 100, 100);
-  mosaicLayer.pushMatrix();
-  mosaicLayer.scale(RENDER_SCALE);
-  mosaicLayer.translate(tile.origin.x, tile.origin.y);
-  tile.drawFlat(mosaicLayer, 100, true);   // set in the wall: grout behind the shards
-  mosaicLayer.popMatrix();
-  mosaicLayer.endDraw();
+  PGraphics L = mosaicLayers[tile.face];
+  L.beginDraw();
+  L.colorMode(HSB, 360, 100, 100, 100);
+  L.pushMatrix();
+  L.scale(RENDER_SCALE);
+  L.translate(tile.origin.x, tile.origin.y);
+  tile.drawFlat(L, 100, true);   // set in the wall: grout behind the shards
+  L.popMatrix();
+  L.endDraw();
 }
 
 void clearLayer() {
-  mosaicLayer.beginDraw();
-  mosaicLayer.clear();   // transparent between tiles: the poem shards pass behind the mural
-  mosaicLayer.endDraw();
+  for (PGraphics L : mosaicLayers) {
+    if (L == null) continue;
+    L.beginDraw();
+    L.clear();   // transparent between tiles: the poem shards pass behind the mural
+    L.endDraw();
+  }
 }
 
 // A dark, see-through window behind the tile assembling on the main wall,
@@ -451,6 +566,9 @@ class TileFlight {
       }
     }
 
+    // A slot on a side wall: the whole cloud goes along that wall
+    if (tile.face == W2 || tile.face == W4) for (Fragment f : frags) f.route = (tile.face == W2) ? ROUTE_W2 : ROUTE_W4;
+
     // The whole tile comes apart: every piece travels on its own, on its group's route
     ArrayList<Fragment> groups = frags;
     frags = new ArrayList<Fragment>();
@@ -494,9 +612,10 @@ class TileFlight {
   // height (on the WALL 2 side, the WALL 4 side or low over the floor, by route), lands on WALL 1
   void makePath3D(Random r, Fragment f) {
     f.a0 = faces[W3].toRoom(hu + f.ox * holdScale, hv + f.oy * holdScale);
-    f.a3 = faces[W1].toRoom(tile.origin.x + f.ox, tile.origin.y + f.oy);
+    Face tf = faces[tile.face];
+    f.a3 = tf.toRoom(tile.origin.x + f.ox, tile.origin.y + f.oy);
     f.a1 = PVector.add(f.a0, new PVector(-ROOM_W * rnd(r, 0.2, 0.45) * DEPTH_3D, 0, 0));
-    f.a2 = PVector.add(f.a3, new PVector( ROOM_W * rnd(r, 0.2, 0.45) * DEPTH_3D, 0, 0));
+    f.a2 = PVector.add(f.a3, PVector.mult(tf.n, (tile.face == W1 ? ROOM_W : ROOM_D) * rnd(r, 0.2, 0.45) * DEPTH_3D));
     // Below the audience's eyes: seen from the centre of the room, anything higher is
     // projected up towards the ceiling (where nothing is shown) and seems to vanish there
     float eyeZ = VIEWER_HEIGHT;
@@ -594,7 +713,8 @@ class TileFlight {
       f.w.x = constrain(f.w.x, 0, ROOM_W);
       f.w.y = constrain(f.w.y, 0, ROOM_D);
       f.w.z = constrain(f.w.z, 0, WALL_H);   // (only the ends, on WALL 3 / WALL 1, are above the eyes)
-      f.theta = f.turnDir * PI * smooth01(e);
+      float th1 = (tile.face == W2) ? -HALF_PI : (tile.face == W4) ? HALF_PI : f.turnDir * PI;   // to face its wall
+      f.theta = th1 * smooth01(e);
     }
     if (f.route == ROUTE_FLOOR) {
       // Down WALL 3, across the floor turning round half a circle, up WALL 1
@@ -611,7 +731,9 @@ class TileFlight {
     } else {
       // Round the walls, always upright
       float c0 = ROOM_D + ROOM_W + hu;
-      float c1 = tile.origin.x + (f.route == ROUTE_W4 ? ringLength() : 0);
+      float c1 = (tile.face == W2) ? ROOM_D + tile.origin.x
+               : (tile.face == W4) ? 2 * ROOM_D + ROOM_W + tile.origin.x
+               : tile.origin.x + (f.route == ROUTE_W4 ? ringLength() : 0);
       float c  = lerp(c0, c1, e) + lx;
       float v  = lerp(hv, tile.origin.y, e) + wave + ly;
       float m  = f.rad * f.scale;   // keep it between floor and ceiling while travelling
@@ -667,7 +789,7 @@ class TileFlight {
     if (TRAVEL_3D && state == FLIGHT_TRAVEL) return;   // drawn by display3D
     if (state == FLIGHT_SET) {
       // Whole again, in its slot
-      if (target.id != W1) return;
+      if (target.id != tile.face) return;
       pg.push();
       pg.translate(tile.origin.x, tile.origin.y);
       tile.drawSetting(pg, 100, age / GROUT_SET_FRAMES);
