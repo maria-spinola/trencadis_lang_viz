@@ -68,6 +68,8 @@ void setupRoom() {
 // ********************
 
 void renderFaces() {
+  poemByDepth = new ArrayList<PoemWord>(poemWordsList);
+  java.util.Collections.sort(poemByDepth, (a, b) -> Float.compare(b.depth, a.depth));
   for (Face f : faces) {
     if (f.id == FLOOR && !HAS_FLOOR) continue;   // not projected in this venue
     PGraphics pg = f.pg;
@@ -80,7 +82,7 @@ void renderFaces() {
     // Flat world: 1 unit = 1 media matrix unit, shapes cross seams continuously
     flatCamera(pg, f);
     if (SHOW_POEM) {                                           // the poem goes behind everything else
-      for (PoemWord pw : poemWordsList) pw.display(pg, f);
+      for (PoemWord pw : poemByDepth) pw.display(pg, f);   // far ones first, near ones over them
     }
     if (f.id == W1) pg.image(mosaicLayer, 0, 0, f.w, f.h);   // the trencadís mural (Mosaic.pde, transparent between tiles)
     for (TileFlight fl : flights) fl.displayFlat(pg, f);      // tiles travelling to WALL 1

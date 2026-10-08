@@ -143,6 +143,9 @@ float POEM_BIRTH_SCALE   = 0.25; // size of the pieces when they are born (they 
 float POEM_GROW_START    = 0.4;  // part of the journey they travel still small before growing (0..1)
 float POEM_COLLAPSE_FRAMES = 300; // folding into one little shard
 float POEM_MINI_SIZE     = 60;   // size of the little shard, matrix units
+float POEM_FAR_SCALE     = 0.45; // size of the farthest poem words (nearest = 1): depth, sense of 3D
+float POEM_SIZE_MIN      = 0.6;  // on top of the depth, each word is a bit smaller or bigger
+float POEM_SIZE_MAX      = 1.3;
 float POEM_MINI_SPEED     = 3.0;  // how fast the little shards wander the walls (units per frame)
 float POEM_WORD_SPEED     = 1.2;  // how fast the words float on the floor
 float POEM_DESCEND_FRAMES = 420;  // the word gliding down the wall to the floor

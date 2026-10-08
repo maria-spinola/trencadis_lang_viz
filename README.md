@@ -28,7 +28,7 @@ Words of a poem (`poem_words.json`) live in the background, behind the mural and
 2. The open cloud stops; the word appears on black in the middle and stays 2 s.
 3. The **word** glides down to the floor and floats there like a leaf on water (no floor in the venue: along the low band of the side walls and the mural wall, never on the main wall).
 4. The **tile** closes, then shrinks: pieces fade one by one until one small shard is left, which wanders all the walls.
-Up to `MAX_POEM_WORDS` at a time; beyond that the oldest slowly fades. Timings and sizes: `POEM_*` in `Config.pde`.
+Each poem word has its own depth (size, brightness, transparency, speed) and pace; the shards and floor words drift in and out of the depth, wander with changing speed, and the clouds settle anywhere on the side walls (high, low, centred, in a corner) without piling up. Up to `MAX_POEM_WORDS` at a time; beyond that the oldest slowly fades. Timings and sizes: `POEM_*` in `Config.pde`.
 
 ### Deterministic
 Every tile comes from a seed made of the word, its colour and its parameters. The same word with the same parameters always gives the same tile, and the same words in the same order always give the same mural. Without an API key the parameters themselves are derived from the word.
