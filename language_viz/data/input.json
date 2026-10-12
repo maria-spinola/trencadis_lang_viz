@@ -1,16 +1,16 @@
 {
   "agency": 6,
-  "raresa": 7,
-  "word_class": 2,
+  "raresa": 4,
+  "word_class": 1,
   "abstraction": 2,
-  "color_hex": "#D9A21B",
-  "culturalitat": 1,
-  "emotion": 2,
-  "emotion_label": "Sorpresa",
-  "definicio": "Embrutar amb un esquitx. / Escapar-se algunes gotes d'un líquid en una direcció no volguda.",
-  "time_duration": 1,
-  "zipf": 2.430000066757202,
-  "word": "esquitxar",
-  "organic": 7,
-  "phenomena_class": 6
+  "color_hex": "#E07A1F",
+  "culturalitat": 7,
+  "emotion": 7,
+  "emotion_label": "Alegria",
+  "definicio": "Relatiu als castells humans. / Persona que fa castells humans.",
+  "time_duration": 4,
+  "zipf": 3.5999999046325684,
+  "word": "casteller",
+  "organic": 6,
+  "phenomena_class": 3
 }

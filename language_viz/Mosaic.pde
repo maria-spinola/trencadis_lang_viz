@@ -62,6 +62,7 @@ void spawnWordTile() {
   rec.setInt("time_duration",   pTime);
   rec.setInt("culturalitat",    pCultura);
   rec.setInt("raresa",          pRaresa);
+  allocate(rec);   // where it goes, and how big (raresa)
   mosaicTiles.append(rec);
   TrencadisTile tile = tileFor(rec, mosaicCount);
   mosaicCount++;
@@ -74,6 +75,8 @@ void spawnWordTile() {
 void clearMosaic() {
   mosaicTiles = new JSONArray();
   mosaicCount = 0;
+  resetSlotUse();
+  mosaicCycle = 0;
   flights.clear();
   clearLayer();
   saveMosaic();
@@ -254,14 +257,13 @@ boolean touchesPlaced(int i, boolean[] placed, int first) {
 
 // How far from the back corner the mural already reaches on a side wall (tiles placed or on their way)
 float sideCovered(int wall) {
+  if (mosaicCycle > 0) return ROOM_W;   // everything covered (it wraps over the oldest)
   float m = 0;
-  for (int n = wall1Slots; n < min(mosaicCount, slotOrder.length); n++) {
-    int i = slotOrder[n];
-    if (slotFaces.get(i) != wall) continue;
+  for (int i = wall1Slots; i < slots.size(); i++) {
+    if (slotUse == null || slotUse[i] == 0 || slotFaces.get(i) != wall) continue;
     int j = i - wall1Slots;
     m = max(m, (wall == W2) ? slotX1.get(j) : ROOM_W - slotX0.get(j));
   }
-  if (mosaicCount >= slotOrder.length) m = ROOM_W;   // everything covered (it wraps over the oldest)
   return m;
 }
 
@@ -281,10 +283,140 @@ PVector[] wavyEdge(int k, float x0, float x1, float xOff) {
 // ********************
 
 TrencadisTile tileFor(JSONObject rec, int n) {
-  int slot = slotOrder[n % slots.size()];
-  TrencadisTile t = makeWordTile(rec, slots.get(slot), slotBands.get(slot));
+  int slot = rec.getInt("slot", slotOrder[n % slots.size()]);   // old saved tiles: one whole cell each, in order
+  int part = rec.getInt("part", PART_WHOLE), slot2 = rec.getInt("slot2", -1);
+  // Not every tile has the dark ribbon on top (a lower half never has it)
+  boolean ribbon = part != PART_BOTTOM && new Random(MOSAIC_SEED * 31L + slot * 7 + part).nextFloat() < RIBBON_SHARE;
+  TrencadisTile t = makeWordTile(rec, partPatch(slot, part, slot2), ribbon ? slotBands.get(slot) : -1);
   t.face = slotFaces.get(slot);
   return t;
+}
+
+// ********************
+//   Dynamic slots: each tile's size comes from its raresa
+// ********************
+// The wavy bands and their cells are fixed. A common word takes half a cell (split
+// left / right if the cell is wide, top / bottom if not), a normal one a whole cell,
+// a rare one two neighbouring cells of the same band joined. The choice is stored in
+// each saved tile ("slot", "part", "slot2", "cycle"), so the mural comes back the same.
+
+final int PART_WHOLE = 0, PART_LEFT = 1, PART_RIGHT = 2, PART_TOP = 3, PART_BOTTOM = 4, PART_MERGED = 5;
+int[] slotUse;          // per cell: 0 free, 1 full, 2 half used
+int[] slotFreeHalf;     // for half-used cells: the part still free
+int mosaicCycle = 0;    // times the whole mural was filled and started again over the oldest
+
+void resetSlotUse() {
+  slotUse = new int[slots.size()];
+  slotFreeHalf = new int[slots.size()];
+}
+
+// 0 small (half a cell), 1 normal, 2 big (two cells)
+int sizeClass(JSONObject rec) {
+  int ra = rec.getInt("raresa", 0);
+  if (ra == 0) return 1;   // saved before raresa existed
+  if (ra <= SIZE_SMALL_MAX) return 0;
+  if (ra >= SIZE_BIG_MIN)   return 2;
+  return 1;
+}
+
+// A free neighbour in the same band (same wall), or −1
+int freeNeighbour(int i) {
+  for (int j : new int[] { i + 1, i - 1 }) {
+    if (j < 0 || j >= slots.size() || slotUse[j] != 0) continue;
+    if (slotBands.get(j) == slotBands.get(i) && slotFaces.get(j) == slotFaces.get(i)) return j;
+  }
+  return -1;
+}
+
+// The two halves of a cell, in the order they are used
+int[] halvesOf(int i) {
+  Patch p = slots.get(i);
+  float w = (p.top[p.top.length - 1].x - p.top[0].x + p.bot[p.bot.length - 1].x - p.bot[0].x) / 2;
+  return (w > WALL_H / MOSAIC_ROWS * SPLIT_WIDE) ? new int[] { PART_LEFT, PART_RIGHT } : new int[] { PART_TOP, PART_BOTTOM };
+}
+
+void useSlot(JSONObject rec, int slot, int part, int slot2) {
+  rec.setInt("slot", slot);
+  rec.setInt("part", part);
+  if (slot2 >= 0) rec.setInt("slot2", slot2);
+  rec.setInt("cycle", mosaicCycle);
+  markSlot(slot, part, slot2);
+}
+
+void markSlot(int slot, int part, int slot2) {
+  if (part == PART_WHOLE || part == PART_MERGED) {
+    slotUse[slot] = 1;
+    if (slot2 >= 0) slotUse[slot2] = 1;
+  } else if (slotUse[slot] == 2) {
+    slotUse[slot] = 1;                                   // the second half: the cell is full
+  } else {
+    slotUse[slot] = 2;
+    slotFreeHalf[slot] = (part == PART_LEFT) ? PART_RIGHT : (part == PART_RIGHT) ? PART_LEFT
+                       : (part == PART_TOP) ? PART_BOTTOM : PART_TOP;
+  }
+}
+
+// Where the next tile goes, by the fill order (centre of WALL 1 outwards, then the side walls)
+void allocate(JSONObject rec) {
+  if (slotUse == null) resetSlotUse();
+  int size = sizeClass(rec);
+  for (int attempt = 0; attempt < 2; attempt++) {
+    if (size == 0) {
+      for (int o : slotOrder) if (slotUse[o] == 2) { useSlot(rec, o, slotFreeHalf[o], -1); return; }   // finish a half cell first
+      for (int o : slotOrder) if (slotUse[o] == 0) { useSlot(rec, o, halvesOf(o)[0], -1); return; }
+    } else {
+      if (size == 2) {   // two cells: only among the next few free ones, so the mural grows evenly
+        int seen = 0;
+        for (int o : slotOrder) {
+          if (slotUse[o] != 0) continue;
+          int j = freeNeighbour(o);
+          if (j >= 0) { useSlot(rec, min(o, j), PART_MERGED, max(o, j)); return; }
+          if (++seen >= 6) break;
+        }
+      }
+      for (int o : slotOrder) if (slotUse[o] == 0) { useSlot(rec, o, PART_WHOLE, -1); return; }
+      for (int o : slotOrder) if (slotUse[o] == 2) { useSlot(rec, o, slotFreeHalf[o], -1); return; }
+    }
+    resetSlotUse();   // the mural is full: start again over the oldest tiles
+    mosaicCycle++;
+  }
+}
+
+// The outline of a cell, half a cell, or two cells joined
+Patch partPatch(int slot, int part, int slot2) {
+  Patch p = slots.get(slot);
+  if (part == PART_WHOLE || slot2 >= slots.size()) return p;
+  PVector[] top = p.top, bot = p.bot;
+  if (part == PART_MERGED) {   // slot2 is the right neighbour: the edge between them disappears
+    Patch q = slots.get(slot2);
+    return new Patch(joinLines(top, q.top), joinLines(bot, q.bot));
+  }
+  Random r = new Random(MOSAIC_SEED * 13L + slot);
+  float bh = WALL_H / MOSAIC_ROWS;
+  if (part == PART_LEFT || part == PART_RIGHT) {   // a slanted cut across the band
+    float sl = rnd(r, -0.15, 0.15) * bh;
+    float tx = lerp(top[0].x, top[top.length - 1].x, 0.5) + sl, bx = lerp(bot[0].x, bot[bot.length - 1].x, 0.5) - sl;
+    if (part == PART_LEFT) return new Patch(sliceAt(top, top[0].x, tx).toArray(new PVector[0]), sliceAt(bot, bot[0].x, bx).toArray(new PVector[0]));
+    return new Patch(sliceAt(top, tx, top[top.length - 1].x).toArray(new PVector[0]), sliceAt(bot, bx, bot[bot.length - 1].x).toArray(new PVector[0]));
+  }
+  // top / bottom: a slightly tilted line through the middle of the band
+  float tilt = rnd(r, -0.12, 0.12);
+  int n = 4;
+  PVector[] mid = new PVector[n + 1];
+  for (int i = 0; i <= n; i++) {
+    float t = i / (float) n;
+    PVector a = pointAt(top, lerp(top[0].x, top[top.length - 1].x, t));
+    PVector b = pointAt(bot, lerp(bot[0].x, bot[bot.length - 1].x, t));
+    mid[i] = PVector.lerp(a, b, 0.5 + tilt * (t - 0.5) * 2);
+  }
+  return (part == PART_TOP) ? new Patch(top, mid) : new Patch(mid, bot);
+}
+
+PVector[] joinLines(PVector[] a, PVector[] b) {
+  PVector[] out = new PVector[a.length + b.length - 1];
+  for (int i = 0; i < a.length; i++) out[i] = a[i];
+  for (int i = 1; i < b.length; i++) out[a.length - 1 + i] = b[i];
+  return out;
 }
 
 TrencadisTile makeWordTile(JSONObject rec, Patch patch, int band) {
@@ -296,7 +428,7 @@ TrencadisTile makeWordTile(JSONObject rec, Patch patch, int band) {
   int tm = rec.getInt("time_duration", 4);
   long seed = wordSeed(word + hex, em, wc, ab, ag, og, ph, tm);
   int cu = rec.getInt("culturalitat", 0), ra = rec.getInt("raresa", 0);   // 0 in old saved mosaics: no effect
-  return new TrencadisTile(seed, parseHexColor(hex), ab, og, ph, wc, patch, band, cu, ra);
+  return new TrencadisTile(seed, parseHexColor(hex), ab, og, ph, wc, patch, band, cu, ra, WALL_H / MOSAIC_ROWS);
 }
 
 void stampTile(TrencadisTile tile) {
@@ -347,13 +479,22 @@ void drawHoldPanel(PGraphics pg, Face f) {
 // ********************
 
 void loadMosaic() {
+  resetSlotUse();
+  mosaicCycle = 0;
   File file = new File(dataPath(MOSAIC_FILE));
   if (!MOSAIC_SAVE || !file.exists()) return;
   try {
     JSONObject o = loadJSONObject(file);
     JSONArray a = o.getJSONArray("tiles");
+    mosaicCycle = 0;
     for (int i = 0; i < a.size(); i++) {
       JSONObject rec = a.getJSONObject(i);
+      if (!rec.hasKey("slot")) allocate(rec);   // saved before the dynamic slots: placed again, in order
+      else {
+        int cy = rec.getInt("cycle", 0);
+        if (cy != mosaicCycle) { resetSlotUse(); mosaicCycle = cy; }
+        markSlot(rec.getInt("slot"), rec.getInt("part", PART_WHOLE), rec.getInt("slot2", -1));
+      }
       stampTile(tileFor(rec, rec.getInt("n", i)));
       mosaicTiles.append(rec);
     }
@@ -365,11 +506,11 @@ void loadMosaic() {
 
 void saveMosaic() {
   if (!MOSAIC_SAVE || TEST_MODE) return;
-  // Only the tiles still visible (older ones were covered when the wall wrapped)
+  // Only the last full round of the mural and the current one (older tiles are covered)
   JSONArray keep = new JSONArray();
   for (int i = 0; i < mosaicTiles.size(); i++) {
     JSONObject rec = mosaicTiles.getJSONObject(i);
-    if (rec.getInt("n", 0) >= mosaicCount - slots.size()) keep.append(rec);
+    if (rec.getInt("cycle", 0) >= mosaicCycle - 1) keep.append(rec);
   }
   mosaicTiles = keep;
   JSONObject o = new JSONObject();
@@ -502,7 +643,7 @@ class TileFlight {
     holdT     = map(time,   1, 7, HOLD_FRAMES_MIN, HOLD_FRAMES_MAX);           // long-lasting words stay longer on the main wall
 
     Face m = faces[W3];
-    holdScale = min(m.h * HOLD_HEIGHT / tile.tileH, m.w * 0.4 / tile.tileW);
+    holdScale = min(m.h * HOLD_HEIGHT / tile.refH, m.w * 0.45 / tile.tileW);   // same scale for all: rare words look bigger
     hu = m.w / 2;
     hv = m.h * HOLD_Y;   // above the text input
     makeFragments(r, fragmentsFor(emotion), organic);

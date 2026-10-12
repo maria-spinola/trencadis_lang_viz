@@ -390,9 +390,8 @@ void printAnalysis(JSONObject j) {
     "agència        " + j.getInt("agency", 4),
     "orgànic        " + pad("" + j.getInt("organic", 4)) + "→ irregularitat dels talls",
     "temps          " + j.getInt("time_duration", 4),
-    "culturalitat   " + pad("" + j.getInt("culturalitat", 1)) + "→ bocins d'altres rajols",
-    "raresa         " + pad(j.getInt("raresa", 1) + (j.hasKey("zipf") ? "  freq " + nf(j.getFloat("zipf"), 1, 2) : "")) + "→ bocins daurats",
-    "riquesa        " + pad("" + max(j.getInt("culturalitat", 1), j.getInt("raresa", 1))) + "→ quants bocins",
+    "culturalitat   " + pad("" + j.getInt("culturalitat", 1)) + "→ quants bocins, d'altres rajols",
+    "raresa         " + pad(j.getInt("raresa", 1) + (j.hasKey("zipf") ? "  freq " + nf(j.getFloat("zipf"), 1, 2) : "")) + "→ mida del rajol, daurats",
     "significat     " + shorten(j.getString("definicio", "—"), 48) };
   println("── Anàlisi ──────────────────────────");
   for (String s : lastAnalysis) println("  " + s);

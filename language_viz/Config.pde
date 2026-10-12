@@ -58,9 +58,9 @@ boolean showOutlines = true;   // wall/floor outlines in the preview (Ctrl+L), n
 float UI_SCALE = 2.2;   // text size on the main wall (1.0 = tiny letters, ~4 cm in the room)
 boolean PREVIEW_INPUT = true;   // also show what you type, big, at the bottom of the preview window (never in the output)
 
-// Rich words are rewarded with a more complex tile (Trencadis.pde). Uses culturalitat and raresa.
-float RICH_SHARD_SIMPLE = 1.5;    // shard size when both are 1: a few big shards
-float RICH_SHARD_RICH   = 0.5;    // shard size when either is 7: many small shards
+// Rich words are rewarded with a more complex tile (Trencadis.pde). raresa also sets the tile size (SIZE_*).
+float RICH_SHARD_SIMPLE = 1.5;    // shard size at culturalitat 1: a few big shards
+float RICH_SHARD_RICH   = 0.5;    // shard size at culturalitat 7: many small shards
 float RICH_ACCENT       = 0.28;   // culturalitat 7: share of shards from other tiles, in contrasting glazes
 float RICH_GOLD         = 0.14;   // raresa 7: share of golden lustre shards (from raresa 4)
 // Text input box: centred, about as wide as the tile, at 3/4 of the wall's height
@@ -78,6 +78,11 @@ boolean MOSAIC_SIDES     = true;  // when WALL 1 is full, the mural grows on bot
 int   MOSAIC_ROWS        = 5;     // wavy bands on WALL 1 (more rows = smaller tiles, more words fit)
 float MOSAIC_CELL_MIN    = 0.9;   // cell width, in band heights
 float MOSAIC_CELL_MAX    = 1.6;
+// Tile size from raresa: common words take half a cell, rare ones two cells joined
+int   SIZE_SMALL_MAX     = 2;     // raresa up to this → half a cell
+int   SIZE_BIG_MIN       = 6;     // raresa from this → two cells
+float SPLIT_WIDE         = 1.25;  // cells wider than this (band heights) split left / right, narrower ones top / bottom
+float RIBBON_SHARE       = 1.0;   // share of tiles with the dark ribbon along the top (1 = the bands are drawn whole)
 float GROUT_WIDTH        = 1.2;   // half the gap between shards, matrix units (varies a little per shard)
 float GROUT_H = 38, GROUT_S = 5, GROUT_B = 80;   // grout colour (HSB): light grey cement, only once set on WALL 1
 float GROUT_SET_FRAMES   = 170;   // frames the grout takes to seep in and dry when a tile lands on WALL 1

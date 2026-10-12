@@ -66,15 +66,16 @@ Each wall touches the floor with its bottom edge. Everything is drawn on the sur
 | `word_class` | 1–8 | How the shards come in while the tile assembles (see below) |
 | `emotion` | 1–7 | The colour (the LLM picks `color_hex` from the emotion) and how the travelling pieces split between routes (see below) |
 | `color_hex` | `#RRGGBB` | The palette: base, warm light, dark, an accent (complementary or neighbouring hue) and ochre |
-| `culturalitat` | 1–7 | How Catalan the thing named is → richer tile: more, smaller shards, and shards from other tiles in contrasting glazes |
-| `raresa` | 1–7 | How rare the word is (measured) → richer tile: more, smaller shards, and shards of golden lustre |
+| `culturalitat` | 1–7 | How Catalan the thing named is → how many shards (few big ones … many small ones) and shards from other tiles in contrasting glazes |
+| `raresa` | 1–7 | How rare the word is (measured) → **the size of the tile** in the mural (half a cell … two cells) and shards of golden lustre |
 
 The shape depends on the phenomenon, not on the word class, because visitors mostly type nouns.
 
-**Rich words are rewarded.** Rare or very Catalan words make visibly more complex tiles, so visitors notice that it's worth looking for them (`Trencadis.pde`, `RICH_*` in `Config.pde`):
-- **How many shards** — the higher of `culturalitat` and `raresa`: at 1 a few big shards (shard size × `RICH_SHARD_SIMPLE` 1.5), at 7 many small ones (× `RICH_SHARD_RICH` 0.5), with more crushed spots.
-- **Shards from other tiles** — `culturalitat`: from 2 up to `RICH_ACCENT` (28 %) of the shards in contrasting glazes (cobalt / orange, ochre, white crockery, navy), as real trencadís mixes the pieces of many plates.
-- **Golden lustre** — `raresa`: from 4 up to `RICH_GOLD` (14 %) of the shards in *reflex daurat*, the gold lustre of Valencian ceramics.
+**Rich words are rewarded.** Rare or very Catalan words make visibly bigger and more complex tiles, so visitors notice that it's worth looking for them. Each of the two parameters has its own, readable effect (`Trencadis.pde`, `Mosaic.pde`, settings in `Config.pde`):
+- **`raresa` → size of the tile.** Common words (raresa ≤ `SIZE_SMALL_MAX`, 2) take **half a cell** of the mural; normal ones a whole cell; rare ones (≥ `SIZE_BIG_MIN`, 6) **two neighbouring cells joined**. All tiles are shown at the same scale on WALL 3, so a rare word is visibly bigger there too. From raresa 4, up to `RICH_GOLD` (14 %) of the shards are *reflex daurat*, the gold lustre of Valencian ceramics.
+- **`culturalitat` → how many shards.** At 1 a few big shards (shard size × `RICH_SHARD_SIMPLE` 1.5), at 7 many small ones (× `RICH_SHARD_RICH` 0.5), with more crushed spots; from 2, up to `RICH_ACCENT` (28 %) of the shards come from other tiles in contrasting glazes (cobalt / orange, ochre, white crockery, navy), as real trencadís mixes the pieces of many plates.
+
+So *casa* is a small tile of a few big shards; *castellers* a normal tile of many small, mixed shards; *xiuxiuejar* a big tile with gold.
 
 Tiles saved before these parameters existed are drawn as before.
 
@@ -94,7 +95,7 @@ Tiles saved before these parameters existed are drawn as before.
 | 6 | Directional drift | Interlaced chains and stripes | crooked |
 | 7 | Three groupings | Bold two-colour checker of triangles | clean |
 
-The tile is broken like real ceramic: straight cracks cut the biggest pieces again and again, some areas are crushed into small chips, and some pieces lose a corner — so shards have 3 to 7 sides and irregular angles. Each shard is set back slightly off, so the motif is cut by the cracks. Every tile also has a ribbon of dark pieces along its top edge; on WALL 1 each band has its own ribbon tone, which draws the wavy lines of the mural.
+The tile is broken like real ceramic: straight cracks cut the biggest pieces again and again, some areas are crushed into small chips, and some pieces lose a corner — so shards have 3 to 7 sides and irregular angles. Each shard is set back slightly off, so the motif is cut by the cracks. Every tile on the top of a band has a ribbon of dark pieces along its top edge; each band of the mural has its own ribbon tone, which draws the wavy lines of the mural.
 
 ### Word class → how the shards come in
 
@@ -130,7 +131,9 @@ The left part of the tile goes round by WALL 2, the right part by WALL 4, the lo
 
 ### The mural (WALL 1)
 
-- WALL 1 is divided once (`MOSAIC_SEED`) into wavy bands (`MOSAIC_ROWS`) of straight-edged cells; the waves are faceted. With the defaults there are 69 cells. They fill from the centre outwards; when the wall is full new tiles cover the oldest.
+- WALL 1 is divided once (`MOSAIC_SEED`) into wavy bands (`MOSAIC_ROWS`) of straight-edged cells; the waves are faceted. With the defaults there are 69 cells. They fill from the centre outwards; when the whole mural is full new tiles cover the oldest.
+- **The cells adapt to the tiles** (`allocate()` in `Mosaic.pde`): a small tile (common word) takes half a cell — split left / right with a slanted cut if the cell is wide (`SPLIT_WIDE`), top / bottom if not — and the next small tile fills the other half; a big tile (rare word) joins a cell with its free neighbour in the same band. So the mural keeps its wavy bands but its pieces have many sizes. Where each tile went is saved with it, so the mural comes back the same after a restart. The mural always closes up: a small tile first fills the free half of a split cell (at most one half is open at a time); a rare word that finds no free neighbour takes one cell; when only half cells are left, normal words take them; it only starts again when every cell is full. On the side walls every tile still touches one already placed. (Checked with 2000 random words.)
+- The dark ribbons along the top of the tiles draw the coloured wavy lines that divide the mural into horizontal bands. A lower half (the bottom part of a split cell) has no ribbon — the upper half above it has it, so the line stays whole. `RIBBON_SHARE` < 1 leaves some tiles without it (the lines then come in pieces).
 - When WALL 1 is full the mural grows on both side walls at once, from the back corner towards the front; every new tile touches one already placed (`MOSAIC_SIDES`). The poem keeps to the part of the side walls the mural hasn't reached.
 - The grout (thin grey cement) only appears when a tile lands: it seeps in under the shards, dark and wet, and dries to its final colour.
 - The mural is saved in `data/mosaic.json` and restored on start. `Ctrl+N` clears it.
@@ -272,9 +275,8 @@ classe         1  nom          → entrada al mur
 fenomen        5  percepció    → dibuix del rajol
 abstracció     5               → mida dels bocins
 orgànic        7               → irregularitat dels talls
-culturalitat   4               → bocins d'altres rajols
-raresa         5  freq 3,12    → bocins daurats
-riquesa        5               → quants bocins
+culturalitat   4               → quants bocins, d'altres rajols
+raresa         5  freq 3,12    → mida del rajol, daurats
 significat     Sensació que s'experimenta en algunes parts del…
 ```
 `mode` says who answered: `cloud`, `local`, `cache`, `fallback` (no model) or `test` (random). In test mode (`Ctrl+E`) the same panel is shown on WALL 3.
@@ -301,6 +303,7 @@ The bottom of the preview window always shows, large, what is being typed, "pens
 | `ASSEMBLE_FRAMES_*`, `HOLD_FRAMES_*` | Time assembling / still on WALL 3 |
 | `SCATTER` | How far apart the pieces drift while travelling (0 = the tile travels whole) |
 | `MOSAIC_ROWS`, `MOSAIC_SEED`, `MOSAIC_SAVE` | Mural layout and saving |
+| `SIZE_SMALL_MAX`, `SIZE_BIG_MIN`, `SPLIT_WIDE`, `RIBBON_SHARE` | Tile size from raresa, how cells split, share of tiles with the top ribbon (1 = whole lines) |
 | `GROUT_*`, `GROUT_SET_FRAMES`, `GLAZE` | Grout width / colour / setting time, glaze sheen |
 | `TEXTURE_DETAIL` | Resolution of the painted motifs |
 | `UI_WIDTH`, `UI_Y`, `UI_SCALE`, `UI_BAR_ALPHA` | The text box on WALL 3 (`UI_SCALE` 2.2 ≈ 9 cm letters in the room) |
@@ -308,7 +311,7 @@ The bottom of the preview window always shows, large, what is being typed, "pens
 | `SHOW_POEM` | Floating poem tiles on / off |
 | `TEST_MODE` | Start in test mode |
 | `TEST_RANDOM` | Test mode with random parameters instead of the real analysis |
-| `RICH_SHARD_SIMPLE`, `RICH_SHARD_RICH`, `RICH_ACCENT`, `RICH_GOLD` | How much richer rare / very Catalan words' tiles are |
+| `RICH_SHARD_SIMPLE`, `RICH_SHARD_RICH`, `RICH_ACCENT`, `RICH_GOLD` | Shards from culturalitat (how many, from other tiles) and gold from raresa |
 | `LLM_PROVIDER`, `LLM_MODE`, `OLLAMA_MODEL_LOCAL` / `_CLOUD`, `MODEL`, `API_KEY` | Language model (the Ollama key lives in `data/ollama_key.txt`) |
 | `USE_DICTIONARY`, `DICT_URL` | Viquidiccionari definitions sent to the model |
 | `USE_WORD_FREQ`, `WORD_FREQ_FILE`, `RARESA_ZIPF` | raresa from word frequency |

@@ -20,10 +20,10 @@
 //   abstraction     → shard size (abstract = big, simple shards)
 //   word_class      → how the shards come in while assembling (entrance())
 //   organic         → extra irregularity of the cuts
-//   culturalitat / raresa → how rich the tile is (RICH_* in Config):
-//       the higher of the two → more, smaller shards (simple words: a few big ones);
-//       culturalitat → shards from other tiles in contrasting glazes;
-//       raresa       → a few shards of golden lustre ("reflex daurat")
+//   culturalitat → more, smaller shards (simple words: a few big ones) and
+//                  shards from other tiles in contrasting glazes (RICH_* in Config)
+//   raresa       → the size of the tile in the mural (Mosaic.pde) and a few
+//                  shards of golden lustre ("reflex daurat")
 //
 // Every decision comes from a Random seeded with the word and its
 // parameters, so the same word always produces the same tile.
@@ -168,12 +168,15 @@ class TrencadisTile {
   float[][] tones;                // plain palettes (index 5 = white crockery)
   int cult, rare;                 // culturalitat / raresa 1..7 (0 = unknown: no effect)
 
+  float refH;                     // height of a normal tile (mural: one band); shards and ribbon are sized from it
+
   TrencadisTile(long seed, color col, int abstraction, int organic, int phenomenon, int wordClass, Patch patch, int band) {
-    this(seed, col, abstraction, organic, phenomenon, wordClass, patch, band, 0, 0);
+    this(seed, col, abstraction, organic, phenomenon, wordClass, patch, band, 0, 0, 0);
   }
 
+  // refH 0 = the cell's own height
   TrencadisTile(long seed, color col, int abstraction, int organic, int phenomenon, int wordClass, Patch patch, int band,
-                int culturalitat, int raresa) {
+                int culturalitat, int raresa, float refH) {
     cult = constrain(culturalitat, 0, 7);
     rare = constrain(raresa, 0, 7);
     this.seed  = seed;
@@ -191,17 +194,17 @@ class TrencadisTile {
     W = x1 - X0;
     H = y1 - Y0;
     float cellH = (patch.bot[0].y - patch.top[0].y + patch.bot[patch.bot.length-1].y - patch.top[patch.top.length-1].y) / 2;
-    rib = (band >= 0) ? cellH * 0.13 : 0;
+    this.refH = (refH > 0) ? refH : cellH;   // small tiles (half a cell) keep the shard size of a normal one
+    rib = (band >= 0) ? this.refH * 0.13 : 0;
     CH  = H - rib;
-    u   = (cellH - rib) * map(abstraction, 1, 7, 0.19, 0.34);
+    u   = this.refH * 0.87 * map(abstraction, 1, 7, 0.19, 0.34);
     quadProb = CUT_STYLE[phen - 1][0];
     jit      = CUT_STYLE[phen - 1][1] * map(organic, 1, 7, 0.7, 1.3);
 
     makePalette(col, band);
     tex = paint();
-    // Rich words (rare or very Catalan) break into many small shards, simple ones into a few big ones
-    int rich = max(cult, rare);
-    if (rich > 0) u *= map(rich, 1, 7, RICH_SHARD_SIMPLE, RICH_SHARD_RICH);
+    // Very Catalan words break into many small shards, the others into a few big ones
+    if (cult > 0) u *= map(cult, 1, 7, RICH_SHARD_SIMPLE, RICH_SHARD_RICH);
 
     ArrayList<PVector> content = outline;
     if (rib > 0) content = ribbon();
@@ -782,7 +785,7 @@ class TrencadisTile {
 
     // A few spots where the tile was hit harder: crushed into small chips
     ArrayList<PVector> crush = new ArrayList<PVector>();
-    int nCrush = 1 + r.nextInt(3) + (max(cult, rare) >= 5 ? 2 : 0);   // rich words: more crushed spots
+    int nCrush = 1 + r.nextInt(3) + (cult >= 5 ? 2 : 0);   // very Catalan words: more crushed spots
     for (int i = 0; i < nCrush; i++) crush.add(new PVector(X0 + rnd(r, 0, W), Y0 + rib + rnd(r, 0, CH)));
 
     ArrayList<ArrayList<PVector>> todo = new ArrayList<ArrayList<PVector>>();
