@@ -42,6 +42,9 @@ void loadJSONFromPath(String path, boolean spawn) {
     pPhenomenon = constrain(j.getInt("phenomena_class", pPhenomenon), 1, 7);
     pTime       = constrain(j.getInt("time_duration",   pTime),       1, 7);
     pColorHex   = parseHexColor(j.getString("color_hex", "#FFA500"));
+    pCultura    = constrain(j.hasKey("culturalitat") ? j.getInt("culturalitat") : 1, 1, 7);
+    pRaresa     = constrain(j.hasKey("raresa")       ? j.getInt("raresa")       : 1, 1, 7);
+    // culturalitat / raresa → how rich the tile is (Trencadis.pde, RICH_* in Config)
     currentWord = j.hasKey("word") ? j.getString("word")
                 : j.hasKey("emotion_label") ? j.getString("emotion_label")
                 : "—";
@@ -52,6 +55,7 @@ void loadJSONFromPath(String path, boolean spawn) {
       return;
     }
 
+    printAnalysis(j);  // CatalanLLM.pde
     spawnWordTile();   // Mosaic.pde
     if (midi != null) {
       playWord(pEmotion, pWordClass, pAbstract, pAgency, pOrganic, pPhenomenon, pTime);
@@ -60,7 +64,7 @@ void loadJSONFromPath(String path, boolean spawn) {
 
     File f = new File(dataPath(path));
     if (f.exists()) lastModified = f.lastModified();
-    println("Loaded: " + currentWord);
+    println("Loaded: " + currentWord + "  (culturalitat " + pCultura + ", raresa " + pRaresa + ")");
   } catch (Exception e) {
     println("JSON error: " + e.getMessage());
   }

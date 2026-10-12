@@ -1,11 +1,16 @@
 {
-  "emotion": 7,
-  "agency": 3,
-  "word_class": 6,
-  "abstraction": 4,
-  "color_hex": "#926335",
-  "time_duration": 5,
-  "word": "hola",
-  "organic": 3,
-  "phenomena_class": 7
+  "agency": 6,
+  "raresa": 7,
+  "word_class": 2,
+  "abstraction": 2,
+  "color_hex": "#D9A21B",
+  "culturalitat": 1,
+  "emotion": 2,
+  "emotion_label": "Sorpresa",
+  "definicio": "Embrutar amb un esquitx. / Escapar-se algunes gotes d'un líquid en una direcció no volguda.",
+  "time_duration": 1,
+  "zipf": 2.430000066757202,
+  "word": "esquitxar",
+  "organic": 7,
+  "phenomena_class": 6
 }

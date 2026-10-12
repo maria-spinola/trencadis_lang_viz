@@ -60,6 +60,8 @@ void spawnWordTile() {
   rec.setInt("organic",         pOrganic);
   rec.setInt("phenomena_class", pPhenomenon);
   rec.setInt("time_duration",   pTime);
+  rec.setInt("culturalitat",    pCultura);
+  rec.setInt("raresa",          pRaresa);
   mosaicTiles.append(rec);
   TrencadisTile tile = tileFor(rec, mosaicCount);
   mosaicCount++;
@@ -293,7 +295,8 @@ TrencadisTile makeWordTile(JSONObject rec, Patch patch, int band) {
   int og = rec.getInt("organic", 4),     ph  = rec.getInt("phenomena_class", 1);
   int tm = rec.getInt("time_duration", 4);
   long seed = wordSeed(word + hex, em, wc, ab, ag, og, ph, tm);
-  return new TrencadisTile(seed, parseHexColor(hex), ab, og, ph, wc, patch, band);
+  int cu = rec.getInt("culturalitat", 0), ra = rec.getInt("raresa", 0);   // 0 in old saved mosaics: no effect
+  return new TrencadisTile(seed, parseHexColor(hex), ab, og, ph, wc, patch, band, cu, ra);
 }
 
 void stampTile(TrencadisTile tile) {

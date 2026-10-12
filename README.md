@@ -8,13 +8,14 @@ Alberto Benavent Ramón, Francisco A. Rodríguez, Lerie Pemanagpo, María Spíno
 
 ### Inspiration
 - Gaudí's *trencadís* in Park Güell, Barcelona.
+- Word frequencies: [wordfreq](https://github.com/rspeer/wordfreq) (CC BY-SA 4.0); definitions: [Viquidiccionari](https://ca.wiktionary.org).
 - The first, particle-based version of the project was inspired by *Genuary2026_16: Order and disorder* by KaitoFMS and *260401 Particles* by Vivian.
 
 ---
 
 ## How it works
 
-1. **A word comes in.** A visitor types a word on the main wall (WALL 3). An LLM (Claude) describes it with 7 semantic parameters and a colour (`data/input.json`).
+1. **A word comes in.** A visitor types one word in Catalan on the main wall (WALL 3). The sketch looks up its meaning in the Catalan Wiktionary (Viquidiccionari), a language model (Ollama, in the cloud by default) checks it is Catalan and describes it with semantic parameters and a colour, and its rarity is measured from real Catalan texts (wordfreq) — see [Analysing a word](#analysing-a-word). The result goes to `data/input.json`.
 2. **It becomes a tile.** A decorated ceramic tile is painted from those parameters and broken into irregular straight-edged shards, as in real trencadís.
 3. **It assembles on WALL 3.** The shards come from far behind the wall — dark and out of focus — and become sharp as they reach their place, the small ones first.
 4. **It travels.** The tile comes apart and its pieces travel as a loose cloud — round by WALL 2, round by WALL 4 or across the floor — to the tile's slot on WALL 1. Optionally they fly through the air of the room in 3D.
@@ -28,10 +29,10 @@ Words of a poem (`poem_words.json`) live in the background, behind the mural and
 2. The open cloud stops; the word appears on black in the middle and stays 2 s.
 3. The **word** glides down to the floor and floats there like a leaf on water (no floor in the venue: along the low band of the side walls and the mural wall, never on the main wall).
 4. The **tile** closes; its pieces vanish quickly one by one until one is left, which then shrinks, starts turning and wanders all the walls. The words stay on the floor (up to `MAX_FLOOR_WORDS`); old shards fade after `MAX_POEM_WORDS`.
-Each poem word has its own depth (size, brightness, transparency, speed) and pace; the shards and floor words drift in and out of the depth, wander with changing speed, and the clouds settle anywhere on the side walls (high, low, centred, in a corner) without piling up. Up to `MAX_POEM_WORDS` at a time; beyond that the oldest slowly fades. Timings and sizes: `POEM_*` in `Config.pde`.
+Each poem word has its own depth (size, brightness, speed — fully opaque) and pace; the shards and floor words drift in and out of the depth, wander with changing speed, and the clouds settle anywhere on the side walls (high, low, centred, in a corner) without piling up. Up to `MAX_POEM_WORDS` at a time; beyond that the oldest slowly fades. Timings and sizes: `POEM_*` in `Config.pde`.
 
 ### Deterministic
-Every tile comes from a seed made of the word, its colour and its parameters. The same word with the same parameters always gives the same tile, and the same words in the same order always give the same mural. Without an API key the parameters themselves are derived from the word.
+Every tile comes from a seed made of the word, its colour and its parameters. The same word with the same parameters always gives the same tile, and the same words in the same order always give the same mural. If no model can be reached, the parameters themselves are derived from the word.
 
 ---
 
@@ -53,7 +54,7 @@ Each wall touches the floor with its bottom edge. Everything is drawn on the sur
 
 ---
 
-## The 7 parameters → visuals
+## The parameters → visuals
 
 | Parameter | Range | Visual effect |
 |---|---|---|
@@ -65,10 +66,19 @@ Each wall touches the floor with its bottom edge. Everything is drawn on the sur
 | `word_class` | 1–8 | How the shards come in while the tile assembles (see below) |
 | `emotion` | 1–7 | The colour (the LLM picks `color_hex` from the emotion) and how the travelling pieces split between routes (see below) |
 | `color_hex` | `#RRGGBB` | The palette: base, warm light, dark, an accent (complementary or neighbouring hue) and ochre |
+| `culturalitat` | 1–7 | How Catalan the thing named is → richer tile: more, smaller shards, and shards from other tiles in contrasting glazes |
+| `raresa` | 1–7 | How rare the word is (measured) → richer tile: more, smaller shards, and shards of golden lustre |
 
 The shape depends on the phenomenon, not on the word class, because visitors mostly type nouns.
 
-**Palette.** Strong glazes as on Park Güell: every colour is moved to the nearest glaze — red, terracotta, orange, ochre, olive, bottle green, turquoise, cobalt, navy. Violets and indigo become cobalt, pinks become red; never pastel. The accent comes from the opposite family (cobalt against warm colours, orange against cool ones), on a cream ground with near-black outlines. Emotion → colour (test mode / no API key): anger red, surprise ochre, fear terracotta, love red, disgust bottle green, sadness cobalt, joy orange.
+**Rich words are rewarded.** Rare or very Catalan words make visibly more complex tiles, so visitors notice that it's worth looking for them (`Trencadis.pde`, `RICH_*` in `Config.pde`):
+- **How many shards** — the higher of `culturalitat` and `raresa`: at 1 a few big shards (shard size × `RICH_SHARD_SIMPLE` 1.5), at 7 many small ones (× `RICH_SHARD_RICH` 0.5), with more crushed spots.
+- **Shards from other tiles** — `culturalitat`: from 2 up to `RICH_ACCENT` (28 %) of the shards in contrasting glazes (cobalt / orange, ochre, white crockery, navy), as real trencadís mixes the pieces of many plates.
+- **Golden lustre** — `raresa`: from 4 up to `RICH_GOLD` (14 %) of the shards in *reflex daurat*, the gold lustre of Valencian ceramics.
+
+Tiles saved before these parameters existed are drawn as before.
+
+**Palette.** Strong glazes as on Park Güell: every colour is moved to the nearest glaze — red, terracotta, orange, ochre, olive, bottle green, turquoise, cobalt, navy. Violets and indigo become cobalt, pinks become red; never pastel. The accent comes from the opposite family (cobalt against warm colours, orange against cool ones), on a cream ground with near-black outlines. Emotion → colour (when no model answers): anger red, surprise ochre, fear terracotta, love red, disgust bottle green, sadness cobalt, joy orange.
 
 **Relief.** Every shard sits slightly tilted in the mortar (lighter or darker), has a rounded rim (lit edge / shaded edge), chipped glaze where the pale biscuit shows, a glaze highlight on the shards facing the light, and the grout is sandy and sunk next to the shards. Tuned with `RELIEF`, `RIM_PX`, `AO_PX`, `GLAZE`.
 
@@ -139,7 +149,8 @@ language_viz/
 ├── Output.pde            — Output images for PIXERA: media matrix or groups of surfaces; windows / Syphon / Spout
 ├── WordsSystem.pde       — Poem words floating as small tiles
 ├── ClaudeSketch.pde      — Text input on the main wall, API state
-├── ai_agent.pde          — Anthropic API call (background thread)
+├── ai_agent.pde          — Ollama / Anthropic API call (background thread)
+├── CatalanLLM.pde        — One word in Catalan: local filter, Viquidiccionari, model, cache, word frequency, analysis, language test
 ├── utils.pde             — Request builder, response parsing, test-mode / no-API parameters
 ├── JSONLoader.pde        — Reads input.json (and watches it for changes)
 ├── SoundEngine.pde       — MIDI chord generation entry point
@@ -150,12 +161,19 @@ language_viz/
 ├── data/
 │   ├── input.json        — Current word and its parameters
 │   ├── poem_words.json   — Poem words with parameters
+│   ├── catalan_freq.tsv  — Catalan word frequencies (wordfreq) → raresa
+│   ├── lexicon_cache.json — Every word already analysed (in git)
+│   ├── ollama_key.txt    — Your Ollama API key (NOT in git)
+│   ├── language_test.txt — Last Ctrl+K result (not in git)
 │   └── mosaic.json       — The mural (created automatically, not in git)
 ├── prompts/
-│   └── haiku_art_system_prompt.md — System prompt sent to Claude
+│   ├── catala_art_system_prompt.md — System prompt (Catalan) sent to the model
+│   └── haiku_art_system_prompt.md — Old English prompt
 └── Reaper/
     └── miditest.rpp      — Reaper project for the sound
 language_viz_original/    — Earlier version of the sketch (particles, single screen)
+tools/make_catalan_freq.py — Rebuilds data/catalan_freq.tsv from wordfreq
+setup_mac.command, setup_windows.bat — Install Ollama + the local model
 ```
 
 ---
@@ -163,26 +181,109 @@ language_viz_original/    — Earlier version of the sketch (particles, single s
 ## Setup
 
 ### Requirements
-- [Processing 4](https://processing.org/download)
-- Library **themidibus** (Processing's Library Manager)
-- Optional: an Anthropic API key (for the LLM), Reaper or any MIDI app (for the sound), Syphon / Spout (to send the image to PIXERA)
+- [Processing 4](https://processing.org/download) and the library **themidibus** (Processing's Library Manager).
+- Internet in the room (Ollama Cloud + Viquidiccionari). Without it the installation keeps working, with less accurate analysis (see below).
+- An **Ollama** account and API key (free plan) — or Ollama installed locally.
+- Optional: Reaper or any MIDI app (for the sound), Syphon / Spout (to send the image out).
 
-### Running
-1. Open `language_viz/language_viz.pde` in Processing.
-2. Optional: put your API key in `Config.pde` (`API_KEY`). **Never commit it.**
-3. Run. Type a word and press Enter.
+### Quick start (cloud, default)
+1. Create a free account on [ollama.com](https://ollama.com) → *Settings → API keys* (https://ollama.com/settings/keys) → *Create API key*.
+2. Paste the key in `language_viz/data/ollama_key.txt`, on the empty line under the comments (`OLLAMA_API_KEY = "…"` also works). The file is ignored by git: **never commit a key, and never paste it in a chat or a README**. Each computer needs its own copy of this file.
+3. Open `language_viz/language_viz.pde` in Processing and run. Type one word in Catalan and press Enter. The console shows the analysis and `[mode: cloud]`.
 
-### Typing words
-The text box is centred on WALL 3, below the tile. Type a word and press Enter.
-- **With API key:** Claude analyses the word and returns the parameters (`temperature 0`), saved to `data/input.json`.
-- **Without API key:** the parameters are derived from the word itself (always the same for the same word); the colour follows the emotion as the LLM would.
-- **Test mode (`Ctrl+E`):** words skip the LLM and get random parameters, shown on screen. Test tiles are not saved; leaving test mode brings back the real mural.
+### Local model (optional, offline)
+Once per computer, double-click `setup_mac.command` (macOS, uses Homebrew) or `setup_windows.bat` (Windows, uses winget): they install Ollama, start it and download `gemma3:4b` (≈ 3 GB). By hand: install Ollama from https://ollama.com (macOS: `brew install ollama` + `brew services start ollama`), then `ollama pull gemma3:4b`. The model can't live in the repository: it's far bigger than GitHub allows, and Ollama is a different program on each system.
 
-The model and prompt are set in `Config.pde`:
+Then set `LLM_MODE` to `"local"` or `"auto"`. **Tested:** gemma3:4b doesn't know many Catalan words and analyses them poorly (even with the dictionary's help); use the cloud whenever possible. A bigger local model (`gemma3:12b`, 8 GB) or Salamandra 7B (BSC, trained on Catalan) may do better but haven't been tested.
+
+### Which model (`Config.pde`)
 ```java
-final String MODEL       = "claude-haiku-4-5-20251001";
-final String prompt_path = "prompts/haiku_art_system_prompt.md";
+final String LLM_PROVIDER       = "ollama";      // or "claude"
+final String LLM_MODE           = "cloud";       // "local" | "cloud" | "auto"
+final String OLLAMA_MODEL_LOCAL = "gemma3:4b";
+final String OLLAMA_MODEL_CLOUD = "gemma4:31b";
 ```
+- **cloud (default):** [Ollama Cloud](https://docs.ollama.com/cloud), `https://ollama.com/api/chat`, with the key from `data/ollama_key.txt`. Of the models in the free plan, `gemma4:31b` gave the best analyses (`gpt-oss:120b` and `nemotron` were worse; the rest need a paid plan). The free plan has usage limits that reset every few hours / weekly; the cache keeps the cost low. Cloud models: `curl https://ollama.com/api/tags`.
+- **local:** Ollama on this computer (`http://localhost:11434`).
+- **auto:** local; if it doesn't answer, the cloud.
+- If no model answers (no network, no key, limit reached), a word that passed the local filter gets parameters derived from the word itself, without checking the language — the installation never stops. The console says `[mode: fallback]`.
+- **Claude:** `LLM_PROVIDER = "claude"` and the key in `API_KEY` (**never commit it**).
+
+---
+
+## Analysing a word
+
+What happens when a visitor presses Enter (`submitWord()` in `CatalanLLM.pde`):
+
+```
+1. Local filter      one word, Catalan letters only, ≤ 30 letters          instant, offline
+2. Cache             already analysed? → use it, no network                 data/lexicon_cache.json
+3. Viquidiccionari   look the word up, take its definition                  ca.wiktionary.org
+4. Model             word + definition → is it Catalan? + all parameters    Ollama Cloud (gemma4:31b)
+5. wordfreq          raresa = the word's real frequency in Catalan texts     data/catalan_freq.tsv
+6. → tile, sound, mural    (or a short message in Catalan if it's rejected)
+```
+
+### 1. Only one word in Catalan
+1. **Local filter, instant.** One word, at most `MAX_WORD_LENGTH` (30) letters, only the Catalan alphabet: a–z, à è é í ï ò ó ú ü ç, the punt volat of l·l (`l.l` is accepted and turned into `l·l`) and an inner hyphen (`pell-roja`). Numbers, symbols, emoji, apostrophes (`l'aigua` = two words) and foreign letters (ñ, á…) are rejected. The text box doesn't even let you type spaces or those characters.
+2. **The model**, helped by the Viquidiccionari, in the same call as the parameters (`es_catala` / `motiu`): Catalan dictionary words (also those shared with other languages: *casa*, *mar*), inflected forms and Catalan place / proper names are accepted; other languages (*cuchara*, *hello*), non-standard Castilianisms (*bueno*, *vale*) and non-existent or misspelt words (*enyprança*) are rejected.
+
+A rejected word makes no tile, no input.json and no sound: a short message in Catalan appears on the main wall for a few seconds (`MSG_*` in `Config.pde`).
+
+**Accents.** If a keyboard doesn't compose accents (dead keys), type the accent first and then the vowel: `` ` `` + a/e/o → à è ò, `´` or `'` + vowel → é í ó ú, `¨` or `"` + i/u → ï ü.
+
+### 2. Cache
+Every answer (also rejections) is stored in `data/lexicon_cache.json` (lower-case word → JSON, with the definition). A word already there doesn't call the network again: it's instant, free and always gives the same analysis. The file **is kept in git**, so every computer (and the venue) gives the same tile for the same word, and a wrong decision of the model can be fixed by hand there (or delete the entry to ask again). Turn it off with `USE_LEXICON_CACHE = false`. Changing the model or the prompt doesn't change words already cached: empty the file (`{}`) to analyse them again.
+
+### 3. Viquidiccionari (definitions)
+The language models don't know many Catalan words: asked for definitions, gemma3:4b said *pessigolles* was a town, gemma4:31b that it is "a person who annoys others", *esbarzer* "having fun" and *bassal* "a pigeon". So before asking the model, the sketch looks the word up in the Catalan Wiktionary — free, open, no account (`lookupDefinition()`, `USE_DICTIONARY`, `DICT_URL`):
+- It reads the word's page through the public API (`ca.wiktionary.org/w/api.php?action=parse…`), takes the **Catalan** section and keeps up to 3 definitions, without wiki markup. It also tries lower case and a capital initial (*Montserrat*).
+- **Inflected forms** (*castellers*, *cantàvem*, *bonica*) only say "plural of…" / "form of…": the sketch follows the link and sends the base word's definition — "(forma de casteller) Persona que fa castells humans".
+- Four outcomes: a definition → sent with the word · the page exists but not in Catalan (*cuchara*) → the model is told · no page (*enyprança*) → the model is told · no answer within ~6 s → the model decides alone.
+- The dictionary never rejects a word by itself (many valid forms have no page); it only informs the model.
+
+The model receives the instructions (`prompts/catala_art_system_prompt.md`: acceptance rules, emotion → colour table, the 1–7 scales with examples, worked examples) and a message like:
+```
+pessigolles
+Definició del Viquidiccionari: Sensació que s'experimenta en algunes parts del cos
+quan són estimulades lleugerament pel tacte i que sol provocar involuntàriament la rialla.
+```
+It answers with a JSON object; the sketch checks every value is in range (`cleanParams()`), adds the definition and stores it in the cache.
+
+### 4. Two new parameters
+- **`culturalitat`** 1–7: how tied **what the word names** is to Catalan culture — customs, festivals, food, objects, places, character. Judged by the model, with examples for every level in the prompt: 1 *taula*, *tristesa* · 2 *mar*, *pa* · 3 *mercat*, *mongeta* · 4 *platja*, *festa major* · 5 *espardenya*, *botifarra* · 6 *porró*, *calçot*, *gegant* · 7 *castellers*, *sardana*, *seny*, *rauxa*, *Montserrat*. A very Catalan *word* for a universal thing is not cultural (*enyorança*, *pessigolles* → 1–2). There is no objective measure for this; clear cases come out right, middle values (3–5) vary more.
+- **`raresa`** 1–7: how rare the word is — **measured, not guessed**. Its frequency in real Catalan texts (Wikipedia, web, subtitles, news…) from [wordfreq](https://github.com/rspeer/wordfreq) (data CC BY-SA 4.0), exported once to `data/catalan_freq.tsv` (185 000 words, 2.4 MB) by `tools/make_catalan_freq.py`. It replaces the model's guess, also for cached words. Zipf frequency → raresa with `RARESA_ZIPF`:
+
+| zipf ≥ | 5 | 4.5 | 4 | 3.5 | 3 | 2.5 | below |
+|---|---|---|---|---|---|---|---|
+| raresa | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+| e.g. | *casa* 5.8 | *finestra* 4.6 | *castellers* 4.1 | *sardana* 3.8 | *pessigolles* 3.1 | *calçot* 2.9 | *xiuxiuejar* 2.2 |
+
+  Inflected forms take their base word's frequency when it's higher (*cantàvem* = *cantar*). Words not in the table: 7. Without the file (`USE_WORD_FREQ = false`) the model's guess is used. To rebuild the table: `python3 -m venv venv && venv/bin/pip install wordfreq && venv/bin/python tools/make_catalan_freq.py`.
+
+How they change the tile: see [Rich words are rewarded](#the-parameters--visuals).
+
+### 5. Seeing the analysis
+Every word prints its analysis in the console, one line per category with what it changes:
+```
+"pessigolles"   mode cloud
+emoció         7  Alegria      → color, so
+classe         1  nom          → entrada al mur
+fenomen        5  percepció    → dibuix del rajol
+abstracció     5               → mida dels bocins
+orgànic        7               → irregularitat dels talls
+culturalitat   4               → bocins d'altres rajols
+raresa         5  freq 3,12    → bocins daurats
+riquesa        5               → quants bocins
+significat     Sensació que s'experimenta en algunes parts del…
+```
+`mode` says who answered: `cloud`, `local`, `cache`, `fallback` (no model) or `test` (random). In test mode (`Ctrl+E`) the same panel is shown on WALL 3.
+
+The bottom of the preview window always shows, large, what is being typed, "pensant…" while the model answers, the rejection message or the last word (`PREVIEW_INPUT`; never in the output).
+
+### Tests
+- **`Ctrl+E` test mode:** each word gets its real analysis (cache or model), shown on WALL 3. Test tiles are not saved in the mural; leaving test mode brings back the real mural. With `TEST_RANDOM = true` the model is skipped and parameters are random.
+- **`Ctrl+K` language test:** runs a list of words that should be accepted / rejected through both filters and the model, and prints a table with the mode that answered (also saved in `data/language_test.txt`).
 
 ---
 
@@ -202,10 +303,18 @@ final String prompt_path = "prompts/haiku_art_system_prompt.md";
 | `MOSAIC_ROWS`, `MOSAIC_SEED`, `MOSAIC_SAVE` | Mural layout and saving |
 | `GROUT_*`, `GROUT_SET_FRAMES`, `GLAZE` | Grout width / colour / setting time, glaze sheen |
 | `TEXTURE_DETAIL` | Resolution of the painted motifs |
-| `UI_WIDTH`, `UI_Y`, `UI_SCALE`, `UI_BAR_ALPHA` | The text box |
+| `UI_WIDTH`, `UI_Y`, `UI_SCALE`, `UI_BAR_ALPHA` | The text box on WALL 3 (`UI_SCALE` 2.2 ≈ 9 cm letters in the room) |
+| `PREVIEW_INPUT` | Large typed text at the bottom of the preview window |
 | `SHOW_POEM` | Floating poem tiles on / off |
 | `TEST_MODE` | Start in test mode |
-| `API_KEY`, `MODEL`, `MIDI_PORT` | LLM and sound |
+| `TEST_RANDOM` | Test mode with random parameters instead of the real analysis |
+| `RICH_SHARD_SIMPLE`, `RICH_SHARD_RICH`, `RICH_ACCENT`, `RICH_GOLD` | How much richer rare / very Catalan words' tiles are |
+| `LLM_PROVIDER`, `LLM_MODE`, `OLLAMA_MODEL_LOCAL` / `_CLOUD`, `MODEL`, `API_KEY` | Language model (the Ollama key lives in `data/ollama_key.txt`) |
+| `USE_DICTIONARY`, `DICT_URL` | Viquidiccionari definitions sent to the model |
+| `USE_WORD_FREQ`, `WORD_FREQ_FILE`, `RARESA_ZIPF` | raresa from word frequency |
+| `USE_LEXICON_CACHE`, `LEXICON_CACHE_FILE` | Cache of analysed words |
+| `MAX_WORD_LENGTH`, `MSG_*`, `MSG_FRAMES` | Local filter and the messages shown for rejected words |
+| `MIDI_PORT` | Sound |
 
 ---
 
@@ -254,7 +363,8 @@ All shortcuts use **Ctrl** (or **Cmd** on Mac), so typing words never triggers t
 | `Ctrl+T` | Calibration pattern (in the output) |
 | `Ctrl+L` | Surface outlines in the preview |
 | `Ctrl+D` | Travel in 2D (along the surfaces) or 3D (through the air of the room) |
-| `Ctrl+E` | Test mode (random parameters, nothing saved) |
+| `Ctrl+E` | Test mode (real analysis shown on WALL 3, nothing saved) |
+| `Ctrl+K` | Language test: word list through both filters and the model |
 | `Ctrl+P` | Floating poem tiles on / off |
 | `Ctrl+N` | Clear the mural on WALL 1 (no confirmation) |
 | `Ctrl+R` | Reload `input.json` (adds that word again) |
@@ -271,18 +381,23 @@ All shortcuts use **Ctrl** (or **Cmd** on Mac), so typing words never triggers t
 ### `input.json` (current word)
 ```json
 {
-  "word": "mariposa",
+  "word": "pessigolles",
   "emotion": 7,
-  "emotion_label": "Joy / Happiness",
-  "color_hex": "#FFA500",
+  "emotion_label": "Alegria",
+  "color_hex": "#F08A1C",
   "word_class": 1,
-  "abstraction": 4,
-  "agency": 5,
-  "organic": 2,
-  "phenomena_class": 1,
-  "time_duration": 5
+  "abstraction": 5,
+  "agency": 4,
+  "organic": 7,
+  "phenomena_class": 5,
+  "time_duration": 2,
+  "culturalitat": 4,
+  "raresa": 5,
+  "zipf": 3.12,
+  "definicio": "Sensació que s'experimenta en algunes parts del cos…"
 }
 ```
+The model's answer (in the cache) also has `es_catala` (true / false) and `motiu` (why it was rejected).
 
 ### `poem_words.json`
 ```json

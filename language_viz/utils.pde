@@ -96,33 +96,31 @@ void parseResponse() {
   try {
     JSONObject json = parseJSONObject(raw);
 
-    // ── Packed connection error from callClaude() catch block
+    // ── Packed connection error from the background thread
     if (json.hasKey("connection_error")) {
-      displayText = "Connection error: " + json.getString("connection_error");
+      llmUnavailable(json.getString("connection_error"));
       return;
     }
 
-    // ── Anthropic API error  {"error": {"type": "...", "message": "..."}}
+    // ── Error from Ollama {"error":"model 'x' not found…"} or Anthropic {"error":{"message":…}}
     if (json.hasKey("error")) {
-      JSONObject err = json.getJSONObject("error");
-      displayText = "API error: " + err.getString("message");
+      String m;
+      try { m = json.getJSONObject("error").getString("message"); } catch (Exception e) { m = json.getString("error"); }
+      llmUnavailable(m);
       return;
     }
 
-    // ── Success  {"content": [{"type": "text", "text": "..."}], ...}
-    JSONArray  content = json.getJSONArray("content");
-    JSONObject block   = content.getJSONObject(0);
-    String responseText = block.getString("text");
+    // ── Success: Ollama {"message":{"content":"…"}} or Anthropic {"content":[{"text":"…"}]}
+    String responseText = json.hasKey("message")
+      ? json.getJSONObject("message").getString("content")
+      : json.getJSONArray("content").getJSONObject(0).getString("text");
+    JSONObject result = parseJSONObject(stripFences(responseText));
+    if (result == null) { llmUnavailable("unreadable answer: " + responseText); return; }
     displayText = "";   // clear any previous error message
-
-    // Write data/input.json, then immediately trigger particle update.
-    // Direct call bypasses the file-watcher's first-run blind spot
-    // (lastModified==0 would prevent detecting the very first write).
-    saveResponse(responseText, lastPrompt);
-    loadJSONFromPath(jsonPath);
+    applyLLMResult(pendingWord, result, true);   // CatalanLLM.pde: reject, or validate + save input.json
 
   } catch (Exception e) {
-    displayText = "Parse error: " + e.getMessage();
+    llmUnavailable("parse error: " + e.getMessage());
   }
 }
 
@@ -149,6 +147,8 @@ void generateTestWord(String word) {
   out.setInt("phenomena_class",    int(random(1, 8)));
   out.setInt("time_duration",      int(random(1, 8)));
   out.setString("color_hex",       emotionHex(out.getInt("emotion"), random(-12, 12), random(45, 95), random(55, 100)));
+  out.setInt("culturalitat",       int(random(1, 8)));
+  out.setInt("raresa",             int(random(1, 8)));
   saveJSONObject(out, "data/input.json");
   loadJSONFromPath(jsonPath);
   displayText = "TEST  phenomenon " + out.getInt("phenomena_class")
@@ -158,6 +158,9 @@ void generateTestWord(String word) {
               + " · time "        + out.getInt("time_duration")
               + " · emotion "     + out.getInt("emotion")
               + " · class "       + out.getInt("word_class")
+              + " · cult "        + out.getInt("culturalitat")
+              + " · rare "        + out.getInt("raresa")
+              + " · mode test (no LLM)"
               + " · "             + out.getString("color_hex");
   println("Test params for '" + word + "': " + displayText);
 }
@@ -176,7 +179,9 @@ void generateRandomWord(String word) {
   out.setInt("phenomena_class",    1 + r.nextInt(7));
   out.setInt("time_duration",      1 + r.nextInt(7));
   out.setString("color_hex",       emotionHex(out.getInt("emotion"), rnd(r, -12, 12), rnd(r, 45, 95), rnd(r, 55, 100)));
+  out.setInt("culturalitat",       1 + r.nextInt(7));
+  out.setInt("raresa",             1 + r.nextInt(7));
   saveJSONObject(out, "data/input.json");
   loadJSONFromPath(jsonPath);
-  println("Params generated for: " + word);
+  println("Params generated for: " + word + " (cult " + out.getInt("culturalitat") + ", rare " + out.getInt("raresa") + ")");
 }

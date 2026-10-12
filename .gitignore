@@ -12,3 +12,9 @@ application.*/
 
 # Processing IDE autosaves
 *.autosave
+
+# Output of the language test (Ctrl+K)
+language_viz/data/language_test.txt
+
+# Ollama Cloud API key (never commit it)
+language_viz/data/ollama_key.txt

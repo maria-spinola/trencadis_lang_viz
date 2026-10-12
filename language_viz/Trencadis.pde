@@ -20,6 +20,10 @@
 //   abstraction     → shard size (abstract = big, simple shards)
 //   word_class      → how the shards come in while assembling (entrance())
 //   organic         → extra irregularity of the cuts
+//   culturalitat / raresa → how rich the tile is (RICH_* in Config):
+//       the higher of the two → more, smaller shards (simple words: a few big ones);
+//       culturalitat → shards from other tiles in contrasting glazes;
+//       raresa       → a few shards of golden lustre ("reflex daurat")
 //
 // Every decision comes from a Random seeded with the word and its
 // parameters, so the same word always produces the same tile.
@@ -48,6 +52,9 @@ float[][] RIBBON_TONES = {
   {150, 35, 32 },   // bottle green
   {  5, 50, 40 }    // oxblood
 };
+
+// Golden lustre ("reflex daurat", as on Valencian lustreware) for the shards of rare words. HSB.
+float[] GOLD_LUSTRE = { 44, 62, 86 };
 
 // Light comes from the upper left (y grows downwards); only used for the soft glaze sheen
 final float LIGHT_X = -0.6, LIGHT_Y = -0.8;
@@ -159,8 +166,16 @@ class TrencadisTile {
   float u, jit, quadProb;         // shard size, mesh jitter, share of quads
   int phen, wc;
   float[][] tones;                // plain palettes (index 5 = white crockery)
+  int cult, rare;                 // culturalitat / raresa 1..7 (0 = unknown: no effect)
 
   TrencadisTile(long seed, color col, int abstraction, int organic, int phenomenon, int wordClass, Patch patch, int band) {
+    this(seed, col, abstraction, organic, phenomenon, wordClass, patch, band, 0, 0);
+  }
+
+  TrencadisTile(long seed, color col, int abstraction, int organic, int phenomenon, int wordClass, Patch patch, int band,
+                int culturalitat, int raresa) {
+    cult = constrain(culturalitat, 0, 7);
+    rare = constrain(raresa, 0, 7);
     this.seed  = seed;
     this.patch = patch;
     r      = new Random(seed);
@@ -184,6 +199,9 @@ class TrencadisTile {
 
     makePalette(col, band);
     tex = paint();
+    // Rich words (rare or very Catalan) break into many small shards, simple ones into a few big ones
+    int rich = max(cult, rare);
+    if (rich > 0) u *= map(rich, 1, 7, RICH_SHARD_SIMPLE, RICH_SHARD_RICH);
 
     ArrayList<PVector> content = outline;
     if (rib > 0) content = ribbon();
@@ -764,7 +782,8 @@ class TrencadisTile {
 
     // A few spots where the tile was hit harder: crushed into small chips
     ArrayList<PVector> crush = new ArrayList<PVector>();
-    for (int i = 0, n = 1 + r.nextInt(3); i < n; i++) crush.add(new PVector(X0 + rnd(r, 0, W), Y0 + rib + rnd(r, 0, CH)));
+    int nCrush = 1 + r.nextInt(3) + (max(cult, rare) >= 5 ? 2 : 0);   // rich words: more crushed spots
+    for (int i = 0; i < nCrush; i++) crush.add(new PVector(X0 + rnd(r, 0, W), Y0 + rib + rnd(r, 0, CH)));
 
     ArrayList<ArrayList<PVector>> todo = new ArrayList<ArrayList<PVector>>();
     ArrayList<ArrayList<PVector>> done = new ArrayList<ArrayList<PVector>>();
@@ -838,7 +857,19 @@ class TrencadisTile {
         mapY = cen[i].y + rnd(r, -0.25, 0.25) * cellUnits;
         mapRot = rnd(r, 0, TWO_PI);
       }
-      addPiece(pieces.get(i), new float[] { 0, 0, rnd(r, 88, 100) }, true);   // each shard glazed a touch differently
+      int before = this.pieces.size();
+      float q = r.nextFloat();
+      if (rare >= 4 && q < map(rare, 4, 7, 0.03, RICH_GOLD)) {
+        // raresa: golden lustre shards, the most precious ones
+        addPiece(pieces.get(i), vary(GOLD_LUSTRE, 3, 6, 6), false);
+        if (this.pieces.size() > before) this.pieces.get(before).spec = 1;
+      } else if (cult >= 2 && q > 1 - map(cult, 2, 7, 0.04, RICH_ACCENT)) {
+        // culturalitat: shards from other tiles, in contrasting glazes
+        float[][] acc = { cAcc, cAcc2, tones[5], cDark, cAcc };
+        addPiece(pieces.get(i), vary(acc[r.nextInt(acc.length)], 4, 6, 6), false);
+      } else {
+        addPiece(pieces.get(i), new float[] { 0, 0, rnd(r, 88, 100) }, true);   // each shard glazed a touch differently
+      }
     }
   }
 

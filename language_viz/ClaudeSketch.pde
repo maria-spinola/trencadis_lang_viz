@@ -21,11 +21,14 @@ boolean cursorVisible = true;
 // ── Called from main setup() ──────────────────────────────────────
 void setupLLM() {
   SYSTEM_PROMPT = loadSystemPrompt(prompt_path);
+  loadLexicon();   // CatalanLLM.pde
+  loadWordFreq();
 }
 
 // ── Called from main draw() ───────────────────────────────────────
 void updateLLM() {
   if (responseRaw != null) parseResponse();
+  if (msgUntil > 0 && frameCount > msgUntil) { displayText = ""; msgUntil = 0; }
   cursorTimer++;
   if (cursorTimer >= 30) { cursorVisible = !cursorVisible; cursorTimer = 0; }
 }
@@ -104,30 +107,51 @@ void drawLLMInterface(PGraphics pg) {
     pg.textAlign(RIGHT, CENTER);
     pg.text("thinking...", x1 - 20*ui, mid);
   }
+
+  // Test mode: the analysis of the last word, category by category, on the left of the wall
+  if (TEST_MODE && lastAnalysis.length > 0) {
+    if (pg.textFont == null) pg.textSize(13 * ui);   // make the default font exist, to put it back afterwards
+    PFont prev = pg.textFont;
+    float ts = min(13 * ui, W * 0.3 / (50 * 0.6)), lh = ts * 1.35;
+    if (wallMonoFont == null) wallMonoFont = createFont("Monospaced", round(ts));
+    float px = W * 0.03, py = H * 0.1;
+    pg.noStroke();
+    pg.fill(0, 0, 0, 70);
+    pg.rect(px - ts, py - ts, W * 0.3 + 2 * ts, lh * lastAnalysis.length + 2 * ts);
+    pg.textFont(wallMonoFont);
+    pg.textSize(ts);
+    pg.textAlign(LEFT, TOP);
+    pg.fill(0, 0, 90);
+    for (int i = 0; i < lastAnalysis.length; i++) pg.text(lastAnalysis[i], px, py + i * lh);
+    pg.textFont(prev);
+  }
 }
 
+PFont wallMonoFont;   // fixed size: the analysis panel on the wall (test mode)
+
 // ── Called from main keyPressed() ────────────────────────────────
+// Only one word in Catalan: spaces and characters outside the Catalan alphabet can't be typed
 void handleLLMKey() {
   if (key == ENTER || key == RETURN) {
-    String trimmed = inputText.trim();
-    if (trimmed.length() > 0 && !isLoading) {
-      lastPrompt  = trimmed;
-      displayText = "";
-      if (TEST_MODE) {
-        generateTestWord(trimmed);     // utils.pde — random parameters
-      } else if (API_KEY.length() == 0) {
-        generateRandomWord(trimmed);
-      } else {
-        callClaude(trimmed);
-      }
+    if (!isLoading && inputText.trim().length() > 0) {
+      submitWord(inputText);   // CatalanLLM.pde: filters, cache, LLM
       inputText = "";
     }
+    pendingAccent = 0;
   } else if (key == BACKSPACE) {
     if (inputText.length() > 0)
       inputText = inputText.substring(0, inputText.length() - 1);
+    pendingAccent = 0;
   } else if (key == ESC) {
     key = 0;  // evita que ESC cierre el sketch
   } else if (key != CODED) {
-    inputText += key;
+    // accents typed as a separate key first (dead keys that don't compose): ` ´ ' ¨ "
+    if (key == '`' || key == '´' || key == '\'' || key == '¨' || key == '"') { pendingAccent = key; return; }
+    if (pendingAccent != 0) {
+      String c = composeAccent(pendingAccent, key);
+      pendingAccent = 0;
+      if (c != null) { if (inputText.length() < MAX_WORD_LENGTH) inputText += c; return; }
+    }
+    if (typable(key) && inputText.length() < MAX_WORD_LENGTH) inputText += key;
   }
 }

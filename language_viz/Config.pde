@@ -55,7 +55,14 @@ int WINDOW_W = 1400, WINDOW_H = 900;
 boolean showOutlines = true;   // wall/floor outlines in the preview (Ctrl+L), never in the output
 
 // Size of the text input on the main wall (1.0 = original proportions)
-float UI_SCALE = 1.0;
+float UI_SCALE = 2.2;   // text size on the main wall (1.0 = tiny letters, ~4 cm in the room)
+boolean PREVIEW_INPUT = true;   // also show what you type, big, at the bottom of the preview window (never in the output)
+
+// Rich words are rewarded with a more complex tile (Trencadis.pde). Uses culturalitat and raresa.
+float RICH_SHARD_SIMPLE = 1.5;    // shard size when both are 1: a few big shards
+float RICH_SHARD_RICH   = 0.5;    // shard size when either is 7: many small shards
+float RICH_ACCENT       = 0.28;   // culturalitat 7: share of shards from other tiles, in contrasting glazes
+float RICH_GOLD         = 0.14;   // raresa 7: share of golden lustre shards (from raresa 4)
 // Text input box: centred, about as wide as the tile, at 3/4 of the wall's height
 float UI_WIDTH = 0.55;   // width, × wall height (≈ the tile on the main wall)
 float UI_Y     = 0.72;   // top of the box, fraction of the wall height (0 = top, 1 = bottom)
@@ -105,16 +112,54 @@ final String MIDI_PORT = "processing (A)";
 int CH_LEAD  = 1;
 
 // ── TEST MODE ───────────────────────────────────────────────
-// Ctrl+E toggles it. Words skip the LLM and get RANDOM parameters (shown on the
-// main wall). Tiles placed in test mode are not saved: leaving test mode brings
-// back the real mural from data/mosaic.json.
+// Ctrl+E toggles it. Words get their real analysis (cache or LLM), shown category
+// by category on the main wall. Tiles placed in test mode are not saved: leaving
+// test mode brings back the real mural from data/mosaic.json.
 boolean TEST_MODE = false;
+boolean TEST_RANDOM = false;   // test mode with random parameters instead of the real analysis of the word
 
-// ── LLM API CONFIG ───────────────────────────────────────────────────
-final String API_KEY     = "";  // ← your key
+// ── LLM CONFIG ──────────────────────────────────────────────────────
+// Which model analyses the words:
+//   "ollama" → local model with Ollama: free, offline, no limits (default)
+//   "claude" → Anthropic API (needs API_KEY)
+final String LLM_PROVIDER = "ollama";
+// With Ollama, where the model runs:
+//   "local" → on this computer (Ollama installed, setup_mac.command / setup_windows.bat)
+//   "cloud" → Ollama Cloud (needs an API key: data/ollama_key.txt, never commit it)
+//   "auto"  → local; if it doesn't answer, the cloud; if there's no network either,
+//             parameters from the word itself (local filter only) — it never stops
+final String LLM_MODE           = "cloud";
+// Before asking the model, look the word up in the Catalan Wiktionary (Viquidiccionari) and
+// send the model its definition: the models don't know many Catalan words. Needs internet;
+// without it the model decides alone.
+boolean USE_DICTIONARY = true;
+String  DICT_URL       = "https://ca.wiktionary.org/w/api.php";
+final String OLLAMA_URL_LOCAL   = "http://localhost:11434/api/chat";
+final String OLLAMA_URL_CLOUD   = "https://ollama.com/api/chat";   // Authorization: Bearer <key>
+final String OLLAMA_MODEL_LOCAL = "gemma3:4b";   // "gemma3:12b" if the computer is powerful;
+                                                 // Salamandra 7B Instruct (BSC), more Catalan: "hf.co/BSC-LT/salamandra-7b-instruct-GGUF"
+final String OLLAMA_MODEL_CLOUD = "gemma4:31b";  // gemma3 isn't offered in the cloud (Oct 2026); same family, bigger.
+                                                 // Alternative: "gpt-oss:20b". List: https://ollama.com/api/tags
+String OLLAMA_API_KEY = "";   // leave empty here: it's read from data/ollama_key.txt (ignored by git)
+final String API_KEY     = "";  // ← your key (only for LLM_PROVIDER "claude"; never commit it)
 final String MODEL       = "claude-haiku-4-5-20251001";
-final String prompt_path = "prompts/haiku_art_system_prompt.md";
+final String prompt_path = "prompts/catala_art_system_prompt.md";   // (old English prompt: prompts/haiku_art_system_prompt.md)
 String SYSTEM_PROMPT;
+
+// Only ONE word in CATALAN is accepted (CatalanLLM.pde)
+int    MAX_WORD_LENGTH   = 30;
+String MSG_ONE_WORD      = "Escriu només una paraula en català";
+String MSG_NOT_CATALAN   = "Aquesta paraula no és catalana";
+String MSG_TOO_LONG      = "Paraula massa llarga";
+String MSG_NO_LLM        = "";       // shown when the model doesn't answer (empty: nothing on the wall, only the console)
+int    MSG_FRAMES        = 240;      // how long a message stays on the main wall (60 = 1 s)
+boolean USE_LEXICON_CACHE = true;    // remember each word's answer in data/lexicon_cache.json
+String LEXICON_CACHE_FILE = "lexicon_cache.json";
+// raresa is measured, not guessed: how often the word appears in Catalan texts (wordfreq).
+// Zipf scale: 5.8 casa · 4.6 finestra · 4.1 tristesa · 3.1 pessigolles · 2.8 espardenya · 2.2 xiuxiuejar
+boolean USE_WORD_FREQ = true;
+String WORD_FREQ_FILE = "catalan_freq.tsv";
+float[] RARESA_ZIPF = { 5.0, 4.5, 4.0, 3.5, 3.0, 2.5 };   // zipf at or above → raresa 1, 2, 3, 4, 5, 6; below → 7
 
 // Central word parameters -> updated by JSONLoader
 int pEmotion    = 1;
@@ -124,6 +169,8 @@ int pAgency     = 4;
 int pOrganic    = 4;
 int pPhenomenon = 1;
 int pTime       = 4;
+int pCultura    = 1;   // culturalitat 1–7: how Catalan the word is  → shards from other tiles (RICH_ACCENT)
+int pRaresa     = 1;   // raresa 1–7: how rare the word is in Catalan → golden lustre shards (RICH_GOLD)
 color pColorHex  = color(255, 165, 0);
 String currentWord = "—";
 

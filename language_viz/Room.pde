@@ -178,6 +178,35 @@ void drawPreview() {
   textAlign(LEFT, TOP);
   text(nf(frameRate, 0, 1) + " fps  ·  " + (outIdx >= 0 ? "OUTPUT " + (outIdx + 1) + ": " + outputName(outIdx) : shown == null ? "MEDIA MATRIX" : shown.name)
        + "  ·  Ctrl+V view  Ctrl+T test  Ctrl+L lines  Ctrl+E test mode  Ctrl+D 2D/3D  Ctrl+N reset WALL 1", 10, 10);
+  if (PREVIEW_INPUT) drawPreviewInput();
+}
+
+// What you type and the messages, big, at the bottom of the preview window (not in the output)
+PFont previewFont;
+
+void drawPreviewInput() {
+  if (previewFont == null) previewFont = createFont("SansSerif", 30);   // sharp at this size (the default font is tiny and gets blurry)
+  textFont(previewFont);
+  float h = 74;
+  noStroke();
+  fill(0, 0, 0, 80);
+  rect(0, height - h, width, h);
+  textAlign(LEFT, CENTER);
+  textSize(30);
+  fill(0, 0, 92);
+  text("> " + inputText + (cursorVisible ? "█" : " "), 20, height - h / 2);
+  textSize(16);
+  textAlign(RIGHT, CENTER);
+  if (isLoading)                   { fill(140, 60, 80); text("pensant…", width - 20, height - h / 2); }
+  else if (displayText.length() > 0) { fill(40, 70, 100); text(displayText, width - 20, height - h / 2); }
+  else if (lastPrompt.length() > 0)  { fill(0, 0, 55);    text("última: " + lastPrompt, width - 20, height - h / 2); }
+  textFont(createDefaultFontOnce());
+}
+
+PFont defaultFont;
+PFont createDefaultFontOnce() {   // back to a small font for the rest of the preview text
+  if (defaultFont == null) defaultFont = createFont("SansSerif", 12);
+  return defaultFont;
 }
 
 // Wall/floor outlines + names over the preview (never in the output)
