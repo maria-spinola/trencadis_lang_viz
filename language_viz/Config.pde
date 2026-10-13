@@ -125,15 +125,27 @@ boolean TEST_RANDOM = false;   // test mode with random parameters instead of th
 
 // ── LLM CONFIG ──────────────────────────────────────────────────────
 // Which model analyses the words:
-//   "ollama" → local model with Ollama: free, offline, no limits (default)
+//   "ollama" → local model (LOCAL_ENGINE) and / or Ollama Cloud, as set by LLM_MODE (default)
 //   "claude" → Anthropic API (needs API_KEY)
 final String LLM_PROVIDER = "ollama";
-// With Ollama, where the model runs:
-//   "local" → on this computer (Ollama installed, setup_mac.command / setup_windows.bat)
+// Where the model runs:
+//   "local" → on this computer (LOCAL_ENGINE; setup_mac.command / setup_windows.bat install it)
 //   "cloud" → Ollama Cloud (needs an API key: data/ollama_key.txt, never commit it)
 //   "auto"  → local; if it doesn't answer, the cloud; if there's no network either,
 //             parameters from the word itself (local filter only) — it never stops
-final String LLM_MODE           = "cloud";
+// Ctrl+O switches it while running: auto → cloud → local (shown in the preview window).
+volatile String LLM_MODE        = "auto";
+// The local model:
+//   "llamacpp" → Salamandra 7B Instruct 2606 (BSC, trained on Catalan) on llama.cpp's llama-server,
+//                started by the sketch (LocalLLM.pde). BSC advises against running it with Ollama.
+//   "ollama"   → OLLAMA_MODEL_LOCAL on a local Ollama
+final String LOCAL_ENGINE       = "llamacpp";
+boolean LLAMA_AUTOSTART  = true;            // start llama-server with the sketch and stop it on exit (one already running is reused)
+String  LLAMA_SERVER     = "llama-server";  // the program: found on the PATH, in /opt/homebrew/bin, /usr/local/bin or winget's folder; or a full path
+String  LLAMA_MODEL_FILE = "models/salamandra-7b-instruct-2606.i1-Q4_K_M.gguf";   // in the sketch folder (not in git: setup_mac.command downloads it)
+int     LLAMA_PORT       = 8091;
+int     LLAMA_CTX        = 8192;            // context tokens: instructions + examples (~5k) + word + answer. More = more memory
+float   LLAMA_START_S    = 90;              // how long to wait for the server to load the model (also how long a word waits for it)
 // Before asking the model, look the word up in the Catalan Wiktionary (Viquidiccionari) and
 // send the model its definition: the models don't know many Catalan words. Needs internet;
 // without it the model decides alone.
@@ -141,8 +153,7 @@ boolean USE_DICTIONARY = true;
 String  DICT_URL       = "https://ca.wiktionary.org/w/api.php";
 final String OLLAMA_URL_LOCAL   = "http://localhost:11434/api/chat";
 final String OLLAMA_URL_CLOUD   = "https://ollama.com/api/chat";   // Authorization: Bearer <key>
-final String OLLAMA_MODEL_LOCAL = "gemma3:4b";   // "gemma3:12b" if the computer is powerful;
-                                                 // Salamandra 7B Instruct (BSC), more Catalan: "hf.co/BSC-LT/salamandra-7b-instruct-GGUF"
+final String OLLAMA_MODEL_LOCAL = "gemma3:4b";   // only with LOCAL_ENGINE "ollama"; "gemma3:12b" if the computer is powerful
 final String OLLAMA_MODEL_CLOUD = "gemma4:31b";  // gemma3 isn't offered in the cloud (Oct 2026); same family, bigger.
                                                  // Alternative: "gpt-oss:20b". List: https://ollama.com/api/tags
 String OLLAMA_API_KEY = "";   // leave empty here: it's read from data/ollama_key.txt (ignored by git)

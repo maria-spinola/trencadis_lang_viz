@@ -3,13 +3,13 @@
 //  API CALL  —  runs on a background thread so draw() never blocks
 // ════════════════════════════════════════════════════════════════
 
-// Ollama (LLM_PROVIDER "ollama"): local / cloud / auto (LLM_MODE, CatalanLLM.pde), on a background thread
-void callOllama(String word) {
+// LLM_PROVIDER "ollama": local (Salamandra / Ollama) / cloud / auto (LLM_MODE, CatalanLLM.pde), on a background thread
+void callModel(String word) {
   isLoading = true;
   final String w = word;
   new Thread(() -> {
     try {
-      String[] r = askOllamaChain(w);
+      String[] r = askModelChain(w);
       llmModeUsed = r[1];
       responseRaw = r[0];
     } catch (Exception e) {

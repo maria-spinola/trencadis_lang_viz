@@ -90,9 +90,11 @@ void keyPressed(KeyEvent event) {
   if (keyCode == 'N') clearMosaic();   // empty the mural on WALL 1
   if (keyCode == 'E') toggleTestMode(); // real analysis shown on WALL 3, nothing saved
   if (keyCode == 'K') runLanguageTest(); // CatalanLLM.pde: the test word list through both filters and the model
+  if (keyCode == 'O') cycleLLMMode();    // LocalLLM.pde: model mode auto → cloud → local
   if (keyCode == 'D') TRAVEL_3D = !TRAVEL_3D;   // pieces travel along the walls (2D) or through the room (3D)
 }
 
-void dispose() { 
-  disposeSoundEngine(); 
+void dispose() {
+  stopLlamaServer();   // LocalLLM.pde: the local model server, if the sketch started it
+  disposeSoundEngine();
 }

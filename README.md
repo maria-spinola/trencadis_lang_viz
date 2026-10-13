@@ -15,7 +15,7 @@ Alberto Benavent Ramón, Francisco A. Rodríguez, Lerie Pemanagpo, María Spíno
 
 ## How it works
 
-1. **A word comes in.** A visitor types one word in Catalan on the main wall (WALL 3). The sketch looks up its meaning in the Catalan Wiktionary (Viquidiccionari), a language model (Ollama, in the cloud by default) checks it is Catalan and describes it with semantic parameters and a colour, and its rarity is measured from real Catalan texts (wordfreq) — see [Analysing a word](#analysing-a-word). The result goes to `data/input.json`.
+1. **A word comes in.** A visitor types one word in Catalan on the main wall (WALL 3). The sketch looks up its meaning in the Catalan Wiktionary (Viquidiccionari), a language model (Salamandra, on this computer; Ollama Cloud as a fallback) checks it is Catalan and describes it with semantic parameters and a colour, and its rarity is measured from real Catalan texts (wordfreq) — see [Analysing a word](#analysing-a-word). The result goes to `data/input.json`.
 2. **It becomes a tile.** A decorated ceramic tile is painted from those parameters and broken into irregular straight-edged shards, as in real trencadís.
 3. **It assembles on WALL 3.** The shards come from far behind the wall — dark and out of focus — and become sharp as they reach their place, the small ones first.
 4. **It travels.** The tile comes apart and its pieces travel as a loose cloud — round by WALL 2, round by WALL 4 or across the floor — to the tile's slot on WALL 1. Optionally they fly through the air of the room in 3D.
@@ -152,8 +152,9 @@ language_viz/
 ├── Output.pde            — Output images for PIXERA: media matrix or groups of surfaces; windows / Syphon / Spout
 ├── WordsSystem.pde       — Poem words floating as small tiles
 ├── ClaudeSketch.pde      — Text input on the main wall, API state
-├── ai_agent.pde          — Ollama / Anthropic API call (background thread)
-├── CatalanLLM.pde        — One word in Catalan: local filter, Viquidiccionari, model, cache, word frequency, analysis, language test
+├── ai_agent.pde          — Model / Anthropic API call (background thread)
+├── CatalanLLM.pde        — One word in Catalan: local filter, Viquidiccionari, model, answer schema, cache, word frequency, analysis, language test
+├── LocalLLM.pde          — The local model: starts / stops llama-server, requests to Salamandra
 ├── utils.pde             — Request builder, response parsing, test-mode / no-API parameters
 ├── JSONLoader.pde        — Reads input.json (and watches it for changes)
 ├── SoundEngine.pde       — MIDI chord generation entry point
@@ -168,7 +169,9 @@ language_viz/
 │   ├── lexicon_cache.json — Every word already analysed (in git)
 │   ├── ollama_key.txt    — Your Ollama API key (NOT in git)
 │   ├── language_test.txt — Last Ctrl+K result (not in git)
+│   ├── llama_server.log  — Log of the local model server (not in git)
 │   └── mosaic.json       — The mural (created automatically, not in git)
+├── models/               — The local model, salamandra-7b-instruct-2606.i1-Q4_K_M.gguf (downloaded by the setup scripts, not in git)
 ├── prompts/
 │   ├── catala_art_system_prompt.md — System prompt (Catalan) sent to the model
 │   └── haiku_art_system_prompt.md — Old English prompt
@@ -176,7 +179,7 @@ language_viz/
     └── miditest.rpp      — Reaper project for the sound
 language_viz_original/    — Earlier version of the sketch (particles, single screen)
 tools/make_catalan_freq.py — Rebuilds data/catalan_freq.tsv from wordfreq
-setup_mac.command, setup_windows.bat — Install Ollama + the local model
+setup_mac.command, setup_windows.bat — Install llama.cpp + download the local model (Salamandra)
 ```
 
 ---
@@ -185,30 +188,39 @@ setup_mac.command, setup_windows.bat — Install Ollama + the local model
 
 ### Requirements
 - [Processing 4](https://processing.org/download) and the library **themidibus** (Processing's Library Manager).
-- Internet in the room (Ollama Cloud + Viquidiccionari). Without it the installation keeps working, with less accurate analysis (see below).
-- An **Ollama** account and API key (free plan) — or Ollama installed locally.
-- Optional: Reaper or any MIDI app (for the sound), Syphon / Spout (to send the image out).
+- The local model: [llama.cpp](https://github.com/ggml-org/llama.cpp) + Salamandra 7B Instruct 2606 (≈ 4.9 GB), installed by `setup_mac.command` / `setup_windows.bat`. A computer with ≥ 16 GB of memory.
+- Internet for the Viquidiccionari (and, optionally, Ollama Cloud as a fallback). Without it the installation keeps working, with less accurate analysis (see below).
+- Optional: an **Ollama** account and API key (free plan) for the cloud fallback; Reaper or any MIDI app (for the sound), Syphon / Spout (to send the image out).
 
-### Quick start (cloud, default)
+### Quick start (local model, default)
+1. Once per computer, double-click `setup_mac.command` (macOS, uses Homebrew) or `setup_windows.bat` (Windows, uses winget): it installs llama.cpp and downloads the model into `language_viz/models/` (not in git: far bigger than GitHub allows).
+2. Open `language_viz/language_viz.pde` in Processing and run. The sketch starts the model server by itself (`LocalLLM.pde`); the console says `Local model: starting llama-server…` and then `Local model ready`. Reading the instructions the first time takes ~20 s (longer on a laptop in Low Power Mode); words typed meanwhile wait.
+3. Type one word in Catalan and press Enter. The console shows the analysis and `[mode: local]`. Closing the sketch stops the server.
+
+### Cloud fallback (optional)
 1. Create a free account on [ollama.com](https://ollama.com) → *Settings → API keys* (https://ollama.com/settings/keys) → *Create API key*.
 2. Paste the key in `language_viz/data/ollama_key.txt`, on the empty line under the comments (`OLLAMA_API_KEY = "…"` also works). The file is ignored by git: **never commit a key, and never paste it in a chat or a README**. Each computer needs its own copy of this file.
-3. Open `language_viz/language_viz.pde` in Processing and run. Type one word in Catalan and press Enter. The console shows the analysis and `[mode: cloud]`.
 
-### Local model (optional, offline)
-Once per computer, double-click `setup_mac.command` (macOS, uses Homebrew) or `setup_windows.bat` (Windows, uses winget): they install Ollama, start it and download `gemma3:4b` (≈ 3 GB). By hand: install Ollama from https://ollama.com (macOS: `brew install ollama` + `brew services start ollama`), then `ollama pull gemma3:4b`. The model can't live in the repository: it's far bigger than GitHub allows, and Ollama is a different program on each system.
-
-Then set `LLM_MODE` to `"local"` or `"auto"`. **Tested:** gemma3:4b doesn't know many Catalan words and analyses them poorly (even with the dictionary's help); use the cloud whenever possible. A bigger local model (`gemma3:12b`, 8 GB) or Salamandra 7B (BSC, trained on Catalan) may do better but haven't been tested.
+### The local model: Salamandra
+[Salamandra 7B Instruct 2606](https://huggingface.co/BSC-LT/salamandra-7b-instruct-2606) (BSC, Apache 2.0, June 2026) was trained on 35 European languages with special care for Catalan, Spanish, Basque and Galician. The GGUF file (`i1-Q4_K_M`, from [mradermacher](https://huggingface.co/mradermacher/salamandra-7b-instruct-2606-i1-GGUF)) runs on llama.cpp's `llama-server`, not Ollama: BSC advises against Ollama for it. How the sketch talks to it (`LocalLLM.pde`):
+- The server listens only on this computer (`127.0.0.1:LLAMA_PORT`, 8091), with an 8k context and the whole model on the GPU. Its log goes to `data/llama_server.log`. If one is already running (e.g. left behind by a crash), it is reused.
+- Salamandra's template has no system role: the instructions open the first user message. The examples at the end of the prompt (`## Exemples`) are sent as real turns (word → JSON); written inside the instructions, the 7B model copied the first one for most words.
+- The answer is forced to a JSON schema with two shapes: a rejected word only gives `es_catala: false` and `motiu`; an accepted one gives every parameter, in an order that leaves the emotion and its colour last (with the emotion first, the model copied the numbers of the example with the same emotion).
+- **Tested** (Oct 2026, M2 16 GB, `Ctrl+K` list): 33 / 34 words accepted / rejected as expected (*hola* is rejected); every foreign, misspelt or non-existent word is caught. The 1–7 scales are noisier than with `gemma4:31b` (e.g. *tristesa* culturalitat 6).
+- **Speed** (M2 16 GB, plugged in): llama.cpp alone writes ≈ 19 tokens / s, but while the sketch renders the room it shares the GPU and drops to ≈ 6. So, in the installation, an accepted word (~100 tokens) takes 15–25 s, a rejected one ≈ 4 s, and reading the instructions at start ≈ 50 s. Low Power Mode is about 3× slower still. For comparison, Ollama Cloud answers in ≈ 1 s. Cached words are instant.
+- If the sketch is killed outright (crash, force quit), the server keeps running; the next run recognises it, reuses it (instantly, with the instructions still read) and stops it on exit.
 
 ### Which model (`Config.pde`)
 ```java
 final String LLM_PROVIDER       = "ollama";      // or "claude"
-final String LLM_MODE           = "cloud";       // "local" | "cloud" | "auto"
-final String OLLAMA_MODEL_LOCAL = "gemma3:4b";
+final String LLM_MODE           = "auto";        // "local" | "cloud" | "auto"
+final String LOCAL_ENGINE       = "llamacpp";    // Salamandra on llama-server | "ollama"
 final String OLLAMA_MODEL_CLOUD = "gemma4:31b";
 ```
-- **cloud (default):** [Ollama Cloud](https://docs.ollama.com/cloud), `https://ollama.com/api/chat`, with the key from `data/ollama_key.txt`. Of the models in the free plan, `gemma4:31b` gave the best analyses (`gpt-oss:120b` and `nemotron` were worse; the rest need a paid plan). The free plan has usage limits that reset every few hours / weekly; the cache keeps the cost low. Cloud models: `curl https://ollama.com/api/tags`.
-- **local:** Ollama on this computer (`http://localhost:11434`).
-- **auto:** local; if it doesn't answer, the cloud.
+- **Switch while running with `Ctrl+O`** (auto → cloud → local); the top of the preview window shows the mode and whether Salamandra is starting / ready / failed and the cloud has a key. In cloud mode the local server keeps running, so switching back is instant; switching to local / auto starts it if it isn't running (also a retry after a failure).
+- **auto (default):** the local model; if it doesn't answer, the cloud.
+- **local:** only the local model: Salamandra on llama-server (`LOCAL_ENGINE = "llamacpp"`, settings `LLAMA_*`) or `OLLAMA_MODEL_LOCAL` on a local Ollama (`"ollama"`, `http://localhost:11434`; gemma3:4b analysed Catalan poorly).
+- **cloud:** [Ollama Cloud](https://docs.ollama.com/cloud), `https://ollama.com/api/chat`, with the key from `data/ollama_key.txt`. Of the models in the free plan, `gemma4:31b` gave the best analyses (`gpt-oss:120b` and `nemotron` were worse; the rest need a paid plan). The free plan has usage limits that reset every few hours / weekly; the cache keeps the cost low. Cloud models: `curl https://ollama.com/api/tags`. Note: Ollama Cloud ignores the JSON schema (`format`) for `gemma4:31b` — it answers in the prompt's format, inside a ```json fence, which the sketch strips.
 - If no model answers (no network, no key, limit reached), a word that passed the local filter gets parameters derived from the word itself, without checking the language — the installation never stops. The console says `[mode: fallback]`.
 - **Claude:** `LLM_PROVIDER = "claude"` and the key in `API_KEY` (**never commit it**).
 
@@ -222,7 +234,7 @@ What happens when a visitor presses Enter (`submitWord()` in `CatalanLLM.pde`):
 1. Local filter      one word, Catalan letters only, ≤ 30 letters          instant, offline
 2. Cache             already analysed? → use it, no network                 data/lexicon_cache.json
 3. Viquidiccionari   look the word up, take its definition                  ca.wiktionary.org
-4. Model             word + definition → is it Catalan? + all parameters    Ollama Cloud (gemma4:31b)
+4. Model             word + definition → is it Catalan? + all parameters    Salamandra (local), else Ollama Cloud
 5. wordfreq          raresa = the word's real frequency in Catalan texts     data/catalan_freq.tsv
 6. → tile, sound, mural    (or a short message in Catalan if it's rejected)
 ```
@@ -312,7 +324,8 @@ The bottom of the preview window always shows, large, what is being typed, "pens
 | `TEST_MODE` | Start in test mode |
 | `TEST_RANDOM` | Test mode with random parameters instead of the real analysis |
 | `RICH_SHARD_SIMPLE`, `RICH_SHARD_RICH`, `RICH_ACCENT`, `RICH_GOLD` | Shards from culturalitat (how many, from other tiles) and gold from raresa |
-| `LLM_PROVIDER`, `LLM_MODE`, `OLLAMA_MODEL_LOCAL` / `_CLOUD`, `MODEL`, `API_KEY` | Language model (the Ollama key lives in `data/ollama_key.txt`) |
+| `LLM_PROVIDER`, `LLM_MODE`, `LOCAL_ENGINE`, `OLLAMA_MODEL_LOCAL` / `_CLOUD`, `MODEL`, `API_KEY` | Language model (the Ollama key lives in `data/ollama_key.txt`) |
+| `LLAMA_AUTOSTART`, `LLAMA_SERVER`, `LLAMA_MODEL_FILE`, `LLAMA_PORT`, `LLAMA_CTX`, `LLAMA_START_S` | The local model server (Salamandra on llama-server) |
 | `USE_DICTIONARY`, `DICT_URL` | Viquidiccionari definitions sent to the model |
 | `USE_WORD_FREQ`, `WORD_FREQ_FILE`, `RARESA_ZIPF` | raresa from word frequency |
 | `USE_LEXICON_CACHE`, `LEXICON_CACHE_FILE` | Cache of analysed words |
@@ -368,6 +381,7 @@ All shortcuts use **Ctrl** (or **Cmd** on Mac), so typing words never triggers t
 | `Ctrl+D` | Travel in 2D (along the surfaces) or 3D (through the air of the room) |
 | `Ctrl+E` | Test mode (real analysis shown on WALL 3, nothing saved) |
 | `Ctrl+K` | Language test: word list through both filters and the model |
+| `Ctrl+O` | Model mode while running: auto → cloud → local (shown at the top of the preview) |
 | `Ctrl+P` | Floating poem tiles on / off |
 | `Ctrl+N` | Clear the mural on WALL 1 (no confirmation) |
 | `Ctrl+R` | Reload `input.json` (adds that word again) |

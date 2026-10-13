@@ -110,10 +110,8 @@ void parseResponse() {
       return;
     }
 
-    // ── Success: Ollama {"message":{"content":"…"}} or Anthropic {"content":[{"text":"…"}]}
-    String responseText = json.hasKey("message")
-      ? json.getJSONObject("message").getString("content")
-      : json.getJSONArray("content").getJSONObject(0).getString("text");
+    // ── Success
+    String responseText = answerText(raw);
     JSONObject result = parseJSONObject(stripFences(responseText));
     if (result == null) { llmUnavailable("unreadable answer: " + responseText); return; }
     displayText = "";   // clear any previous error message
@@ -122,6 +120,16 @@ void parseResponse() {
   } catch (Exception e) {
     llmUnavailable("parse error: " + e.getMessage());
   }
+}
+
+// The model's text in a raw answer: Ollama {"message":{"content":"…"}}, Anthropic
+// {"content":[{"text":"…"}]}, or llama-server's answer itself (LocalLLM.pde)
+String answerText(String raw) {
+  JSONObject j = parseJSONObject(raw);
+  if (j == null) return raw;
+  if (j.hasKey("message")) return j.getJSONObject("message").getString("content");
+  if (j.hasKey("content") && j.get("content") instanceof JSONArray) return j.getJSONArray("content").getJSONObject(0).getString("text");
+  return raw;
 }
 
 

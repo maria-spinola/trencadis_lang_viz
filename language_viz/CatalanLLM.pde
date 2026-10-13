@@ -106,7 +106,7 @@ void submitWord(String typed) {
     callClaude(word);
   } else {
     pendingWord = word;
-    callOllama(word);
+    callModel(word);
   }
 }
 
@@ -173,32 +173,55 @@ void llmUnavailable(String why) {
   if (pendingWord.length() > 0) generateRandomWord(pendingWord);
 }
 
-// ── Ollama request ────────────────────────────────────────────────
+// ── The answer: JSON Schema that forces the exact fields and ranges ──
 
-// JSON Schema that forces the exact fields and ranges (Ollama "format")
-String ollamaSchema() {
-  String ints = "";
-  String[][] r = { {"emotion","7"}, {"word_class","8"}, {"abstraction","7"}, {"agency","7"}, {"organic","7"},
-                   {"phenomena_class","7"}, {"time_duration","7"}, {"culturalitat","7"}, {"raresa","7"} };
-  String req = "\"es_catala\",\"motiu\",\"emotion_label\",\"color_hex\"";
-  for (String[] f : r) {
-    ints += ",\"" + f[0] + "\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":" + f[1] + "}";
-    req  += ",\"" + f[0] + "\"";
-  }
-  return "{\"type\":\"object\",\"properties\":{"
-    + "\"es_catala\":{\"type\":\"boolean\"},"
-    + "\"motiu\":{\"type\":\"string\"},"
-    + "\"emotion_label\":{\"type\":\"string\"},"
-    + "\"color_hex\":{\"type\":\"string\",\"pattern\":\"^#[0-9A-Fa-f]{6}$\"}"
-    + ints + "},\"required\":[" + req + "]}";
+// The model writes the fields in this order (the schema forces it): first what the word is
+// and its scales, the emotion and its colour last. With the emotion first, Salamandra copied
+// the numbers of the prompt's example with the same emotion.
+String[] ANSWER_FIELDS = { "es_catala", "motiu", "word_class", "phenomena_class", "abstraction", "agency", "organic",
+                           "time_duration", "culturalitat", "raresa", "emotion", "emotion_label", "color_hex" };
+
+String fieldSchema(String k) {
+  if (k.equals("es_catala"))     return "{\"type\":\"boolean\"}";
+  if (k.equals("motiu"))         return "{\"type\":\"string\",\"maxLength\":60}";   // short: it's only read in the console
+  if (k.equals("emotion_label")) return "{\"type\":\"string\",\"enum\":[\"\",\"" + join(EMOTION_NAMES, "\",\"") + "\"]}";
+  if (k.equals("color_hex"))     return "{\"type\":\"string\",\"pattern\":\"^#[0-9A-Fa-f]{6}$\"}";
+  return "{\"type\":\"integer\",\"minimum\":1,\"maximum\":" + (k.equals("word_class") ? 8 : 7) + "}";
 }
+
+// Every field always (Ollama)
+String analysisSchema() {
+  String props = "", req = "";
+  for (String k : ANSWER_FIELDS) {
+    props += (props.length() > 0 ? "," : "") + "\"" + k + "\":" + fieldSchema(k);
+    req   += (req.length() > 0 ? "," : "") + "\"" + k + "\"";
+  }
+  return "{\"type\":\"object\",\"properties\":{" + props + "},\"required\":[" + req + "]}";
+}
+
+// Two shapes (llama-server): a rejected word only says why, {"es_catala": false, "motiu": "…"};
+// an accepted one has every parameter and no motiu. Shorter answers, and the rejection examples
+// carry no numbers for the model to copy.
+String twoShapeSchema() {
+  String props = "\"es_catala\":{\"const\":true}", req = "\"es_catala\"";
+  for (String k : ANSWER_FIELDS) {
+    if (k.equals("es_catala") || k.equals("motiu")) continue;
+    props += ",\"" + k + "\":" + fieldSchema(k);
+    req   += ",\"" + k + "\"";
+  }
+  return "{\"anyOf\":["
+    + "{\"type\":\"object\",\"properties\":{\"es_catala\":{\"const\":false},\"motiu\":" + fieldSchema("motiu") + "},\"required\":[\"es_catala\",\"motiu\"]},"
+    + "{\"type\":\"object\",\"properties\":{" + props + "},\"required\":[" + req + "]}]}";
+}
+
+// ── Ollama request ────────────────────────────────────────────────
 
 String buildOllamaJSON(String word, String model) {
   return "{"
     + "\"model\":\"" + model + "\","
     + "\"stream\":false,"
     + "\"options\":{\"temperature\":0},"
-    + "\"format\":" + ollamaSchema() + ","
+    + "\"format\":" + analysisSchema() + ","
     + "\"messages\":["
     +   "{\"role\":\"system\",\"content\":\"" + escapeJson(SYSTEM_PROMPT) + "\"},"
     +   "{\"role\":\"user\",\"content\":\"" + escapeJson(word) + "\"}"
@@ -244,12 +267,16 @@ String ollamaRequest(String url, String model, String key, String word) throws E
 }
 
 // Local / cloud / auto, in order. Returns { raw answer, mode } or throws with every reason.
-String[] askOllamaChain(String word) throws Exception {
+// The local model is Salamandra on llama-server (LOCAL_ENGINE "llamacpp", LocalLLM.pde) or Ollama.
+String[] askModelChain(String word) throws Exception {
   String why = "";
   word = userMessage(word);   // the word + its definition from the Viquidiccionari
   boolean tryLocal = !LLM_MODE.equals("cloud"), tryCloud = !LLM_MODE.equals("local");
   if (tryLocal) {
-    try { return new String[] { ollamaRequest(OLLAMA_URL_LOCAL, OLLAMA_MODEL_LOCAL, "", word), "local" }; }
+    try {
+      String raw = LOCAL_ENGINE.equals("llamacpp") ? llamaRequest(word) : ollamaRequest(OLLAMA_URL_LOCAL, OLLAMA_MODEL_LOCAL, "", word);
+      return new String[] { raw, "local" };
+    }
     catch (Exception e) { why += "local: " + msgOf(e); }
   }
   if (tryCloud) {
@@ -268,10 +295,9 @@ String msgOf(Exception e) {
 }
 
 // Synchronous call (used by the language test): { parsed result, mode }
-Object[] askOllamaNow(String word) throws Exception {
-  String[] r = askOllamaChain(word);
-  JSONObject j = parseJSONObject(r[0]);
-  return new Object[] { parseJSONObject(stripFences(j.getJSONObject("message").getString("content"))), r[1] };
+Object[] askModelNow(String word) throws Exception {
+  String[] r = askModelChain(word);
+  return new Object[] { parseJSONObject(stripFences(answerText(r[0]))), r[1] };
 }
 
 String stripFences(String t) {
@@ -319,7 +345,7 @@ String[] TEST_REJECT = { "perro", "hello", "gatto", "mañana", "bueno", "dues pa
 void runLanguageTest() {
   new Thread(() -> {
     StringBuilder out = new StringBuilder();
-    out.append("LLM_MODE " + LLM_MODE + " · local " + OLLAMA_MODEL_LOCAL + " · cloud " + OLLAMA_MODEL_CLOUD + (ollamaKey().length() > 0 ? "" : " (no key)") + "\n");
+    out.append("LLM_MODE " + LLM_MODE + " · local " + localModelName() + " · cloud " + OLLAMA_MODEL_CLOUD + (ollamaKey().length() > 0 ? "" : " (no key)") + "\n");
     out.append(String.format("%-14s %-9s %-8s %-6s %-42s %s%n", "word", "expected", "result", "mode", "reason", "emo cls abs agn org phe tim cul rar color"));
     int good = 0, total = 0;
     boolean llmOk = true;
@@ -334,7 +360,7 @@ void runLanguageTest() {
         else if (!llmOk) { result = "?"; reason = "LLM not available"; }
         else {
           try {
-            Object[] ans = askOllamaNow(normalizeWord(w));
+            Object[] ans = askModelNow(normalizeWord(w));
             JSONObject r = (JSONObject) ans[0];
             mode = (String) ans[1];
             boolean ok = r.hasKey("es_catala") && r.getBoolean("es_catala");
