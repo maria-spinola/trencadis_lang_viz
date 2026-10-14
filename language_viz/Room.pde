@@ -164,6 +164,7 @@ void composeMatrix() {
 
 // What you see in the Processing window (not part of the output)
 void drawPreview() {
+  if (roomView) { drawRoomView(); return; }   // RoomView.pde: as if standing in the room
   background(0);
   int outIdx = viewMode - 1 - faces.length;                  // ≥ 0: an output image
   Face shown = (viewMode == 0 || outIdx >= 0) ? null : faces[viewMode - 1];
@@ -179,6 +180,7 @@ void drawPreview() {
   text(nf(frameRate, 0, 1) + " fps  ·  " + (outIdx >= 0 ? "OUTPUT " + (outIdx + 1) + ": " + outputName(outIdx) : shown == null ? "MEDIA MATRIX" : shown.name)
        + "  ·  Ctrl+V view  Ctrl+T test  Ctrl+L lines  Ctrl+E test mode  Ctrl+D 2D/3D  Ctrl+N reset WALL 1", 10, 10);
   text(llmStatus() + "  ·  Ctrl+O switch", 10, 26);   // LocalLLM.pde
+  drawTravelMode();
   if (PREVIEW_INPUT) drawPreviewInput();
 }
 

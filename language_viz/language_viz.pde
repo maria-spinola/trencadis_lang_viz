@@ -69,11 +69,14 @@ void mousePressed() {
   if (camMode == 5) { isDragging = true; dragStartX = mouseX; dragStartY = mouseY; }
 }
 
+void mouseDragged() { if (roomView) roomDrag(); }   // RoomView.pde: look around
+
 void mouseReleased() { isDragging = false; }
 
 void keyPressed(KeyEvent event) {
   //Keys + Ctrl/Cmd to avoid changes while writing words
   if (!event.isControlDown() && !event.isMetaDown()) {
+    if (roomKey()) return;   // RoomView.pde: arrows look around in the room view
     handleLLMKey(event);  // ClaudeSketch.pde — the text input
     return;
   }
@@ -91,6 +94,8 @@ void keyPressed(KeyEvent event) {
   if (keyCode == 'E') toggleTestMode(); // real analysis shown on WALL 3, nothing saved
   if (keyCode == 'K') runLanguageTest(); // CatalanLLM.pde: the test word list through both filters and the model
   if (keyCode == 'O') cycleLLMMode();    // LocalLLM.pde: model mode auto → cloud → local
+  if (keyCode == 'I') toggleRoomView();    // RoomView.pde: as if standing inside the room
+  if (keyCode == 'J') projSim = !projSim;  // RoomView.pde: simulate the projectors (black level, light between walls)
   if (keyCode == 'D') TRAVEL_3D = !TRAVEL_3D;   // pieces travel along the walls (2D) or through the room (3D)
 }
 

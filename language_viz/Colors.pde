@@ -67,6 +67,12 @@ String[] RIBBON_COLORS = {
   "#663733"    // oxblood
 };
 
+// ── Room view (Ctrl+I) only — never in the output: what isn't projected, so the walls stand out ──
+String ROOM_VIEW_OUTSIDE = "#2B3240";   // background
+String ROOM_VIEW_CEILING = "#3A4354";   // ceiling
+String ROOM_VIEW_FLOOR   = "#323A49";   // floor, when the venue has no floor projection
+String ROOM_VIEW_WALL    = "#3F4859";   // wall above the image (IASLab)
+
 // ── Typeface ──────────────────────────────────────────────────
 // For the words on the floor, the poem and the text box on the main wall
 String TEXT_FONT = "Georgia";

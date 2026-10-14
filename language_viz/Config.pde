@@ -58,6 +58,12 @@ boolean showOutlines = true;   // wall/floor outlines in the preview (Ctrl+L), n
 float UI_SCALE = 2.2;   // text size on the main wall (1.0 = tiny letters, ~4 cm in the room)
 boolean PREVIEW_INPUT = true;   // also show what you type, big, at the bottom of the preview window (never in the output)
 
+// Room view (Ctrl+I, RoomView.pde): the preview as if standing inside the room. Ctrl+J simulates projection:
+float PROJ_BLACK   = 0.02;   // light a projector gives on black (0.05 = 5 % of white; real rooms 2–8 %)
+float ROOM_BOUNCE  = 0.08;   // light each wall receives back from the others (white walls of an immersive room: 15–35 %)
+float PROJ_GAIN    = 1.0;    // how bright the projected white is compared with this screen
+float ROOM_EXTRA_H = (VENUE == 1) ? WALL_H * (3.16 / 2.7 - 1) : 0;   // unprojected wall above the image (IASLab: 2.7 m of 3.16 m)
+
 // Rich words are rewarded with a more complex tile (Trencadis.pde). raresa also sets the tile size (SIZE_*).
 float RICH_SHARD_SIMPLE = 1.5;    // shard size at culturalitat 1: a few big shards
 float RICH_SHARD_RICH   = 0.5;    // shard size at culturalitat 7: many small shards

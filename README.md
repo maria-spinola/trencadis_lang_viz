@@ -160,6 +160,7 @@ language_viz/
 ├── language_viz.pde      — Main sketch: setup, draw, keyboard
 ├── Config.pde            — All settings (room, output, mosaic, timing, LLM, sound…)
 ├── Colors.pde            — Every colour (background, text, floor words, emotion → tile colour, ceramic, grout, ribbons) and the typeface
+├── RoomView.pde          — Ctrl+I: first-person view inside the room, with simulated projectors (Ctrl+J)
 ├── Room.pde              — Walls + floor, media matrix, cameras (flat, main wall, 3D viewer), preview, calibration
 ├── Trencadis.pde         — A tile: palette, painted motifs, breaking into shards, drawing, assembly
 ├── Ceramic.pde           — Bakes each tile as real glazed ceramic in lime mortar (light, glaze, chips, marble, relief)
@@ -400,6 +401,13 @@ Sending them out (`Output.pde`):
 - **Windows** — `OUTPUT_WINDOWS = true` opens each output in its own window, full screen on the display set in `OUTPUT_DISPLAYS`. No library needed, but every frame is copied through the CPU (much slower).
 - If PIXERA runs on another computer, use NDI or a video output / capture card.
 
+### Room view (`Ctrl+I`, `RoomView.pde`)
+To judge the installation before going to the room, `Ctrl+I` turns the preview window into a first-person view from the middle of the room at eye height (`VIEWER_HEIGHT`): the walls (and the floor, if the venue has one) at their real proportions, with exactly the images they will receive. Drag the mouse or use the arrow keys to look around, **right-drag to walk** (up / down = forwards / backwards, sideways = step aside; `Ctrl+I` twice goes back to the centre), the wheel to zoom (55° high to start, close to what the eye takes in). The output is not affected.
+
+Walking shows the real behaviour of the 3D travel (`Ctrl+D`): from the centre (the sweet spot) the pieces seem to fly through the air; elsewhere you see that they are painted on the walls and the illusion bends. In 2D they slide along the walls. The difference is only visible while a tile travels (a few seconds per word).
+
+`Ctrl+J` (off by default: the images as they are) simulates projection: a projector never gives black (`PROJ_BLACK`), the walls light each other — the average brightness of every wall is measured and part of it (`ROOM_BOUNCE`) is added to the others — and `PROJ_GAIN` is how bright the projected white is. Defaults are mild (2 %, 8 %); rooms with white walls bounce much more. The unprojected strip above the image (IASLab: 2.7 m of 3.16 m, `ROOM_EXTRA_H`), the ceiling and, with no floor projection, the floor are lit only by that bounce.
+
 ### In the venue
 1. Set `ROOM_W`, `ROOM_D`, `WALL_H` to the venue's media matrix and `RENDER_SCALE` to what the machine can hold (check the fps).
 2. Press `Ctrl+T`: every surface shows its name, a grid and, on each edge, what should be on the other side ("↑ CEILING", "↓ FLOOR", "WALL 2"…). Walk the room and check. If a wall is rotated, change only its rotation in `setupRoom()` (`Room.pde`).
@@ -422,6 +430,8 @@ All shortcuts use **Ctrl** (or **Cmd** on Mac), so typing words never triggers t
 | `Ctrl+E` | Test mode (real analysis shown on WALL 3, nothing saved) |
 | `Ctrl+K` | Language test: word list through both filters and the model |
 | `Ctrl+O` | Model mode while running: auto → cloud → local (shown at the top of the preview) |
+| `Ctrl+I` | Room view: the preview as if standing inside the room (drag / arrows to look around, wheel to zoom) |
+| `Ctrl+J` | In the room view: simulate the projectors on / off (black level, light bouncing between walls) |
 | `Ctrl+P` | Floating poem tiles on / off |
 | `Ctrl+N` | Clear the mural on WALL 1 (no confirmation) |
 | `Ctrl+R` | Reload `input.json` (adds that word again) |
