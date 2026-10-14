@@ -217,7 +217,9 @@ class PoemWord {
     // Built around (0,0): position is applied per surface in display()
     long tseed = wordSeed(word + hex, emotion, wordClass, bAbstract, bAgency, bOrganic, phenomenon, bTime);
     Patch shape = freePatch(new Random(tseed), POEM_TILE_SIZE, POEM_TILE_SIZE * 0.8);
+    bakeDetailK = BAKE_DETAIL_POEM;   // poem tiles are seen smaller
     tile = new TrencadisTile(tseed, parseHexColor(tileHex(hex, emotion)), bAbstract, bOrganic, phenomenon, wordClass, shape, -1);
+    bakeDetailK = 1;
 
     // Where each piece drifts to when open: away from the centre, wider than tall (walls are low)
     int np = tile.pieces.size();
@@ -315,11 +317,7 @@ class PoemWord {
       gather = 1;
       if (!shrunk && tile != null) {               // it is tiny now: a tiny texture is enough (memory)
         shrunk = true;
-        if (tile.tex != null && tile.tex.width > 128) {
-          PImage small = tile.tex.copy();
-          small.resize(128, 0);
-          tile.tex = small;
-        }
+        tile.shrinkImages(128);
       }
       if (pos == null) {
         pos  = ringPoint(c, v);

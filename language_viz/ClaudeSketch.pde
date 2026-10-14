@@ -101,8 +101,8 @@ void drawLLMInterface(PGraphics pg) {
   if (TEST_MODE) {
     pg.fill(hexColor(UI_TEST_COLOR));
     pg.textSize(13*ui);
-    pg.textAlign(RIGHT, BOTTOM);
-    pg.text("TEST MODE · not saved (Ctrl+E)", x1 - 20*ui, y0 - 4*ui);
+    pg.textAlign(RIGHT, TOP);
+    pg.text("TEST MODE · not saved (Ctrl+E)", x1 - 20*ui, y0 + bh + 4*ui);   // under the box, clear of the last word
   }
 
   // While the model thinks: a few shards turning where the tile will appear ("something is being made")

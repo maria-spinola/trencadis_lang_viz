@@ -49,7 +49,12 @@ float[] GLAZE_HUES = { 2, 12, 18, 30, 42, 72, 142, 185, 210 };
 String TILE_CREAM_COLOR   = "#F5F0E4";   // the white / cream ground of the painted tiles
 String CROCKERY_COLOR     = "#F2EEE4";   // the few white "crockery" shards among the coloured ones
 String GOLD_LUSTRE_COLOR  = "#DBB753";   // golden lustre shards of rare words (raresa)
-String GROUT_COLOR        = "#CCC8C2";   // the cement between the shards, once dry
+String GROUT_COLOR        = "#DCD3C1";   // the lime mortar between the shards, once dry (warm, as at Park Güell)
+String BODY_TERRACOTTA    = "#B8784F";   // the fired clay under the glaze, where it chipped (most tiles)…
+String BODY_CREAM         = "#E2D3B8";   // …or a pale body (the rest)
+String SKY_REFLECTION     = "#F2F6FB";   // what the glaze reflects: a bright sky
+// Glazes of the moulded relief tiles (leaves and berries, as on the benches)
+String[] RELIEF_GLAZES = { "#2F7A34", "#3C8A3A", "#C9952C", "#2A5AA6", "#7A4A2A" };
 
 // The dark ribbon along the top of the tiles, one tone per band of the mural (top band first;
 // they repeat if there are more bands). Each tile tints it a little with its own colour.

@@ -481,6 +481,11 @@ void drawHoldPanel(PGraphics pg, Face f) {
 // ********************
 
 void loadMosaic() {
+  bakeDetailK = BAKE_DETAIL_MURAL;   // restored tiles are only seen in the mural: smaller images, faster start
+  try { loadMosaicTiles(); } finally { bakeDetailK = 1; }
+}
+
+void loadMosaicTiles() {
   resetSlotUse();
   mosaicCycle = 0;
   File file = new File(dataPath(MOSAIC_FILE));

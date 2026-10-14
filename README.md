@@ -83,7 +83,18 @@ Tiles saved before these parameters existed are drawn as before.
 
 **Palette.** Strong glazes as on Park Güell: every colour is moved to the nearest glaze — red, terracotta, orange, ochre, olive, bottle green, turquoise, cobalt, navy. Violets and indigo become cobalt, pinks become red; never pastel. The accent comes from the opposite family (cobalt against warm colours, orange against cool ones), on a cream ground with near-black outlines. Emotion → colour (when no model answers): anger red, surprise ochre, fear terracotta, love red, disgust bottle green, sadness cobalt, joy orange.
 
-**Relief.** Every shard sits slightly tilted in the mortar (lighter or darker), has a rounded rim (lit edge / shaded edge), chipped glaze where the pale biscuit shows, a glaze highlight on the shards facing the light, and the grout is sandy and sunk next to the shards. Tuned with `RELIEF`, `RIM_PX`, `AO_PX`, `GLAZE`.
+**Real ceramic (`Ceramic.pde`).** To look like the benches of Park Güell rather than a drawing, every tile is *baked* once, pixel by pixel, when it is made: two images (the tile set in its mortar, and the shards alone) that are then drawn as they are — cheaper than layering effects every frame. What it simulates:
+- **Each shard** sits a few degrees tilted in the mortar (`SHARD_TILT_DEG`), so neighbours catch the light differently; light comes from the upper left.
+- **The glaze** isn't flat glass: long gentle waves where it pooled (deeper colour in the hollows) and a faint orange peel (`UNDULATION`); it **reflects a bright sky** (`GLOSS`, colour `SKY_REFLECTION`) with a soft, uneven horizon, and a **highlight** where a surface faces the light (`SPECULAR`).
+- **The edges**: a narrow rolled edge that catches the light or goes dark (`RIM_WIDTH`, `RIM_BEND`); broken edges slightly ragged (`EDGE_ROUGH`); here and there the glaze **flaked off** in shell-shaped bites and the fired clay shows — terracotta or pale (`CHIP_DEPTH`, `BODY_*` colours).
+- **Marbled glaze** (*jaspeado*) on some plain tiles, with fine light veins (`MARBLE_SHARE`).
+- **Moulded relief tiles** (*rajoles de relleu*), like the green ones with leaves and berries on the benches: deep glaze in the hollows, thin on the tops where the clay shows through (`RELIEF_TILE_SHARE`, more among the shards from other tiles, i.e. very Catalan words; glazes `RELIEF_GLAZES`).
+- **The ribbon** on top of each tile is a round glazed moulding, as the capping of the benches.
+- **Gold lustre** shards reflect like metal.
+- **The mortar** is warm lime with sand grains and stains (`GROUT_COLOR`), the joints are uneven — every edge of a shard at its own distance from its neighbour (`GROUT_WIDTH`, `GROUT_IRREGULAR`) — darker right against the shards because they stand proud (`AO_STRENGTH`, `AO_RADIUS`), with a short contact shadow away from the light (`CONTACT_SHADOW`, `SHADOW_LEN`).
+- Motifs are sampled with a slight wobble, as if painted by hand (`PAINT_WOBBLE`).
+
+A tile takes ~0.1–0.3 s to bake (when the word arrives); the tiles restored into the mural at start and the poem tiles are baked with less detail (`BAKE_DETAIL_MURAL`, `BAKE_DETAIL_POEM`). `CERAMIC_BAKE = false` brings back the old flat look. All in the "Ceramic look" section of `Config.pde`; colours in `Colors.pde`.
 
 ### Phenomenon → motif and breakage
 
@@ -151,6 +162,7 @@ language_viz/
 ├── Colors.pde            — Every colour (background, text, floor words, emotion → tile colour, ceramic, grout, ribbons) and the typeface
 ├── Room.pde              — Walls + floor, media matrix, cameras (flat, main wall, 3D viewer), preview, calibration
 ├── Trencadis.pde         — A tile: palette, painted motifs, breaking into shards, drawing, assembly
+├── Ceramic.pde           — Bakes each tile as real glazed ceramic in lime mortar (light, glaze, chips, marble, relief)
 ├── Mosaic.pde            — WALL 1 mural (slots, saving) and each tile's journey (assemble → travel → set)
 ├── Output.pde            — Output images for PIXERA: media matrix or groups of surfaces; windows / Syphon / Spout
 ├── WordsSystem.pde       — Poem words floating as small tiles
@@ -340,6 +352,7 @@ Every colour is in its own file, written as `"#RRGGBB"` (any colour picker gives
 | `MOSAIC_ROWS`, `MOSAIC_SEED`, `MOSAIC_SAVE` | Mural layout and saving |
 | `SIZE_SMALL_MAX`, `SIZE_BIG_MIN`, `SPLIT_WIDE`, `RIBBON_SHARE` | Tile size from raresa, how cells split, share of tiles with the top ribbon (1 = whole lines) |
 | `GROUT_*`, `GROUT_SET_FRAMES`, `GLAZE` | Grout width / colour / setting time, glaze sheen |
+| "Ceramic look": `SHARD_TILT_DEG`, `GLOSS`, `SPECULAR`, `RIM_*`, `CHIP_DEPTH`, `MARBLE_SHARE`, `RELIEF_TILE_SHARE`, `AO_*`, `CONTACT_SHADOW`… | How real the ceramic looks (`Ceramic.pde`) |
 | `TEXTURE_DETAIL` | Resolution of the painted motifs |
 | `UI_WIDTH`, `UI_Y`, `UI_SCALE`, `UI_BAR_ALPHA` | The text box on WALL 3 (`UI_SCALE` 2.2 ≈ 9 cm letters in the room) |
 | `PREVIEW_INPUT` | Large typed text at the bottom of the preview window |

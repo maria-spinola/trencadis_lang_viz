@@ -237,6 +237,22 @@
     "organic": 3,
     "phenomena_class": 1
   },
+  "mandonguilles": {
+    "es_catala": true,
+    "agency": 1,
+    "raresa": 3,
+    "word_class": 1,
+    "abstraction": 1,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 4,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "(forma de mandonguilla) Bola de carn picada i pastada amb pa, ous i espècies.",
+    "time_duration": 3,
+    "organic": 6,
+    "phenomena_class": 4
+  },
   "esquitxar": {
     "es_catala": true,
     "agency": 6,
@@ -282,6 +298,22 @@
     "emotion_label": "Tristesa",
     "time_duration": 2,
     "organic": 5,
+    "phenomena_class": 5
+  },
+  "lluny": {
+    "es_catala": true,
+    "agency": 1,
+    "raresa": 1,
+    "word_class": 4,
+    "abstraction": 5,
+    "color_hex": "#1F4E9C",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 6,
+    "emotion_label": "Tristesa",
+    "definicio": "A llarga distància. / llunyà",
+    "time_duration": 5,
+    "organic": 4,
     "phenomena_class": 5
   },
   "pessigolles": {
@@ -505,6 +537,22 @@
     "time_duration": 3,
     "organic": 4,
     "phenomena_class": 5
+  },
+  "demà": {
+    "es_catala": true,
+    "agency": 3,
+    "raresa": 1,
+    "word_class": 4,
+    "abstraction": 5,
+    "color_hex": "#D9A21B",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 2,
+    "emotion_label": "Sorpresa",
+    "definicio": "En el dia vinent després de l'actual. / En el futur de manera indeterminada. / El temps venidor.",
+    "time_duration": 2,
+    "organic": 4,
+    "phenomena_class": 2
   },
   "dema": {
     "es_catala": false,

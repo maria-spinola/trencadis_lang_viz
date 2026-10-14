@@ -1,16 +1,16 @@
 {
-  "agency": 5,
-  "raresa": 2,
+  "agency": 1,
+  "raresa": 5,
   "word_class": 1,
-  "abstraction": 4,
-  "color_hex": "#B3261E",
-  "culturalitat": 1,
-  "emotion": 1,
-  "emotion_label": "Ira",
-  "definicio": "So no articulat i confús més o menys fort. / So procedent d'una multitud enrabiada.",
-  "time_duration": 2,
-  "zipf": 4.519999980926514,
-  "word": "soroll",
+  "abstraction": 1,
+  "color_hex": "#E07A1F",
+  "culturalitat": 4,
+  "emotion": 7,
+  "emotion_label": "Alegria",
+  "definicio": "(forma de mandonguilla) Bola de carn picada i pastada amb pa, ous i espècies.",
+  "time_duration": 3,
+  "zipf": 3.1500000953674316,
+  "word": "mandonguilles",
   "organic": 6,
-  "phenomena_class": 5
+  "phenomena_class": 4
 }

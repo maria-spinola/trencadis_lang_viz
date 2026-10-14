@@ -83,7 +83,7 @@ int   SIZE_SMALL_MAX     = 2;     // raresa up to this → half a cell
 int   SIZE_BIG_MIN       = 6;     // raresa from this → two cells
 float SPLIT_WIDE         = 1.25;  // cells wider than this (band heights) split left / right, narrower ones top / bottom
 float RIBBON_SHARE       = 1.0;   // share of tiles with the dark ribbon along the top (1 = the bands are drawn whole)
-float GROUT_WIDTH        = 1.2;   // half the gap between shards, matrix units (varies a little per shard)
+float GROUT_WIDTH        = 1.8;   // half the gap between shards, matrix units (varies a little per shard)
 // (grout colour: GROUT_COLOR in Colors.pde)
 float GROUT_SET_FRAMES   = 170;   // frames the grout takes to seep in and dry when a tile lands on WALL 1
 // Relief and finish of the shards (Trencadis.pde)
@@ -91,6 +91,30 @@ float RELIEF             = 1.0;   // tilt shading, rounded rims, sunk grout (0 =
 float RIM_PX             = 2.2;   // width of the rounded rim of each shard, output pixels
 float AO_PX              = 2.2;   // width of the shadow in the grout next to each shard, output pixels
 float GLAZE              = 30;    // glaze highlight on the shards tilted towards the light (0 = matte)
+
+// ── Ceramic look (Ceramic.pde) — how real the trencadís looks. Colours: Colors.pde ──
+boolean CERAMIC_BAKE   = true;    // each tile baked pixel by pixel as glazed ceramic in lime mortar (false = the old flat look)
+float SHARD_TILT_DEG   = 7;       // how tilted the shards sit in the mortar (degrees): neighbours catch the light differently
+float UNDULATION       = 1.0;     // the glaze is not quite flat: orange peel and pools (0 = flat as glass)
+float GLOSS            = 0.45;    // reflection of the sky on the glaze (0 = matte)
+float SPECULAR         = 0.7;     // bright highlight where a shard or its edge faces the light
+float RIM_WIDTH        = 1.4;     // the rounded edge of each shard, tile units (1 unit ≈ 2 mm)
+float RIM_BEND         = 0.9;     // how much that edge rolls over (catches light / goes dark)
+float EDGE_ROUGH       = 0.8;     // broken edges are not straight: how ragged (units)
+float CHIP_DEPTH       = 3.2;     // where the glaze flaked off the edge, the fired clay shows (units)
+float PAINT_WOBBLE     = 0.7;     // painted motifs: hand-painted lines wobble a little (units)
+float MARBLE_SHARE     = 0.35;    // share of plain glazed tiles with marbled glaze (jaspeado)
+float RELIEF_TILE_SHARE       = 0.025;   // share of shards from moulded relief tiles (leaves and berries)
+float RELIEF_TILE_SHARE_OTHER = 0.35;    // …among the shards from other tiles (very Catalan words have more)
+float RELIEF_DEPTH     = 7;       // how deep those reliefs are (units)
+float GROUT_IRREGULAR  = 1.0;     // the joints are uneven: each edge of a shard at its own distance (0 = even)
+float AO_STRENGTH      = 0.38;    // the mortar is darker right against the shards (they stand proud)
+float AO_RADIUS        = 1.3;     // …over this distance (units)
+float CONTACT_SHADOW   = 0.32;    // short shadow of each shard on the mortar, away from the light
+float SHADOW_LEN       = 1.1;     // …its length (units)
+float BAKE_MAX_PX      = 1400;    // largest baked image side (memory)
+float BAKE_DETAIL_MURAL = 0.4;    // image detail of the tiles restored into the mural at start (× TEXTURE_DETAIL)
+float BAKE_DETAIL_POEM  = 0.4;    // image detail of the poem tiles
 float SCATTER            = 1.0;   // how far the pieces drift apart while travelling (0 = they travel as one tile)
 float ASSEMBLE_DEPTH     = 9;     // how far behind WALL 3 the shards come from while assembling (× the camera distance)
 float ASSEMBLE_SPREAD    = 3;     // how scattered the shards are when they start far away (× tile size)

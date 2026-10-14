@@ -135,7 +135,16 @@ class Piece {
   float delay;         // assembly: when it settles (0..1)
   float fx, fy, fz, frot;   // assembly: where it comes in from (offset, lift, turn)
   float fs;                 // assembly: starting scale
+  // Ceramic look, baked once per tile (Ceramic.pde)
+  float tiltX, tiltY;       // how the shard sits tilted in the mortar
+  int kind;                 // KIND_*: painted / plain shard, ribbon (round moulding), gold lustre, from another tile
+  float ax, ay, bx, by;     // ribbon pieces: their top edge (the moulding runs along it)
+  float rib;                // ribbon pieces: its height
+  int src;                  // which source tile it was broken from (same glaze style)
+  float[] bu, bv;           // where it is in the baked image
 }
+
+final int KIND_TILE = 0, KIND_RIBBON = 1, KIND_GOLD = 2, KIND_OTHER = 3;
 
 class TrencadisTile {
   long seed;
@@ -146,6 +155,12 @@ class TrencadisTile {
   float radius, tileW, tileH;
   PImage tex;                     // the painted tile before breaking (null = plain shards)
   int face = 1;                   // the wall of its slot in the mural (W1, or W2 / W4)
+  // Baked ceramic (Ceramic.pde): every shard lit, glazed, chipped, and the mortar around them
+  PImage bakeAll;                 // the whole tile set in its mortar (the mural, the grout while it sets)
+  PImage bakeShards;              // only the shards, transparent between them (shards in the air)
+  float bakeX0, bakeY0, bakeW, bakeH;   // area of the baked images, tile units
+  int pieceKind = KIND_TILE;      // kind of the shard being added (generation only)
+  PVector ribA, ribB;             // ribbon: top edge of the piece being added
 
   // Generation only (cell coordinates, before moving the origin to the centre)
   Random r;
@@ -199,6 +214,8 @@ class TrencadisTile {
     makeBed(outline);
     orderAssembly();
     r = null;
+    if (CERAMIC_BAKE) bakeCeramic(this);   // Ceramic.pde
+
   }
 
   // ── Palette: ceramic glazes, never neon ──────────────────
@@ -752,7 +769,11 @@ class TrencadisTile {
       ArrayList<PVector> p = sliceAt(top, cuts.get(i), cuts.get(i + 1));
       ArrayList<PVector> q = sliceAt(low, lowX[i], lowX[i + 1]);
       for (int j = q.size() - 1; j >= 0; j--) p.add(q.get(j));
+      pieceKind = KIND_RIBBON;
+      ribA = p.get(0).copy();
+      ribB = p.get(sliceAt(top, cuts.get(i), cuts.get(i + 1)).size() - 1).copy();
       addPiece(p, vary(cRib, 4, 6, 7), false);
+      pieceKind = KIND_TILE;
     }
 
     ArrayList<PVector> rest = new ArrayList<PVector>();
@@ -851,12 +872,16 @@ class TrencadisTile {
       float q = r.nextFloat();
       if (rare >= 4 && q < map(rare, 4, 7, 0.03, RICH_GOLD)) {
         // raresa: golden lustre shards, the most precious ones
+        pieceKind = KIND_GOLD;
         addPiece(pieces.get(i), vary(GOLD_LUSTRE, 3, 6, 6), false);
+        pieceKind = KIND_TILE;
         if (this.pieces.size() > before) this.pieces.get(before).spec = 1;
       } else if (cult >= 2 && q > 1 - map(cult, 2, 7, 0.04, RICH_ACCENT)) {
         // culturalitat: shards from other tiles, in contrasting glazes
         float[][] acc = { cAcc, cAcc2, tones[5], cDark, cAcc };
+        pieceKind = KIND_OTHER;
         addPiece(pieces.get(i), vary(acc[r.nextInt(acc.length)], 4, 6, 6), false);
+        pieceKind = KIND_TILE;
       } else {
         addPiece(pieces.get(i), new float[] { 0, 0, rnd(r, 88, 100) }, true);   // each shard glazed a touch differently
       }
@@ -909,7 +934,17 @@ class TrencadisTile {
   // Leaves the grout around a shard, keeps where it was on the painted tile —
   // slightly off, as when it is set by hand — and moves it to tile-local coordinates
   void addPiece(ArrayList<PVector> poly, float[] col, boolean painted) {
-    ArrayList<PVector> c = insetPoly(poly, GROUT_WIDTH * rnd(r, 0.7, 1.5));
+    float gw = GROUT_WIDTH * rnd(r, 0.7, 1.5);
+    ArrayList<PVector> c = null;
+    if (CERAMIC_BAKE && pieceKind != KIND_RIBBON) {
+      // A real joint isn't even: every edge of the shard sits at its own distance from its neighbour
+      Random rg = new Random(seed * 131 + pieces.size() * 7 + 3);
+      float[] d = new float[poly.size()];
+      for (int i = 0; i < d.length; i++) d[i] = gw * max(0.35, 1 + GROUT_IRREGULAR * ((float) rg.nextGaussian() * 0.45));
+      c = insetPolyVar(poly, d);
+    }
+    if (c == null) c = insetPoly(poly, gw);
+    if (c == null && pieceKind == KIND_RIBBON) c = insetPoly(poly, gw * 0.4);   // the ribbon's corner pieces are bent: thinner joint
     if (c == null || abs(signedArea(c)) < sq(GROUT_WIDTH * 2.5)) return;
     int n = c.size();
     PVector c0 = polyCenter(c);
@@ -960,6 +995,15 @@ class TrencadisTile {
     float tx = cos(ta) * tm, ty = sin(ta) * tm;
     pc.lit  = tx * LIGHT_X + ty * LIGHT_Y;
     pc.spec = pow(max(0, pc.lit), 3) * rnd(r, 0.4, 1) + (r.nextFloat() < 0.08 ? 0.5 : 0);   // a few catch a glint
+    pc.tiltX = tx;
+    pc.tiltY = ty;
+    pc.kind = pieceKind;
+    pc.src = painted && atlas ? mapCell * 100003 + round(mapX) * 31 + round(mapY) : pieces.size();
+    if (pieceKind == KIND_RIBBON && ribA != null) {
+      pc.ax = ribA.x - origin.x; pc.ay = ribA.y - origin.y;
+      pc.bx = ribB.x - origin.x; pc.by = ribB.y - origin.y;
+      pc.rib = rib;
+    }
     float pr = 1;
     for (int i = 0; i < n; i++) pr = max(pr, dist(pc.x[i], pc.y[i], pc.cx, pc.cy));
     pc.grad = new float[n];
@@ -1083,6 +1127,7 @@ class TrencadisTile {
   void drawFlat(PGraphics pg, float alpha, boolean withGrout) {
     pg.noStroke();
     pg.textureMode(NORMAL);
+    if (withGrout && bakeAll != null) { drawBaked(pg, alpha, 100); return; }   // shards and mortar, all baked
     if (withGrout) {
       drawBed(pg, alpha);
       for (Piece p : pieces) drawGroutShadow(pg, p, alpha);
@@ -1159,12 +1204,34 @@ class TrencadisTile {
     pg.textureMode(NORMAL);
     float dry = smooth01(t);
     float bed = alpha * smooth01(t / 0.45);
+    if (bakeAll != null) {   // the mortar seeps in dark and wet and dries; the shards stay on top
+      drawBaked(pg, bed, lerp(48, 100, dry));
+      for (Piece p : pieces) drawPiece(pg, p, alpha, 0, 0);
+      return;
+    }
     drawBed(pg, bed, dry);
     for (Piece p : pieces) drawGroutShadow(pg, p, bed);
     for (Piece p : pieces) drawPiece(pg, p, alpha, 0, 0);
   }
 
   void drawBed(PGraphics pg, float alpha) { drawBed(pg, alpha, 1); }
+
+  // The baked tile set in its mortar, as one image over the bed (bri < 100 darkens it: wet)
+  void drawBaked(PGraphics pg, float alpha, float bri) {
+    pg.beginShape();
+    pg.texture(bakeAll);
+    pg.tint(0, 0, bri, alpha);
+    for (int i = 0; i < gx.length; i++) pg.vertex(gx[i], gy[i], (gx[i] - bakeX0) / bakeW, (gy[i] - bakeY0) / bakeH);
+    pg.endShape(CLOSE);
+    pg.noTint();
+  }
+
+  // Smaller images for a tile that is only seen small from now on (poem shards)
+  void shrinkImages(int maxW) {
+    if (bakeShards != null && bakeShards.width > maxW) { PImage s = bakeShards.copy(); s.resize(maxW, 0); bakeShards = s; }
+    if (bakeAll != null && bakeAll.width > maxW) { PImage s = bakeAll.copy(); s.resize(maxW, 0); bakeAll = s; }
+    if (tex != null && tex.width > maxW) { PImage s = tex.copy(); s.resize(maxW, 0); tex = s; }
+  }
 
   void drawBed(PGraphics pg, float alpha, float dry) {
     if (alpha <= 0) return;
@@ -1185,6 +1252,15 @@ class TrencadisTile {
   // dim < 1 darkens the piece (far away while assembling)
   void drawPiece(PGraphics pg, Piece p, float alpha, float ox, float oy, float dim) {
     int n = p.x.length;
+    if (bakeShards != null && p.bu != null) {   // baked ceramic (Ceramic.pde): one textured polygon
+      pg.beginShape();
+      pg.texture(bakeShards);
+      pg.tint(0, 0, constrain(100 * dim, 0, 100), alpha);
+      for (int i = 0; i < n; i++) pg.vertex(p.x[i] - ox, p.y[i] - oy, p.bu[i], p.bv[i]);
+      pg.endShape(CLOSE);
+      pg.noTint();
+      return;
+    }
     float light = 1 + RELIEF * 0.13 * p.lit;   // tilted towards the light or away from it
 
     // The glazed face
@@ -1330,6 +1406,30 @@ float signedArea(ArrayList<PVector> p) {
   return a / 2;
 }
 
+// Moves edge i (from vertex i to i+1) inwards by d[i] — an uneven joint — by cutting the
+// shard along every moved edge, so the result is always a clean convex shard (a very thin
+// one may lose a corner, or vanish: null). For convex shards only.
+ArrayList<PVector> insetPolyVar(ArrayList<PVector> src, float[] d) {
+  int n = src.size();
+  if (n < 3 || d.length != n) return null;
+  float area = signedArea(src);
+  if (abs(area) < 0.01) return null;
+  float sg = area > 0 ? 1 : -1;
+  ArrayList<PVector> out = new ArrayList<PVector>();
+  for (PVector q : src) out.add(q.copy());
+  for (int i = 0; i < n && out != null; i++) {
+    PVector a = src.get(i), b = src.get((i + 1) % n);
+    PVector e = PVector.sub(b, a);
+    if (e.mag() < 0.01) continue;
+    e.normalize();
+    PVector outward = new PVector(e.y * sg, -e.x * sg);
+    PVector m = PVector.add(a, PVector.mult(outward, -d[i]));
+    out = clipPlane(out, m, outward);   // keeps the side away from the outward normal
+  }
+  if (out == null || abs(signedArea(out)) < abs(area) * 0.08) return null;
+  return out;
+}
+
 // Moves every edge inwards by d (outwards if d < 0). null if it collapses.
 ArrayList<PVector> insetPoly(ArrayList<PVector> src, float d) {
   ArrayList<PVector> p = new ArrayList<PVector>();
@@ -1360,5 +1460,9 @@ ArrayList<PVector> insetPoly(ArrayList<PVector> src, float d) {
   }
   float a2 = signedArea(out);
   if (d > 0 && a2 * sg <= 0) return null;
+  if (d > 0) for (int i = 0; i < n; i++) {   // no edge turned over (a crossed shard)
+    PVector a = out.get(i), b = out.get((i + 1) % n), oa = p.get(i), ob = p.get((i + 1) % n);
+    if ((b.x - a.x) * (ob.x - oa.x) + (b.y - a.y) * (ob.y - oa.y) < 0) return null;
+  }
   return out;
 }
