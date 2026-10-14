@@ -42,25 +42,12 @@ float[][] CUT_STYLE = {
   { 0.4, 0.18 }    // 7 three groupings
 };
 
-// Dark ceramic tones of the ribbon along the top edge of each band of
-// WALL 1 (one per band), mixed a little with each word's colour. HSB.
-float[][] RIBBON_TONES = {
-  { 25, 55, 36 },   // brown
-  {185, 45, 38 },   // deep teal
-  { 30, 12, 22 },   // near black
-  { 35, 65, 58 },   // ochre
-  {150, 35, 32 },   // bottle green
-  {  5, 50, 40 }    // oxblood
-};
-
-// Golden lustre ("reflex daurat", as on Valencian lustreware) for the shards of rare words. HSB.
-float[] GOLD_LUSTRE = { 44, 62, 86 };
+// Colours of the ribbons, the gold lustre, the cream, the grout and the glaze hues: Colors.pde
 
 // Light comes from the upper left (y grows downwards); only used for the soft glaze sheen
 final float LIGHT_X = -0.6, LIGHT_Y = -0.8;
 
-// The glazes of Park Güell: nearest one to a hue (violets → indigo, pinks → red)
-float[] GLAZE_HUES = { 2, 12, 18, 30, 42, 72, 142, 185, 210 };
+// The glazes of Park Güell: nearest one to a hue (violets → indigo, pinks → red); GLAZE_HUES in Colors.pde
 
 float ceramicHue(float h) {
   h = (h % 360 + 360) % 360;
@@ -230,7 +217,7 @@ class TrencadisTile {
     if (h0 >= 130 && h0 <= 160) { s0 = max(s0, 85); b0 = constrain(b0, 38, 52); }   // greens: bottle green
     if (h0 >= 8 && h0 <= 16)    { s0 = max(s0, 80); b0 = constrain(b0, 50, 64); }   // terracotta
     cBase  = new float[] { h0, s0, b0 };
-    cLight = new float[] { 42, 7, 96 };                                   // the white / cream of the tiles
+    cLight = hsbOf(TILE_CREAM_COLOR);                                     // the white / cream of the tiles (Colors.pde)
     cDark  = new float[] { lerpAngle(h0, 225, 0.7), 60, 18 };             // near-black navy outlines
     // Accent from the other family: cobalt against warm colours, orange / ochre against cool ones
     float q = r.nextFloat();
@@ -246,7 +233,7 @@ class TrencadisTile {
       cRib = new float[] { h0, min(90, s0 + 5), b0 * 0.45 };
     }
 
-    float[] white = { 42, 6, 95 };   // white crockery
+    float[] white = hsbOf(CROCKERY_COLOR);   // white crockery (Colors.pde)
     // One colour family, many strong shades (the blue areas of the benches)
     tones = new float[][] {
       { h0, s0, b0 },

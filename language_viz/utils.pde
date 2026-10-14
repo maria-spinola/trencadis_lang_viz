@@ -114,7 +114,7 @@ void parseResponse() {
     String responseText = answerText(raw);
     JSONObject result = parseJSONObject(stripFences(responseText));
     if (result == null) { llmUnavailable("unreadable answer: " + responseText); return; }
-    displayText = "";   // clear any previous error message
+    if (msgUntil == 0) displayText = "";   // clear any previous error message (not a "Volies dir…?" still showing)
     applyLLMResult(pendingWord, result, true);   // CatalanLLM.pde: reject, or validate + save input.json
 
   } catch (Exception e) {
@@ -136,7 +136,7 @@ String answerText(String raw) {
 
 // Colour from the emotion, as the system prompt asks the LLM to do:
 // base hue per emotion, intensity (saturation / brightness) varies
-float[] EMOTION_HUES = { 2, 42, 12, 354, 142, 210, 28 };   // anger red, surprise ochre, fear terracotta, love red, disgust bottle green, sadness cobalt, joy orange
+float[] EMOTION_HUES = emotionHues();   // from EMOTION_COLORS (Colors.pde)
 
 String emotionHex(int emotion, float hueJitter, float sat, float bri) {
   float h = (EMOTION_HUES[constrain(emotion, 1, 7) - 1] + hueJitter + 360) % 360;

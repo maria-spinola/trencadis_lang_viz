@@ -85,8 +85,15 @@ void submitWord(String typed) {
     println("Rejected (local filter): \"" + typed + "\" — " + bad);
     return;
   }
-  lastPrompt = word;
   displayText = "";
+  msgUntil = 0;
+  String fixed = fixAccents(word);       // "cafe" → "cafè": a missing or wrong accent is corrected
+  if (!fixed.equals(word)) {
+    println("Accent fixed: \"" + word + "\" → \"" + fixed + "\"");
+    word = fixed;
+    showMessage(MSG_DID_YOU_MEAN.replace("%s", fixed));
+  }
+  lastPrompt = word;
   if (TEST_MODE && TEST_RANDOM) {        // random test: local filter only, random parameters
     llmModeUsed = "test";
     generateTestWord(word);
@@ -108,6 +115,7 @@ void submitWord(String typed) {
     pendingWord = word;
     callModel(word);
   }
+  for (TileFlight fl : flights) if (fl.state == FLIGHT_HOLD) fl.depart();   // the last tile makes room for the thinking shards
 }
 
 // The model answered with a JSON object for pendingWord (from parseResponse, utils.pde)
@@ -511,6 +519,55 @@ void loadWordFreq() {
     if (t > 0) wordFreq.put(l.substring(0, t), int(l.substring(t + 1)));
   }
   println("Word frequencies: " + wordFreq.size() + " Catalan words");
+  buildAccentIndex();
+}
+
+// ── Missing or wrong accents ──
+// Every word of the table is indexed without its accents (and ç → c): "cafe" → cafè, "musica" →
+// música, "avio" → avió, "esperanca" → esperança. A typed word is only corrected when the form
+// with the accent is much more common (ACCENT_FIX_GAP): "mes", "te", "mon", "ma", "sol" are words
+// too, as common as "més", "té", "món", "mà", "sòl", and stay as typed.
+
+HashMap<String, String> accentBest;    // word without accents → its most common written form
+HashMap<String, Integer> accentBestZ;
+
+String stripAccents(String w) {
+  String acc = "àèéíïòóúüç", plain = "aeeiioouuc";
+  StringBuilder b = new StringBuilder();
+  for (char c : w.toCharArray()) { int i = acc.indexOf(c); b.append(i >= 0 ? plain.charAt(i) : c); }
+  return b.toString();
+}
+
+void buildAccentIndex() {
+  accentBest = new HashMap<String, String>();
+  accentBestZ = new HashMap<String, Integer>();
+  for (java.util.Map.Entry<String, Integer> e : wordFreq.entrySet()) {
+    String w = e.getKey();
+    boolean ok = w.length() > 0;
+    for (char c : w.toCharArray()) if (CAT_LETTERS.indexOf(c) < 0 && c != '·' && c != '-') { ok = false; break; }
+    if (!ok) continue;
+    String k = stripAccents(w);
+    Integer z = accentBestZ.get(k);
+    if (z == null || e.getValue() > z) { accentBest.put(k, w); accentBestZ.put(k, e.getValue()); }
+  }
+}
+
+// The word with its accents put right, or the word itself
+String fixAccents(String word) {
+  if (!USE_ACCENT_FIX || accentBest == null || accentBest.isEmpty()) return word;
+  String low = word.toLowerCase();
+  String best = accentBest.get(stripAccents(low));
+  if (best == null || best.equals(low)) return word;
+  int zTyped = wordZipf(low), zBest = accentBestZ.get(stripAccents(low));
+  // A word typed WITH an accent: if it's common, it's a word in its own right — the diacritic accents
+  // pèl / pel, fóra / fora, vós / vos, sòl / sol — and stays; if it's rare ("mès", "pà", "àrbre"),
+  // it's most likely a wrong accent and a smaller gap is enough
+  boolean accented = !stripAccents(low).equals(low);
+  if (accented && zTyped >= ACCENT_WRONG_MAX * 100) return word;
+  float gap = accented ? ACCENT_FIX_GAP_WRONG : ACCENT_FIX_GAP;
+  if (zBest < ACCENT_FIX_MIN * 100 || zBest - zTyped < gap * 100) return word;
+  // keep a capital first letter (place names)
+  return Character.isUpperCase(word.charAt(0)) ? Character.toUpperCase(best.charAt(0)) + best.substring(1) : best;
 }
 
 // zipf × 100 of the word; 0 if it never appears; −1 if there is no table (the model's raresa stays)
@@ -525,3 +582,4 @@ int raresaFromZipf(int z) {
   for (int i = 0; i < RARESA_ZIPF.length; i++) if (z >= RARESA_ZIPF[i] * 100) return i + 1;
   return 7;
 }
+

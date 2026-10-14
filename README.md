@@ -24,11 +24,13 @@ Alberto Benavent Ramón, Francisco A. Rodríguez, Lerie Pemanagpo, María Spíno
 Over the exhibition WALL 1 fills up with a wavy mosaic made of all the visitors' words. A dark see-through window sits behind the tile while it assembles (`HOLD_PANEL_ALPHA`).
 
 ### The poem
-Words of a poem (`poem_words.json`) live in the background, behind the mural and the text window:
+Words of a poem — *Diversos són els homes i diverses les parles* by Salvador Espriu (`poem_words.json`) — live in the background, behind the mural and the text window:
 1. Every 10 s one comes out of the depth behind the main wall, its pieces tiny, already heading for a free spot on a side wall; they grow and open on the way, each piece running ahead and falling behind the group.
 2. The open cloud stops; the word appears on black in the middle and stays 2 s.
 3. The **word** glides down to the floor and floats there like a leaf on water (no floor in the venue: along the low band of the side walls and the mural wall, never on the main wall).
 4. The **tile** closes; its pieces vanish quickly one by one until one is left, which then shrinks, starts turning and wanders all the walls. The words stay on the floor (up to `MAX_FLOOR_WORDS`); old shards fade after `MAX_POEM_WORDS`.
+**The visitors' words go to the floor too** (`TYPED_WORDS_TO_FLOOR`, venues with a floor): when a word is accepted, it drops from under the text box on WALL 3 and floats on the floor with the poem's words, near (readable) and in the same typeface.
+
 Each poem word has its own depth (size, brightness, speed — fully opaque) and pace; the shards and floor words drift in and out of the depth, wander with changing speed, and the clouds settle anywhere on the side walls (high, low, centred, in a corner) without piling up. Up to `MAX_POEM_WORDS` at a time; beyond that the oldest slowly fades. Timings and sizes: `POEM_*` in `Config.pde`.
 
 ### Deterministic
@@ -146,6 +148,7 @@ The left part of the tile goes round by WALL 2, the right part by WALL 4, the lo
 language_viz/
 ├── language_viz.pde      — Main sketch: setup, draw, keyboard
 ├── Config.pde            — All settings (room, output, mosaic, timing, LLM, sound…)
+├── Colors.pde            — Every colour (background, text, floor words, emotion → tile colour, ceramic, grout, ribbons) and the typeface
 ├── Room.pde              — Walls + floor, media matrix, cameras (flat, main wall, 3D viewer), preview, calibration
 ├── Trencadis.pde         — A tile: palette, painted motifs, breaking into shards, drawing, assembly
 ├── Mosaic.pde            — WALL 1 mural (slots, saving) and each tile's journey (assemble → travel → set)
@@ -164,7 +167,7 @@ language_viz/
 ├── miditest.pde          — MIDI test sketch (commented out)
 ├── data/
 │   ├── input.json        — Current word and its parameters
-│   ├── poem_words.json   — Poem words with parameters
+│   ├── poem_words.json   — The poem (Salvador Espriu), word by word with parameters
 │   ├── catalan_freq.tsv  — Catalan word frequencies (wordfreq) → raresa
 │   ├── lexicon_cache.json — Every word already analysed (in git)
 │   ├── ollama_key.txt    — Your Ollama API key (NOT in git)
@@ -179,6 +182,7 @@ language_viz/
     └── miditest.rpp      — Reaper project for the sound
 language_viz_original/    — Earlier version of the sketch (particles, single screen)
 tools/make_catalan_freq.py — Rebuilds data/catalan_freq.tsv from wordfreq
+tools/make_poem_words.py  — Analyses the poem's words → data/poem_words.json
 setup_mac.command, setup_windows.bat — Install llama.cpp + download the local model (Salamandra)
 ```
 
@@ -232,6 +236,7 @@ What happens when a visitor presses Enter (`submitWord()` in `CatalanLLM.pde`):
 
 ```
 1. Local filter      one word, Catalan letters only, ≤ 30 letters          instant, offline
+   Accents           a missing / wrong accent is corrected: cafe → cafè     instant, offline
 2. Cache             already analysed? → use it, no network                 data/lexicon_cache.json
 3. Viquidiccionari   look the word up, take its definition                  ca.wiktionary.org
 4. Model             word + definition → is it Catalan? + all parameters    Salamandra (local), else Ollama Cloud
@@ -245,7 +250,13 @@ What happens when a visitor presses Enter (`submitWord()` in `CatalanLLM.pde`):
 
 A rejected word makes no tile, no input.json and no sound: a short message in Catalan appears on the main wall for a few seconds (`MSG_*` in `Config.pde`).
 
-**Accents.** If a keyboard doesn't compose accents (dead keys), type the accent first and then the vowel: `` ` `` + a/e/o → à è ò, `´` or `'` + vowel → é í ó ú, `¨` or `"` + i/u → ï ü.
+**Missing or wrong accents are corrected** (`fixAccents()`, `USE_ACCENT_FIX`). Every word of the frequency table (`data/catalan_freq.tsv`) is indexed without its accents (and ç → c); if what the visitor typed is much rarer than a form of it with other accents, that form is used and the wall says *Volies dir «cafè»?* (`MSG_DID_YOU_MEAN`) while the tile of the corrected word assembles. Offline and instant. Rules, tested on 57 words:
+- Without accents: corrected when the accented form is at least `ACCENT_FIX_GAP` (1.4 zipf, ×25) more common and itself common (`ACCENT_FIX_MIN`): *cafe* → cafè, *tambe* → també, *musica* → música, *perque* → perquè, *pero* → però, *avio* → avió, *esperanca* → esperança, *canco* → cançó, *pais* → país. A capital stays (*Musica* → Música).
+- Words that are also correct without the accent stay as typed: *mes*, *te*, *mon*, *ma*, *sol*, *dona*, *pel*, *si*, *os*.
+- With an accent: a common word is never changed — the diacritic accents *pèl*, *fóra*, *vós*, *sòl*, *dóna*, *té*, *ós* are words (`ACCENT_WRONG_MAX`, zipf 3); a rare one with a smaller gap (`ACCENT_FIX_GAP_WRONG`): *mès* → més, *pà* → pa, *àrbre* → arbre, *cafés* → cafès, *Barcelóna* → Barcelona.
+- Not corrected: *café* (frequent in Catalan web text, as common as real accented words — the model rejects it as Spanish), *angel*, *adeu*, *bebe* (the accented form isn't common enough to be sure). Misspelt letters (*escudela*) aren't corrected: the model rejects them.
+
+**Accents.** Some windows don't compose dead accent keys (the key arrives without a character): the sketch then recognises the accent key itself — ` and ´ (Shift: ¨) where they are on Spanish / Catalan keyboards — and puts the accent on the next vowel. If an accent key still does nothing, set `DEBUG_KEYS = true`: the console prints what each key sends. Typed the other way round also works, accent first and then the vowel: `` ` `` + a/e/o → à è ò, `´` or `'` + vowel → é í ó ú, `¨` or `"` + i/u → ï ü.
 
 ### 2. Cache
 Every answer (also rejections) is stored in `data/lexicon_cache.json` (lower-case word → JSON, with the definition). A word already there doesn't call the network again: it's instant, free and always gives the same analysis. The file **is kept in git**, so every computer (and the venue) gives the same tile for the same word, and a wrong decision of the model can be fixed by hand there (or delete the entry to ask again). Turn it off with `USE_LEXICON_CACHE = false`. Changing the model or the prompt doesn't change words already cached: empty the file (`{}`) to analyse them again.
@@ -293,13 +304,25 @@ significat     Sensació que s'experimenta en algunes parts del…
 ```
 `mode` says who answered: `cloud`, `local`, `cache`, `fallback` (no model) or `test` (random). In test mode (`Ctrl+E`) the same panel is shown on WALL 3.
 
-The bottom of the preview window always shows, large, what is being typed, "pensant…" while the model answers, the rejection message or the last word (`PREVIEW_INPUT`; never in the output).
+**Language on screen:** everything the public sees in the projection is in Catalan (the messages for rejected or corrected words, the analysis panel); technical text for the team — the preview window, the calibration pattern, "TEST MODE", the console — stays in English. While the model thinks, seven shards of a freshly broken tile — the same glazed, relief shards as the mural — orbit slowly where the tile will appear, half transparent (`THINK_ALPHA`), turning over on themselves as if the tile were being put together (`drawThinking()` in `ClaudeSketch.pde`); the tile still on the wall leaves at once to make room. The tile on WALL 3 is never drawn over the text box: tall cells are shown a little smaller (`HOLD_Y` 0.33).
+
+The bottom of the preview window always shows, large, what is being typed, "thinking…" while the model answers, the rejection message or the last word (`PREVIEW_INPUT`; never in the output).
 
 ### Tests
 - **`Ctrl+E` test mode:** each word gets its real analysis (cache or model), shown on WALL 3. Test tiles are not saved in the mural; leaving test mode brings back the real mural. With `TEST_RANDOM = true` the model is skipped and parameters are random.
 - **`Ctrl+K` language test:** runs a list of words that should be accepted / rejected through both filters and the model, and prints a table with the mode that answered (also saved in `data/language_test.txt`).
 
 ---
+
+## Colours and typeface (`Colors.pde`)
+
+Every colour is in its own file, written as `"#RRGGBB"` (any colour picker gives them), with what each one paints:
+- **The room:** `BACKGROUND_COLOR` of the walls and floor.
+- **Text box on WALL 3:** the word being typed, the `>`, the line, the last word, the messages, "TEST MODE", the band behind the box.
+- **Words on the floor:** the poem's, the visitors' (separately) and the dark halo around them.
+- **Tile colour from the emotion:** `EMOTION_COLORS` (the same table the model is given). `EMOTION_COLOR_SOURCE = "model"` uses the shade the model chose; `"table"` paints every tile exactly with the table's colour. `GLAZE_HUES`: the Park Güell glaze hues every colour is moved to.
+- **The ceramic:** cream ground, white crockery shards, gold lustre, grout, and the ribbon tone of each band.
+- **Typeface:** `TEXT_FONT` (Georgia) for the poem, the words on the floor and the text box on WALL 3.
 
 ## Main settings (`Config.pde`)
 
@@ -322,6 +345,9 @@ The bottom of the preview window always shows, large, what is being typed, "pens
 | `PREVIEW_INPUT` | Large typed text at the bottom of the preview window |
 | `SHOW_POEM` | Floating poem tiles on / off |
 | `TEST_MODE` | Start in test mode |
+| `TYPED_WORDS_TO_FLOOR` | The visitors' words also float on the floor |
+| `THINK_ALPHA` | How opaque the shards turning while the model thinks are |
+| `DEBUG_KEYS` | Print every key in the console (accent keys) |
 | `TEST_RANDOM` | Test mode with random parameters instead of the real analysis |
 | `RICH_SHARD_SIMPLE`, `RICH_SHARD_RICH`, `RICH_ACCENT`, `RICH_GOLD` | Shards from culturalitat (how many, from other tiles) and gold from raresa |
 | `LLM_PROVIDER`, `LLM_MODE`, `LOCAL_ENGINE`, `OLLAMA_MODEL_LOCAL` / `_CLOUD`, `MODEL`, `API_KEY` | Language model (the Ollama key lives in `data/ollama_key.txt`) |
@@ -329,7 +355,8 @@ The bottom of the preview window always shows, large, what is being typed, "pens
 | `USE_DICTIONARY`, `DICT_URL` | Viquidiccionari definitions sent to the model |
 | `USE_WORD_FREQ`, `WORD_FREQ_FILE`, `RARESA_ZIPF` | raresa from word frequency |
 | `USE_LEXICON_CACHE`, `LEXICON_CACHE_FILE` | Cache of analysed words |
-| `MAX_WORD_LENGTH`, `MSG_*`, `MSG_FRAMES` | Local filter and the messages shown for rejected words |
+| `MAX_WORD_LENGTH`, `MSG_*`, `MSG_FRAMES` | Local filter and the messages shown for rejected / corrected words |
+| `USE_ACCENT_FIX`, `ACCENT_FIX_GAP`, `ACCENT_FIX_GAP_WRONG`, `ACCENT_WRONG_MAX`, `ACCENT_FIX_MIN` | Correcting missing / wrong accents |
 | `MIDI_PORT` | Sound |
 
 ---
@@ -362,7 +389,7 @@ Sending them out (`Output.pde`):
 
 ### In the venue
 1. Set `ROOM_W`, `ROOM_D`, `WALL_H` to the venue's media matrix and `RENDER_SCALE` to what the machine can hold (check the fps).
-2. Press `Ctrl+T`: every surface shows its name, a grid and, on each edge, what should be on the other side ("↑ TECHO", "↓ FLOOR", "WALL 2"…). Walk the room and check. If a wall is rotated, change only its rotation in `setupRoom()` (`Room.pde`).
+2. Press `Ctrl+T`: every surface shows its name, a grid and, on each edge, what should be on the other side ("↑ CEILING", "↓ FLOOR", "WALL 2"…). Walk the room and check. If a wall is rotated, change only its rotation in `setupRoom()` (`Room.pde`).
 3. Check that the grid squares are the same size on every surface (same pixel density).
 4. Send a few words, in 2D and 3D, and watch them cross the corners.
 5. Before opening: `Ctrl+N` to clear the test mural, test mode off. The Processing window must keep the keyboard focus.
@@ -417,20 +444,27 @@ All shortcuts use **Ctrl** (or **Cmd** on Mac), so typing words never triggers t
 The model's answer (in the cache) also has `es_catala` (true / false) and `motiu` (why it was rejected).
 
 ### `poem_words.json`
+The poem: *Diversos són els homes i diverses les parles*, by Salvador Espriu. Its 63 words, in order (articles kept with their noun, as they are read: *els homes*, *l’aire*, *comprèn-la*), each with the parameters of the same analysis as the visitors' words — made by `tools/make_poem_words.py` with the cloud model, giving each word its verse as context (a dictionary definition misled it: *plata* "big plate", *terra* "floor"), and raresa from wordfreq.
 ```json
 {
-  "poem": "All Watched Over by Machines of Loving Grace",
-  "author": "Richard Brautigan",
+  "poem": "Diversos són els homes i diverses les parles",
+  "author": "Salvador Espriu",
+  "text": "Diversos són els homes i diverses les parles,\ni han convingut molts noms a un sol amor.\n…",
   "words": [
     {
-      "word": "grace",
-      "color_hex": "#FFD700",
-      "word_class": 1,
-      "abstraction": 6,
-      "agency": 4,
-      "organic": 5,
-      "phenomena_class": 3,
-      "time_duration": 7
+      "word": "fràgil",
+      "line": 3,
+      "emotion": 6,
+      "emotion_label": "Tristesa",
+      "color_hex": "#4A7BBF",
+      "word_class": 3,
+      "abstraction": 4,
+      "agency": 1,
+      "organic": 3,
+      "phenomena_class": 2,
+      "time_duration": 5,
+      "culturalitat": 1,
+      "raresa": 4
     }
   ]
 }

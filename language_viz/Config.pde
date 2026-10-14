@@ -84,7 +84,7 @@ int   SIZE_BIG_MIN       = 6;     // raresa from this → two cells
 float SPLIT_WIDE         = 1.25;  // cells wider than this (band heights) split left / right, narrower ones top / bottom
 float RIBBON_SHARE       = 1.0;   // share of tiles with the dark ribbon along the top (1 = the bands are drawn whole)
 float GROUT_WIDTH        = 1.2;   // half the gap between shards, matrix units (varies a little per shard)
-float GROUT_H = 38, GROUT_S = 5, GROUT_B = 80;   // grout colour (HSB): light grey cement, only once set on WALL 1
+// (grout colour: GROUT_COLOR in Colors.pde)
 float GROUT_SET_FRAMES   = 170;   // frames the grout takes to seep in and dry when a tile lands on WALL 1
 // Relief and finish of the shards (Trencadis.pde)
 float RELIEF             = 1.0;   // tilt shading, rounded rims, sunk grout (0 = flat)
@@ -106,7 +106,9 @@ boolean TRAVEL_3D        = false;
 float VIEWER_HEIGHT      = WALL_H * ((VENUE == 1) ? 0.59 : 0.4);   // eye height of the audience: IASLab 1.6 m of 2.7 m projected
 float DEPTH_3D           = 1.0;            // how far into the room the pieces fly (3D)
 float HOLD_HEIGHT        = 0.45;  // size of the new tile on the main wall (fraction of its height)
-float HOLD_Y             = 0.38;  // its centre, fraction of the wall height (leaves room for the text input below)
+float HOLD_Y             = 0.33;
+float THINK_ALPHA        = 55;    // the shards turning while the model thinks: how opaque (0–100)
+boolean TYPED_WORDS_TO_FLOOR = true;   // the visitors' words also go down to the floor and float with the poem's  // its centre, fraction of the wall height (leaves room for the text input below)
 float HOLD_PANEL_ALPHA   = 72;    // dark see-through window behind the new tile (0 = none, 100 = black)
 String  MOSAIC_FILE      = "mosaic.json";   // in data/
 boolean MOSAIC_SAVE      = true;  // keep the mural between runs
@@ -168,6 +170,7 @@ String MSG_ONE_WORD      = "Escriu només una paraula en català";
 String MSG_NOT_CATALAN   = "Aquesta paraula no és catalana";
 String MSG_TOO_LONG      = "Paraula massa llarga";
 String MSG_NO_LLM        = "";       // shown when the model doesn't answer (empty: nothing on the wall, only the console)
+String MSG_DID_YOU_MEAN  = "Volies dir «%s»?";   // shown when a missing / wrong accent is corrected
 int    MSG_FRAMES        = 240;      // how long a message stays on the main wall (60 = 1 s)
 boolean USE_LEXICON_CACHE = true;    // remember each word's answer in data/lexicon_cache.json
 String LEXICON_CACHE_FILE = "lexicon_cache.json";
@@ -175,6 +178,14 @@ String LEXICON_CACHE_FILE = "lexicon_cache.json";
 // Zipf scale: 5.8 casa · 4.6 finestra · 4.1 tristesa · 3.1 pessigolles · 2.8 espardenya · 2.2 xiuxiuejar
 boolean USE_WORD_FREQ = true;
 String WORD_FREQ_FILE = "catalan_freq.tsv";
+// Missing or wrong accents are corrected from the same table ("cafe" → "cafè"): only when the
+// accented form is at least ACCENT_FIX_GAP zipf more common (×25), so "mes", "te", "mon" stay
+boolean USE_ACCENT_FIX = true;
+boolean DEBUG_KEYS = false;   // print every key in the console (to see what an accent key sends)
+float ACCENT_FIX_GAP = 1.4;
+float ACCENT_FIX_GAP_WRONG = 0.8;   // the same for a rare word typed with an accent ("mès" → "més"): a wrong accent
+float ACCENT_WRONG_MAX = 3.0;       // a word typed with an accent is never corrected from this zipf on: pèl, fóra, vós, sòl are words
+float ACCENT_FIX_MIN = 2.0;   // the correction itself must be at least this common
 float[] RARESA_ZIPF = { 5.0, 4.5, 4.0, 3.5, 3.0, 2.5 };   // zipf at or above → raresa 1, 2, 3, 4, 5, 6; below → 7
 
 // Central word parameters -> updated by JSONLoader

@@ -74,7 +74,7 @@ void mouseReleased() { isDragging = false; }
 void keyPressed(KeyEvent event) {
   //Keys + Ctrl/Cmd to avoid changes while writing words
   if (!event.isControlDown() && !event.isMetaDown()) {
-    handleLLMKey();  // ClaudeSketch.pde — captura input de texto
+    handleLLMKey(event);  // ClaudeSketch.pde — the text input
     return;
   }
   if (keyCode == 'P') SHOW_POEM = !SHOW_POEM;

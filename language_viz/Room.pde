@@ -77,7 +77,7 @@ void renderFaces() {
     pg.colorMode(HSB, 360, 100, 100, 100);
     pg.hint(DISABLE_DEPTH_TEST);
     pg.hint(ENABLE_STROKE_PURE);
-    pg.background(0);
+    pg.background(hexColor(BACKGROUND_COLOR));   // Colors.pde
 
     // Flat world: 1 unit = 1 media matrix unit, shapes cross seams continuously
     flatCamera(pg, f);
@@ -198,9 +198,9 @@ void drawPreviewInput() {
   text("> " + inputText + (cursorVisible ? "█" : " "), 20, height - h / 2);
   textSize(16);
   textAlign(RIGHT, CENTER);
-  if (isLoading)                   { fill(140, 60, 80); text("pensant…", width - 20, height - h / 2); }
+  if (isLoading)                   { fill(140, 60, 80); text("thinking…", width - 20, height - h / 2); }
   else if (displayText.length() > 0) { fill(40, 70, 100); text(displayText, width - 20, height - h / 2); }
-  else if (lastPrompt.length() > 0)  { fill(0, 0, 55);    text("última: " + lastPrompt, width - 20, height - h / 2); }
+  else if (lastPrompt.length() > 0)  { fill(0, 0, 55);    text("last: " + lastPrompt, width - 20, height - h / 2); }
   textFont(createDefaultFontOnce());
 }
 
@@ -272,7 +272,7 @@ void drawTestPattern(PGraphics pg, Face f) {
 
 String neighbourName(Face f, float u, float v) {
   int n = foldOver(f.id, f.toRoom(u, v));
-  return (n < 0) ? "TECHO" : faces[n].name;
+  return (n < 0) ? "CEILING" : faces[n].name;
 }
 
 // ********************

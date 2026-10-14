@@ -99,6 +99,7 @@ PFont poemFont;
 //            Only when there are very many does the oldest (word and shard) fade away.
 class PoemWord {
   String word;
+  boolean typed = false;     // a visitor's word: no tile, it only goes down to the floor
   int   stretch;              // 0 = A, 1 = B
   float c, v;                 // centre on the ring of walls
   float c0, v0, c1, v1;       // start (main wall) and destination
@@ -130,10 +131,31 @@ class PoemWord {
 
   TrencadisTile tile;
 
+  // A visitor's word: it drops from under the text box on WALL 3 to the floor and floats with the poem's words
+  PoemWord(String w, long n) {
+    typed = true;
+    word = w;
+    Random r = new Random(n * 7919L + 17);
+    if (poemFont == null) poemFont = createFont(TEXT_FONT, 96);
+    depth0 = rnd(r, 0.05, 0.35);                    // near: readable
+    pace   = rnd(r, 0.6, 1.4);
+    sizeK  = rnd(r, 0.9, 1.2);
+    setDepth(depth0);
+    c1 = c = ROOM_D + ROOM_W + ROOM_D / 2 + rnd(r, -0.06, 0.06) * ROOM_D;   // middle of WALL 3
+    v1 = v = WALL_H * 0.9;                           // just under the text box
+    vc = rnd(r, 0.4, 1.0) * (r.nextBoolean() ? 1 : -1);
+    wdir = (vc > 0) ? -1 : 1;
+    vPhase = rnd(r, 0, TWO_PI);
+    seed = rnd(r, 0, 1000);
+    bandV = rnd(r, 0.08, 0.2) * WALL_H;
+    wordStart = 0;
+    tile = null;
+  }
+
   // n = how many poem words were spawned before → same sequence on every run
   PoemWord(JSONObject wordObj, int n) {
     Random r = new Random(MOSAIC_SEED * 7919 + n);
-    if (poemFont == null) poemFont = createFont("Georgia", 96);
+    if (poemFont == null) poemFont = createFont(TEXT_FONT, 96);
 
     // Starts behind the middle of the main wall, at the height of the assembling tile
     c0 = ROOM_D + ROOM_W + ROOM_D / 2;
@@ -150,7 +172,9 @@ class PoemWord {
     for (int k = 0; k < 80; k++) {
       int st = rd.nextInt(2);
       // only the part of the wall the mural hasn't reached yet (it grows from the back corner)
-      float gap = POEM_TILE_SIZE * 0.3 + footprint() * 0.55;   // the whole open cloud clear of the mural
+      // the whole open cloud well clear of the mural: a dim (far) poem tile right at its edge looked
+      // like a see-through tile of the mural
+      float gap = POEM_TILE_SIZE + footprint() * 0.6;
       float cov2 = MOSAIC_SIDES ? sideCovered(W2) + gap : 0, cov4 = MOSAIC_SIDES ? sideCovered(W4) + gap : 0;
       if (st == 0 && cov2 > ROOM_W - footprint()) st = 1;
       if (st == 1 && cov4 > ROOM_W - footprint()) st = 0;
@@ -193,7 +217,7 @@ class PoemWord {
     // Built around (0,0): position is applied per surface in display()
     long tseed = wordSeed(word + hex, emotion, wordClass, bAbstract, bAgency, bOrganic, phenomenon, bTime);
     Patch shape = freePatch(new Random(tseed), POEM_TILE_SIZE, POEM_TILE_SIZE * 0.8);
-    tile = new TrencadisTile(tseed, parseHexColor(hex), bAbstract, bOrganic, phenomenon, wordClass, shape, -1);
+    tile = new TrencadisTile(tseed, parseHexColor(tileHex(hex, emotion)), bAbstract, bOrganic, phenomenon, wordClass, shape, -1);
 
     // Where each piece drifts to when open: away from the centre, wider than tall (walls are low)
     int np = tile.pieces.size();
@@ -252,6 +276,14 @@ class PoemWord {
   float travel;   // 0..1 how far along the journey (for the group stretching along the way)
 
   void update() {
+    if (typed) {                                   // a visitor's word: down to the floor, then floating
+      age++;
+      float k = smooth01(age / 600);
+      setDepth(depth0 + k * (noise(seed + 300, age * 0.0012 * pace) - 0.5) * 0.8);
+      updateWord();
+      wordAlpha = POEM_ALPHA * smooth01(age / 40) * (wordLeaving ? 1 - smooth01((age - wordLeaveAge) / 600) : 1);
+      return;
+    }
     age++;
     float t = age;
     gather = 0; wordA = 0; scl = 1; dim = 1; apart = 0; travel = 0; pieceS = 1;
@@ -474,10 +506,10 @@ class PoemWord {
     float ta = 100 * wordA * wordAlpha / POEM_ALPHA * dimK;
     for (int k = 0; k < 4; k++) {   // soft dark halo so it reads over anything
       float a = TWO_PI * k / 4 + QUARTER_PI, d = 96 * 0.055;
-      pg.fill(225, 50, 8, ta * 0.4);
+      pg.fill(hexColor(WORD_HALO_COLOR), ta * 0.4);
       pg.text(word, cos(a) * d, sin(a) * d);
     }
-    pg.fill(40, 8, 98, ta);
+    pg.fill(hexColor(typed ? TYPED_WORD_COLOR : POEM_WORD_COLOR), ta);
     pg.text(word, 0, 0);
     pg.pop();
   }
@@ -485,4 +517,11 @@ class PoemWord {
   boolean isDead() {
     return wordLeaving && age - wordLeaveAge > 600;
   }
+}
+
+// Called when a visitor's word is accepted (Mosaic.pde): it also goes down to the floor
+int typedWordCount = 0;
+void dropTypedWord(String w) {
+  if (!TYPED_WORDS_TO_FLOOR || !HAS_FLOOR || !SHOW_POEM || w.length() == 0) return;
+  poemWordsList.add(new PoemWord(w, typedWordCount++));
 }

@@ -70,6 +70,7 @@ void spawnWordTile() {
 
   for (TileFlight fl : flights) if (fl.state == FLIGHT_HOLD) fl.depart();   // the previous word makes room
   flights.add(new TileFlight(tile, rec));
+  dropTypedWord(currentWord);   // WordsSystem.pde: the word also goes down to the floor
 }
 
 void clearMosaic() {
@@ -427,6 +428,7 @@ TrencadisTile makeWordTile(JSONObject rec, Patch patch, int band) {
   int og = rec.getInt("organic", 4),     ph  = rec.getInt("phenomena_class", 1);
   int tm = rec.getInt("time_duration", 4);
   long seed = wordSeed(word + hex, em, wc, ab, ag, og, ph, tm);
+  hex = tileHex(hex, em);   // the model's colour or the table's (Colors.pde)
   int cu = rec.getInt("culturalitat", 0), ra = rec.getInt("raresa", 0);   // 0 in old saved mosaics: no effect
   return new TrencadisTile(seed, parseHexColor(hex), ab, og, ph, wc, patch, band, cu, ra, WALL_H / MOSAIC_ROWS);
 }
@@ -468,7 +470,7 @@ void drawHoldPanel(PGraphics pg, Face f) {
   pg.rectMode(CENTER);
   for (int i = 0; i < 6; i++) {   // soft edges: a few growing, fainter rectangles
     float k = 1 + i * 0.05;
-    pg.fill(0, 0, 0, panelAlpha * (i == 0 ? 1 : 0.18));
+    pg.fill(hexColor(HOLD_PANEL_COLOR), panelAlpha * (i == 0 ? 1 : 0.18));
     pg.rect(f.w / 2, f.h * HOLD_Y, w * k, h * k, f.h * 0.04 * k);
   }
   pg.popStyle();
@@ -643,9 +645,13 @@ class TileFlight {
     holdT     = map(time,   1, 7, HOLD_FRAMES_MIN, HOLD_FRAMES_MAX);           // long-lasting words stay longer on the main wall
 
     Face m = faces[W3];
-    holdScale = min(m.h * HOLD_HEIGHT / tile.refH, m.w * 0.45 / tile.tileW);   // same scale for all: rare words look bigger
     hu = m.w / 2;
     hv = m.h * HOLD_Y;   // above the text input
+    holdScale = min(m.h * HOLD_HEIGHT / tile.refH, m.w * 0.45 / tile.tileW);   // same scale for all: rare words look bigger
+    // ...but never over the text box and its messages (nor off the top of the wall): tall cells shrink a little
+    float msgTop = m.h * UI_Y - 64 * m.h / 900.0 * UI_SCALE - m.h * 0.02;     // top of the message line above the box
+    float halfH = tile.tileH * 0.58;                                           // half its height, with room for the sway
+    holdScale = min(holdScale, min((msgTop - hv) / halfH, (hv - m.h * 0.03) / halfH));
     makeFragments(r, fragmentsFor(emotion), organic);
   }
 

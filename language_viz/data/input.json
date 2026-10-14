@@ -1,16 +1,16 @@
 {
-  "agency": 6,
-  "raresa": 4,
+  "agency": 5,
+  "raresa": 2,
   "word_class": 1,
-  "abstraction": 2,
-  "color_hex": "#E07A1F",
-  "culturalitat": 7,
-  "emotion": 7,
-  "emotion_label": "Alegria",
-  "definicio": "Relatiu als castells humans. / Persona que fa castells humans.",
-  "time_duration": 4,
-  "zipf": 3.5999999046325684,
-  "word": "casteller",
+  "abstraction": 4,
+  "color_hex": "#B3261E",
+  "culturalitat": 1,
+  "emotion": 1,
+  "emotion_label": "Ira",
+  "definicio": "So no articulat i confús més o menys fort. / So procedent d'una multitud enrabiada.",
+  "time_duration": 2,
+  "zipf": 4.519999980926514,
+  "word": "soroll",
   "organic": 6,
-  "phenomena_class": 3
+  "phenomena_class": 5
 }
