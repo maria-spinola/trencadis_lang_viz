@@ -66,7 +66,7 @@ float ROOM_EXTRA_H = (VENUE == 1) ? WALL_H * (3.16 / 2.7 - 1) : 0;   // unprojec
 
 // Rich words are rewarded with a more complex tile (Trencadis.pde). raresa also sets the tile size (SIZE_*).
 float RICH_SHARD_SIMPLE = 1.5;    // shard size at culturalitat 1: a few big shards
-float RICH_SHARD_RICH   = 0.5;    // shard size at culturalitat 7: many small shards
+float RICH_SHARD_RICH   = 0.7;    // shard size at culturalitat 7: many small shards
 float RICH_ACCENT       = 0.28;   // culturalitat 7: share of shards from other tiles, in contrasting glazes
 float RICH_GOLD         = 0.14;   // raresa 7: share of golden lustre shards (from raresa 4)
 // Text input box: centred, about as wide as the tile, at 3/4 of the wall's height
@@ -89,7 +89,7 @@ int   SIZE_SMALL_MAX     = 2;     // raresa up to this → half a cell
 int   SIZE_BIG_MIN       = 6;     // raresa from this → two cells
 float SPLIT_WIDE         = 1.25;  // cells wider than this (band heights) split left / right, narrower ones top / bottom
 float RIBBON_SHARE       = 1.0;   // share of tiles with the dark ribbon along the top (1 = the bands are drawn whole)
-float GROUT_WIDTH        = 1.8;   // half the gap between shards, matrix units (varies a little per shard)
+float GROUT_WIDTH        = 1.5;   // half the gap between shards, matrix units (varies a little per shard)
 // (grout colour: GROUT_COLOR in Colors.pde)
 float GROUT_SET_FRAMES   = 170;   // frames the grout takes to seep in and dry when a tile lands on WALL 1
 // Relief and finish of the shards (Trencadis.pde)
@@ -106,19 +106,47 @@ float GLOSS            = 0.45;    // reflection of the sky on the glaze (0 = mat
 float SPECULAR         = 0.7;     // bright highlight where a shard or its edge faces the light
 float RIM_WIDTH        = 1.4;     // the rounded edge of each shard, tile units (1 unit ≈ 2 mm)
 float RIM_BEND         = 0.9;     // how much that edge rolls over (catches light / goes dark)
-float EDGE_ROUGH       = 0.8;     // broken edges are not straight: how ragged (units)
+float EDGE_ROUGH       = 1.4;     // broken edges are not straight: how ragged (units)
 float CHIP_DEPTH       = 3.2;     // where the glaze flaked off the edge, the fired clay shows (units)
 float PAINT_WOBBLE     = 0.7;     // painted motifs: hand-painted lines wobble a little (units)
 float MARBLE_SHARE     = 0.35;    // share of plain glazed tiles with marbled glaze (jaspeado)
-float RELIEF_TILE_SHARE       = 0.025;   // share of shards from moulded relief tiles (leaves and berries)
-float RELIEF_TILE_SHARE_OTHER = 0.35;    // …among the shards from other tiles (very Catalan words have more)
+float RELIEF_TILE_SHARE       = 0.012;   // share of shards from moulded relief tiles (leaves and berries)
+float RELIEF_TILE_SHARE_OTHER = 0.18;    // …among the shards from other tiles (very Catalan words have more)
 float RELIEF_DEPTH     = 7;       // how deep those reliefs are (units)
 float GROUT_IRREGULAR  = 1.0;     // the joints are uneven: each edge of a shard at its own distance (0 = even)
 float AO_STRENGTH      = 0.38;    // the mortar is darker right against the shards (they stand proud)
 float AO_RADIUS        = 1.3;     // …over this distance (units)
 float CONTACT_SHADOW   = 0.32;    // short shadow of each shard on the mortar, away from the light
 float SHADOW_LEN       = 1.1;     // …its length (units)
-float BAKE_MAX_PX      = 1400;    // largest baked image side (memory)
+float WHITE_SHARE      = 0.02;    // share of plain white crockery shards (less white = more contrast)
+float CUT_WOBBLE       = 0.16;    // the cracks bend at odd angles (× shard size; 0 = straight cracks)
+boolean GLASS_BOTTLES  = false;   // round bottle bottoms in some glass shards (she found them like eyes)
+float SHARD_MIN        = 0.16;    // smallest shard, × the usual shard size² (bigger = never small pieces)
+float CRACKLE_SHARE    = 0.3;     // share of plain glazed shards with a crackled glaze (craquelure)
+float GLASS_SHARE      = 0.14;    // raresa 7: share of glass shards (from raresa 5); some are round bottle bottoms
+float BAKE_MAX_PX      = 1400;
+
+// ── The journey and the moments (Mosaic.pde, Moments.pde) ──
+float CHUNK_SHARDS     = 6;       // the tile breaks into chunks of about this many shards (bigger = fewer, bigger chunks)
+float BURST            = 0.9;     // how far the chunks are thrown out when the tile breaks (× its radius)
+float CHUNK_TILT       = 0.75;    // how much the chunks tilt in perspective in the air (radians; never show their back)
+float CHUNK_GROW       = 0.12;    // …how much bigger they look mid-flight (closer to us)
+float CHUNK_THICK      = 6;       // …their thickness, the fired clay edge (units)
+float CHUNK_SHADOW     = 0.5;     // …the soft shadow they cast on the wall behind them
+float CHUNK_SHADOW_DIST = 38;     // …how far from them it falls at mid-flight (units)
+int   SPECIAL_MIN      = 6;       // raresa or culturalitat from this: a special word
+float SPECIAL_SLOW     = 1.5;     // …it assembles and stays this much slower
+float SPECIAL_SHEEN    = 0.55;    // …with a golden reflection sweeping over it
+int   LAND_GLOW_FRAMES = 420;     // a tile that settles in the mural lights up, its word beside it (frames)
+int   AGAIN_GLOW_FRAMES = 480;    // a word typed again: its older tiles in the mural pulse (frames)
+float MARK_GLOW        = 0.45;    // how bright that light is
+float MURAL_SHEEN      = 0.5;     // the slow light sweeping over the mural (0 = none)
+int   SWEEP_FRAMES     = 900;     // …how long it takes to cross WALL 4, WALL 1, WALL 2 (60 = 1 s)
+int   SWEEP_PAUSE      = 1500;    // …and the pause before the next one
+int   CELEBRATE_FRAMES = 600;     // when the mural is full: it glows and a chord plays (frames)
+int   VERSE_EVERY      = 60 * 240;   // a verse of the poem forms on the floor every … frames (0 = never)
+int   VERSE_FIRST      = 60 * 60;    // …the first time after this
+int   VERSE_HOLD       = 60 * 12;    // …and stays this long once complete    // largest baked image side (memory)
 float BAKE_DETAIL_MURAL = 0.4;    // image detail of the tiles restored into the mural at start (× TEXTURE_DETAIL)
 float BAKE_DETAIL_POEM  = 0.4;    // image detail of the poem tiles
 float SCATTER            = 1.0;   // how far the pieces drift apart while travelling (0 = they travel as one tile)
@@ -200,7 +228,11 @@ String MSG_ONE_WORD      = "Escriu només una paraula en català";
 String MSG_NOT_CATALAN   = "Aquesta paraula no és catalana";
 String MSG_TOO_LONG      = "Paraula massa llarga";
 String MSG_NO_LLM        = "";       // shown when the model doesn't answer (empty: nothing on the wall, only the console)
-String MSG_DID_YOU_MEAN  = "Volies dir «%s»?";   // shown when a missing / wrong accent is corrected
+String MSG_DID_YOU_MEAN  = "Volies dir «%s»?";
+String MSG_RARE          = "✦ Paraula rara ✦";            // special words (raresa / culturalitat ≥ SPECIAL_MIN)
+String MSG_CATALAN       = "✦ Molt catalana ✦";
+String MSG_RARE_CATALAN  = "✦ Rara i molt catalana ✦";
+String MSG_INVITE        = "Escriu una paraula en català";   // in the empty text box   // shown when a missing / wrong accent is corrected
 int    MSG_FRAMES        = 240;      // how long a message stays on the main wall (60 = 1 s)
 boolean USE_LEXICON_CACHE = true;    // remember each word's answer in data/lexicon_cache.json
 String LEXICON_CACHE_FILE = "lexicon_cache.json";

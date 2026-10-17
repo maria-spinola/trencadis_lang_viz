@@ -142,7 +142,7 @@ class PoemWord {
     sizeK  = rnd(r, 0.9, 1.2);
     setDepth(depth0);
     c1 = c = ROOM_D + ROOM_W + ROOM_D / 2 + rnd(r, -0.06, 0.06) * ROOM_D;   // middle of WALL 3
-    v1 = v = WALL_H * 0.9;                           // just under the text box
+    v1 = v = WALL_H * 0.97;                          // from under the text box
     vc = rnd(r, 0.4, 1.0) * (r.nextBoolean() ? 1 : -1);
     wdir = (vc > 0) ? -1 : 1;
     vPhase = rnd(r, 0, TWO_PI);

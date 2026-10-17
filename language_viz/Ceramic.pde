@@ -45,6 +45,15 @@ float vn(float x, float y) {
   return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
 }
 
+// The same noise, but straight between its points: a warp made of straight runs and kinks
+float vnLin(float x, float y) {
+  int xi = (int) Math.floor(x), yi = (int) Math.floor(y);
+  float fx = x - xi, fy = y - yi;
+  int x0 = xi & 255, y0 = yi & 255, x1 = (x0 + 1) & 255, y1 = (y0 + 1) & 255;
+  float a = VN[y0 * 256 + x0], b = VN[y0 * 256 + x1], c = VN[y1 * 256 + x0], d = VN[y1 * 256 + x1];
+  return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+}
+
 float fbm(float x, float y) {
   return 0.5 * vn(x, y) + 0.3 * vn(x * 2.03 + 17.1, y * 2.03 + 9.3) + 0.2 * vn(x * 4.11 + 5.7, y * 4.11 + 31.9);
 }
@@ -203,7 +212,8 @@ void bakeCeramic(TrencadisTile t) {
   float[] grout = rgbOfHex(GROUT_COLOR), sky = rgbOfHex(SKY_REFLECTION), gold = rgbOfHex(GOLD_LUSTRE_COLOR);
   float[][] base = new float[np][];
   float[][] aff = new float[np][];            // painted shards: tile units → texture (u, v)
-  boolean[] marble = new boolean[np], relief = new boolean[np];
+  boolean[] marble = new boolean[np], relief = new boolean[np], crackle = new boolean[np];
+  float[] cabX = new float[np], cabY = new float[np], cabR = new float[np], crS = new float[np];
   float[] mAng = new float[np], mFreq = new float[np], rS = new float[np], rCx = new float[np], rCy = new float[np], rAng = new float[np];
   float[][] mVein = new float[np][], rGlaze = new float[np][];
   float[] nOffX = new float[np], nOffY = new float[np];
@@ -243,6 +253,13 @@ void bakeCeramic(TrencadisTile t) {
       float[] c0 = base[pi];
       mVein[pi] = new float[] { lerp(c0[0], 0.95, 0.75), lerp(c0[1], 0.92, 0.75), lerp(c0[2], 0.86, 0.75) };
     }
+    if (plain && !marble[pi] && sr.nextFloat() < CRACKLE_SHARE) { crackle[pi] = true; crS[pi] = 3.5 + sr.nextFloat() * 4; }   // craquelure
+    if (p.kind == KIND_GLASS && GLASS_BOTTLES && p.area > sq(t.refH * 0.14) && pr.nextFloat() < 0.65) {
+      // a round bottle bottom set in this glass shard, as big as fits
+      float inr = 1e9;
+      for (int e = 0; e < EX[pi].length; e++) inr = min(inr, (p.cx - EX[pi][e]) * NX[pi][e] + (p.cy - EY[pi][e]) * NY[pi][e]);
+      if (inr > 4) { cabX[pi] = p.cx; cabY[pi] = p.cy; cabR[pi] = inr * 0.82; }
+    }
     float relChance = (p.kind == KIND_OTHER) ? RELIEF_TILE_SHARE_OTHER : (p.kind == KIND_TILE ? RELIEF_TILE_SHARE : 0);
     if (p.area > sq(t.refH * 0.12) && pr.nextFloat() < relChance) {
       relief[pi] = true;
@@ -261,7 +278,7 @@ void bakeCeramic(TrencadisTile t) {
   Hx /= Hn; Hy /= Hn; Hz /= Hn;
   float KA = 0.42, KD = 0.58, flat = KA + KD * Lzz;
   float tilt = tan(radians(SHARD_TILT_DEG)) * RELIEF;
-  int[] all = new int[N], shards = new int[N];
+  int[] all = new int[N], shards = new int[N], gloss = new int[N];
   float gsx = (t.seed % 997) * 0.37, gsy = (t.seed % 991) * 0.53;
 
   for (int iy = 0; iy < h; iy++) {
@@ -290,7 +307,7 @@ void bakeCeramic(TrencadisTile t) {
       int e = eg[q];
       float d = de[q];
       float along = (X - EX[pi][e]) * DX[pi][e] + (Y - EY[pi][e]) * DY[pi][e];
-      float rough = EDGE_ROUGH * vn(along * 0.8 + pi * 13.1, e * 7.3 + 3.1 + pi);
+      float rough = EDGE_ROUGH * (0.65 * vn(along * 0.28 + pi * 13.1, e * 7.3 + 3.1 + pi) + 0.35 * vn(along * 0.9 + pi * 5.3, e * 2.1 + 9.7));   // broken edges wander
       float dd = d - rough;
       float cov = constrain(dd * k + 0.5, 0, 1);                          // the broken edge, a little ragged
       boolean chip = false;
@@ -376,16 +393,51 @@ void bakeCeramic(TrencadisTile t) {
         cr = lerp(gz[0] * 0.55, gz[0], deep); cg = lerp(gz[1] * 0.55, gz[1], deep); cb = lerp(gz[2] * 0.55, gz[2], deep);
         cr = lerp(cr, body[0], peak * 0.65); cg = lerp(cg, body[1], peak * 0.65); cb = lerp(cb, body[2], peak * 0.65);
       }
+      if (crackle[pi]) {                                                    // craquelure: a fine net of cracks in the glaze
+        float cl = crackLine(X / crS[pi] + ox, Y / crS[pi] + oy);
+        float k2 = 1 - 0.38 * cl;
+        cr *= k2; cg *= k2; cb *= k2 * 0.97;
+      }
+      if (p.kind == KIND_RIBBON) {                                          // the glazed capping: darker streaks run along it
+        float ax2 = p.bx - p.ax, ay2 = p.by - p.ay, al2 = max(1e-4, sqrt(ax2 * ax2 + ay2 * ay2));
+        float alongR = ((X - p.ax) * ax2 + (Y - p.ay) * ay2) / al2, acrossR = (-(X - p.ax) * ay2 + (Y - p.ay) * ax2) / al2;
+        float st = fbm(alongR * 0.025 + ox, acrossR * 0.22 + oy);
+        float dk = sstep(0.5, 0.72, st) * 0.45;
+        cr *= 1 - dk; cg *= 1 - dk * 0.85; cb *= 1 - dk * 0.9;
+      }
       float pool = 0.93 + 0.14 * hU;                                        // thicker glaze in the hollows is deeper
       cr *= pool; cg *= pool; cb *= pool;
       if (tR > 0) { float th2 = 0.12 * tR; cr += (1 - cr) * th2; cg += (1 - cg) * th2; cb += (1 - cb) * th2; }   // thin glaze on the edge
       boolean matte = false;
+      float gl = 0.55 + 0.4 * tR;                                           // how glossy (the light sweeping the mural)
+      if (p.kind == KIND_GLASS) {                                           // coloured glass: deep, glowing where the light comes out
+        float[] gc = base[pi];
+        float rr = max(4, sqrt(p.area) * 0.5);
+        float away = -((X - p.cx) / rr * LIGHT_X + (Y - p.cy) / rr * LIGHT_Y);
+        float glow = sstep(-0.4, 1.1, away), thin = 1 - sstep(0, 3.2, dd);
+        cr = gc[0] * (0.3 + 0.8 * glow); cg = gc[1] * (0.3 + 0.8 * glow); cb = gc[2] * (0.3 + 0.8 * glow);
+        cr = lerp(cr, min(1, mr * (0.4 + gc[0])), thin * 0.45); cg = lerp(cg, min(1, mg * (0.4 + gc[1])), thin * 0.45); cb = lerp(cb, min(1, mb * (0.4 + gc[2])), thin * 0.45);
+        if (cabR[pi] > 0) {                                                 // the bottle bottom: a glass dome with its ring
+          float dxc = (X - cabX[pi]) / cabR[pi], dyc = (Y - cabY[pi]) / cabR[pi], rc = sqrt(dxc * dxc + dyc * dyc);
+          if (rc < 1) {
+            float hz = sqrt(1 - rc * rc);
+            nx = dxc * 0.85; ny = dyc * 0.85; nz = hz + 0.15;
+            nl = sqrt(nx * nx + ny * ny + nz * nz); nx /= nl; ny /= nl; nz /= nl;
+            float awayC = -(dxc * LIGHT_X + dyc * LIGHT_Y);
+            float lum = 0.25 + 0.6 * sstep(-0.1, 0.9, awayC) * (1 - rc * 0.3) + 0.35 * exp(-sq((rc - 0.42) / 0.07));   // light coming through, the punt's ring
+            float rim = sstep(0.86, 1.0, rc);
+            cr = gc[0] * lum * (1 - 0.6 * rim) + 0.05; cg = gc[1] * lum * (1 - 0.6 * rim) + 0.05; cb = gc[2] * lum * (1 - 0.6 * rim) + 0.05;
+          }
+        }
+        gl = 1;
+      }
       if (chip) {                                                           // glaze flaked off: the fired clay
         float gr = 0.82 + 0.3 * hash01(ix, iy, 5);
         cr = body[0] * gr; cg = body[1] * gr; cb = body[2] * gr;
         nx = (vn(X * 0.9, Y * 0.9) - 0.5) * 0.5 - NX[pi][e] * 0.35; ny = (vn(X * 0.9 + 9, Y * 0.9) - 0.5) * 0.5 - NY[pi][e] * 0.35; nz = 1;
         nl = sqrt(nx * nx + ny * ny + 1); nx /= nl; ny /= nl; nz /= nl;
         matte = true;
+        gl = 0;
       }
 
       // ── light ──
@@ -400,11 +452,17 @@ void bakeCeramic(TrencadisTile t) {
         float facing = 1 - nz;
         float refl = GLOSS * (0.12 + 0.88 * skyAmt) * (0.5 + 5 * facing);
         float spec = SPECULAR * (float) Math.pow(max(0, nx * Hx + ny * Hy + nz * Hz), 90);
-        if (p.kind == KIND_GOLD) {                                          // lustre: a metallic reflection, golden
-          float met = 0.22 + refl * 3.2 + spec;
-          r_ = r_ * 0.3 + gold[0] * met;
-          g_ = g_ * 0.3 + gold[1] * met;
-          b_ = b_ * 0.3 + gold[2] * met;
+        if (p.kind == KIND_GLASS) {                                         // glass: a sharper, stronger reflection
+          float spec2 = SPECULAR * 1.6 * (float) Math.pow(max(0, nx * Hx + ny * Hy + nz * Hz), 160);
+          float rg = min(1, refl * 1.6);
+          r_ = r_ * (1 - rg * 0.3) + sky[0] * rg * 0.55 + spec2;
+          g_ = g_ * (1 - rg * 0.3) + sky[1] * rg * 0.55 + spec2;
+          b_ = b_ * (1 - rg * 0.3) + sky[2] * rg * 0.55 + spec2;
+        } else if (p.kind == KIND_GOLD) {                                   // lustre: a metallic reflection, golden
+          float met = 0.5 + refl * 4.5 + spec * 1.5 + 0.25 * (hU - 0.5);   // bright, with the room's light moving in it
+          r_ = r_ * 0.15 + gold[0] * met;
+          g_ = g_ * 0.15 + gold[1] * met;
+          b_ = b_ * 0.15 + gold[2] * met * 0.9;
         } else {
           refl = min(refl, p.kind == KIND_RIBBON ? 0.45 : 0.85);
           r_ = r_ * (1 - refl * 0.35) + sky[0] * refl * 0.6 + spec;
@@ -412,6 +470,8 @@ void bakeCeramic(TrencadisTile t) {
           b_ = b_ * (1 - refl * 0.35) + sky[2] * refl * 0.6 + spec;
         }
       }
+      if (p.kind == KIND_GOLD) gl = 1; else if (p.kind == KIND_RIBBON) gl = 0.75;
+      gloss[q] = argb(gl * cov, 1, 1, 1);
       shards[q] = argb(cov, r_, g_, b_);
       all[q] = argb(1, lerp(mr, r_, cov), lerp(mg, g_, cov), lerp(mb, b_, cov));
     }
@@ -422,6 +482,9 @@ void bakeCeramic(TrencadisTile t) {
   System.arraycopy(all, 0, A.pixels, 0, N);
   System.arraycopy(shards, 0, S.pixels, 0, N);
   A.updatePixels(); S.updatePixels();
+  PImage G = createImage(w, h, ARGB);
+  G.loadPixels(); System.arraycopy(gloss, 0, G.pixels, 0, N); G.updatePixels();
+  t.bakeGloss = G;
   t.bakeAll = A;
   t.bakeShards = S;
   for (Piece p : t.pieces) {                                                // where each shard is in the images
@@ -432,6 +495,19 @@ void bakeCeramic(TrencadisTile t) {
   t.tex = null;   // the painting is in the baked images now
 }
 
+// Craquelure: 1 on the thin cracks between irregular cells, 0 elsewhere
+float crackLine(float x, float y) {
+  int xi = (int) Math.floor(x), yi = (int) Math.floor(y);
+  float f1 = 9, f2 = 9;
+  for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++) {
+    int cx = xi + dx, cy = yi + dy;
+    float px = cx + hash01(cx, cy, 7), py = cy + hash01(cx, cy, 8);
+    float d = sqrt(sq(x - px) + sq(y - py));
+    if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) f2 = d;
+  }
+  return 1 - sstep(0.0, 0.07, f2 - f1);
+}
+
 float bil(float a, float b, float c, float d, float fu, float fv) {
   return (a * (1 - fu) + b * fu) * (1 - fv) + (c * (1 - fu) + d * fu) * fv;
 }
@@ -439,4 +515,50 @@ float bil(float a, float b, float c, float d, float fu, float fv) {
 int argb(float a, float r, float g, float b) {
   return (constrain(round(a * 255), 0, 255) << 24) | (constrain(round(r * 255), 0, 255) << 16)
        | (constrain(round(g * 255), 0, 255) << 8) | constrain(round(b * 255), 0, 255);
+}
+
+// ── Into the mural, sharp ─────────────────────────────────────
+// The tile as it is set in the mural: resampled from the baked image straight onto the mural's
+// own pixel grid (several samples per pixel), cut to the outline of its bed with soft edges.
+// Drawn 1:1 it stays as sharp as the baked tile — no on-the-fly shrinking by the graphics card,
+// no half-pixel blur. s = mural pixels per tile unit; at = where its top-left pixel goes.
+PImage muralStamp(TrencadisTile t, PImage src, float s, int[] at) {
+  src.loadPixels();
+  int sw = src.width, sh = src.height;
+  float k = sw / t.bakeW;                                  // baked pixels per tile unit
+  float ox = t.origin.x, oy = t.origin.y;
+  float bx0 = Float.MAX_VALUE, by0 = Float.MAX_VALUE, bx1 = -Float.MAX_VALUE, by1 = -Float.MAX_VALUE;
+  for (int i = 0; i < t.gx.length; i++) { bx0 = min(bx0, t.gx[i]); bx1 = max(bx1, t.gx[i]); by0 = min(by0, t.gy[i]); by1 = max(by1, t.gy[i]); }
+  int px0 = floor((bx0 + ox) * s) - 1, py0 = floor((by0 + oy) * s) - 1;
+  int w = ceil((bx1 + ox) * s) + 1 - px0, h = ceil((by1 + oy) * s) + 1 - py0;
+  at[0] = px0; at[1] = py0;
+  int ss = constrain(round(k / s) + 1, 2, 4);             // samples per pixel side: enough to cover the baked pixels it spans
+  int[] out = new int[w * h];
+  int n = t.gx.length;
+  for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) {
+    float r = 0, g = 0, b = 0; int cov = 0;
+    for (int sy = 0; sy < ss; sy++) for (int sx = 0; sx < ss; sx++) {
+      float X = (px0 + i + (sx + 0.5) / ss) / s - ox, Y = (py0 + j + (sy + 0.5) / ss) / s - oy;
+      boolean in = false;
+      for (int e = 0, f = n - 1; e < n; f = e, e++)
+        if (((t.gy[e] > Y) != (t.gy[f] > Y)) && (X < (t.gx[f] - t.gx[e]) * (Y - t.gy[e]) / (t.gy[f] - t.gy[e]) + t.gx[e])) in = !in;
+      if (!in) continue;
+      cov++;
+      float u = (X - t.bakeX0) * k - 0.5, v = (Y - t.bakeY0) * k - 0.5;
+      int x0 = constrain((int) Math.floor(u), 0, sw - 1), y0 = constrain((int) Math.floor(v), 0, sh - 1);
+      int x1 = min(sw - 1, x0 + 1), y1 = min(sh - 1, y0 + 1);
+      float fu = constrain(u - x0, 0, 1), fv = constrain(v - y0, 0, 1);
+      int c00 = src.pixels[y0 * sw + x0], c10 = src.pixels[y0 * sw + x1], c01 = src.pixels[y1 * sw + x0], c11 = src.pixels[y1 * sw + x1];
+      r += bil((c00 >> 16) & 255, (c10 >> 16) & 255, (c01 >> 16) & 255, (c11 >> 16) & 255, fu, fv);
+      g += bil((c00 >> 8) & 255, (c10 >> 8) & 255, (c01 >> 8) & 255, (c11 >> 8) & 255, fu, fv);
+      b += bil(c00 & 255, c10 & 255, c01 & 255, c11 & 255, fu, fv);
+    }
+    if (cov == 0) continue;
+    out[j * w + i] = argb(cov / (float) (ss * ss), r / cov / 255, g / cov / 255, b / cov / 255);
+  }
+  PImage img = createImage(w, h, ARGB);
+  img.loadPixels();
+  System.arraycopy(out, 0, img.pixels, 0, out.length);
+  img.updatePixels();
+  return img;
 }

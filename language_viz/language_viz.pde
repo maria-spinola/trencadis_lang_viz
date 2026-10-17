@@ -58,6 +58,7 @@ void draw() {
   updateLLM();         // ClaudeSketch.pde — procesa respuesta API
   updateCameraDrag();  // Room.pde — Ctrl+M mode
   updateWords();       // WordsSystem.pde — poem tiles
+  updateVerse();       // Moments.pde — now and then a verse forms on the floor
   updateMosaic();      // Mosaic.pde — word tiles assembling / travelling / landing
   renderFaces();       // Room.pde — draws each wall + floor (camera, words, text input)
   if (OUTPUT_GROUPS.length == 0 || viewMode == 0) composeMatrix();   // Room.pde — media matrix → matrixOut (only if used)

@@ -144,7 +144,7 @@ class Piece {
   float[] bu, bv;           // where it is in the baked image
 }
 
-final int KIND_TILE = 0, KIND_RIBBON = 1, KIND_GOLD = 2, KIND_OTHER = 3;
+final int KIND_TILE = 0, KIND_RIBBON = 1, KIND_GOLD = 2, KIND_OTHER = 3, KIND_GLASS = 4;
 
 class TrencadisTile {
   long seed;
@@ -158,9 +158,11 @@ class TrencadisTile {
   // Baked ceramic (Ceramic.pde): every shard lit, glazed, chipped, and the mortar around them
   PImage bakeAll;                 // the whole tile set in its mortar (the mural, the grout while it sets)
   PImage bakeShards;              // only the shards, transparent between them (shards in the air)
+  PImage bakeGloss;               // how glossy each pixel is (white, alpha = gloss): the light sweeping the mural
   float bakeX0, bakeY0, bakeW, bakeH;   // area of the baked images, tile units
   int pieceKind = KIND_TILE;      // kind of the shard being added (generation only)
   PVector ribA, ribB;             // ribbon: top edge of the piece being added
+  ArrayList<PVector> tileOutline;  // the area being broken (the cracks don't bend near its edge)
 
   // Generation only (cell coordinates, before moving the origin to the centre)
   Random r;
@@ -169,6 +171,7 @@ class TrencadisTile {
   int phen, wc;
   float[][] tones;                // plain palettes (index 5 = white crockery)
   int cult, rare;                 // culturalitat / raresa 1..7 (0 = unknown: no effect)
+  int style;                      // 0..3: ground, shade and motif variant (chosen unlike its neighbours, Mosaic.pde)
 
   float refH;                     // height of a normal tile (mural: one band); shards and ribbon are sized from it
 
@@ -180,6 +183,7 @@ class TrencadisTile {
   TrencadisTile(long seed, color col, int abstraction, int organic, int phenomenon, int wordClass, Patch patch, int band,
                 int culturalitat, int raresa, float refH) {
     cult = constrain(culturalitat, 0, 7);
+    style = (nextTileStyle >= 0) ? nextTileStyle % 4 : (int) ((seed >>> 5) & 3);
     rare = constrain(raresa, 0, 7);
     this.seed  = seed;
     this.patch = patch;
@@ -228,14 +232,28 @@ class TrencadisTile {
     // indigo and red. Never pastel.
     float h0 = ceramicHue(hue(col));
     boolean warm = (h0 < 60 || h0 > 330);
-    float s0 = constrain(saturation(col) * 1.2, 72, 92);
-    float b0 = constrain(brightness(col), 58, 88);
+    float s0 = constrain(saturation(col) * 1.25, 80, 95);   // strong glazes: more contrast in the room
+    float b0 = constrain(brightness(col), 52, 86);
     if (h0 >= 200 && h0 <= 240) b0 = min(b0, 72);   // blues are deep
     if (h0 >= 130 && h0 <= 160) { s0 = max(s0, 85); b0 = constrain(b0, 38, 52); }   // greens: bottle green
     if (h0 >= 8 && h0 <= 16)    { s0 = max(s0, 80); b0 = constrain(b0, 50, 64); }   // terracotta
+    // the variant: the same colour in another shade, so two neighbours never look the same
+    if (style == 1) { b0 *= 0.76; s0 = min(100, s0 + 5); }
+    else if (style == 2) { b0 = min(92, b0 * 1.14); s0 *= 0.9; }
+    else if (style == 3) { h0 = (h0 + (warm ? 9 : -9) + 360) % 360; }
     cBase  = new float[] { h0, s0, b0 };
-    cLight = hsbOf(TILE_CREAM_COLOR);                                     // the white / cream of the tiles (Colors.pde)
-    cDark  = new float[] { lerpAngle(h0, 225, 0.7), 60, 18 };             // near-black navy outlines
+    // The ground of the painted tiles: a colour far from the word's (yellow, sky blue, pistachio,
+    // salmon) or, less often, ivory — never paper white (Colors.pde)
+    {
+      // any ground but one too close to the word's own colour, picked at random (variety in the mural)
+      ArrayList<float[]> ok = new ArrayList<float[]>();
+      for (String gh : GROUND_COLORS) {
+        float[] gc = hsbOf(gh);
+        if (gc[1] < 30 || abs(((gc[0] - h0) % 360 + 540) % 360 - 180) > 50) ok.add(gc);
+      }
+      cLight = ok.size() > 0 ? ok.get((style + r.nextInt(2) * 0) % ok.size()) : hsbOf(TILE_CREAM_COLOR);   // by variant: neighbours get other grounds
+    }
+    cDark  = new float[] { lerpAngle(h0, 225, 0.7), 55, 11 };             // near-black outlines
     // Accent from the other family: cobalt against warm colours, orange / ochre against cool ones
     float q = r.nextFloat();
     float hA = warm ? (q < 0.65 ? 218 : 190) : (q < 0.6 ? 28 : 8);
@@ -273,7 +291,7 @@ class TrencadisTile {
   int pickTone(int... avoid) {
     int k = 0;
     for (int tries = 0; tries < 30; tries++) {
-      k = r.nextFloat() < 0.06 ? 5 : r.nextInt(5);
+      k = r.nextFloat() < WHITE_SHARE ? 5 : r.nextInt(5);
       boolean clash = false;
       for (int a : avoid) clash |= (a == k);
       if (!clash) break;
@@ -324,8 +342,8 @@ class TrencadisTile {
     g.scale(TW / W);
     switch (phen) {
       case 5:  paintStars(g);    break;   // vibration    → Valencian eight-point stars
-      case 6:  paintBands(g);    break;   // drift        → interlaced chains and stripes
-      default: paintChecker(g);           // 3 groupings  → bold two-colour geometry
+      case 6:  paintBoldGeo(g);  break;   // drift        → bold black and yellow geometry (chevrons, diamonds, triangles)
+      default: paintStrapwork(g);         // place        → lacería: interlaced eight-point stars (geometry, no flowers)
     }
     glazeDetail(g, W, H, u * 0.03);
     g.endDraw();
@@ -472,6 +490,25 @@ class TrencadisTile {
         }
         fillC(g, c2, 100);
         star8(g, cx, cy, s * 0.16, c2, c3, lw);
+        break;
+      }
+      case 5: {   // heraldic: cobalt diamond with golden stars, ivory corners with golden leaves, green border
+        float[] cob = hsbOf(HERALD_COLOR), st = hsbOf(STAR_COLOR), lf = hsbOf(LEAF_COLOR), iv = hsbOf(TILE_CREAM_COLOR);
+        fillC(g, iv, 100);
+        g.rect(0, 0, s, s);
+        fillC(g, cob, 100);
+        strokeC(g, lf, 100);
+        g.strokeWeight(s * 0.03);
+        g.quad(s * 0.5, s * 0.04, s * 0.96, s * 0.5, s * 0.5, s * 0.96, s * 0.04, s * 0.5);
+        g.noStroke();
+        for (int i = 0; i < 9; i++) star6(g, s * rnd(r, 0.3, 0.7), s * rnd(r, 0.3, 0.7), s * 0.035, st);
+        for (int c = 0; c < 4; c++) {   // a curled golden leaf in each corner
+          float cx = (c % 2 == 0) ? s * 0.14 : s * 0.86, cy = (c / 2 == 0) ? s * 0.14 : s * 0.86;
+          fillC(g, st, 100);
+          g.pushMatrix(); g.translate(cx, cy); g.rotate(QUARTER_PI + c * HALF_PI);
+          g.ellipse(0, 0, s * 0.16, s * 0.07); g.ellipse(s * 0.04, -s * 0.03, s * 0.09, s * 0.05);
+          g.popMatrix();
+        }
         break;
       }
       default: {  // small square tiles in two close tones
@@ -715,6 +752,108 @@ class TrencadisTile {
     g.popMatrix();
   }
 
+  // A six-point star
+  void star6(PGraphics g, float x, float y, float rad, float[] c) {
+    fillC(g, c, 100);
+    g.beginShape();
+    for (int i = 0; i < 12; i++) {
+      float a = -HALF_PI + PI * i / 6, rr = (i % 2 == 0) ? rad : rad * 0.48;
+      g.vertex(x + cos(a) * rr, y + sin(a) * rr);
+    }
+    g.endShape(CLOSE);
+  }
+
+  // Phenomenon 6: bold geometry in near black and a strong yellow — chevrons, a checker of
+  // diamonds or of triangles — the most contrasted tiles of the benches
+  void paintBoldGeo(PGraphics g) {
+    float[] K = hsbOf(GEO_DARK_COLOR), Y = (r.nextFloat() < 0.6) ? hsbOf(GEO_LIGHT_COLOR) : new float[] { cBase[0], cBase[1], max(cBase[2], 80) };
+    g.background(K[0], K[1], K[2]);
+    g.pushMatrix();
+    g.translate(W / 2, rib + CH / 2);
+    g.rotate(rnd(r, -0.5, 0.5));
+    float m = u * rnd(r, 1.0, 1.5), span = dist(0, 0, W, CH);
+    g.noStroke();
+    int v = style % 4;   // by variant: neighbours get other geometry
+    if (v == 3) {          // black, white and orange checker
+      float[] Wc = hsbOf(CROCKERY_COLOR), O = hsbOf(GEO_LIGHT_COLOR);
+      float q = m * 0.5;
+      int i = 0;
+      for (float x = -span; x < span; x += q, i++) {
+        int j = 0;
+        for (float y = -span; y < span; y += q, j++) {
+          int k = (i + j) % 3;
+          fillC(g, vary(k == 0 ? Wc : k == 1 ? O : K, 2, 3, 3), 100);
+          g.rect(x, y, q, q);
+        }
+      }
+    } else if (v == 0) {          // chevrons
+      for (float y = -span; y < span; y += m * 1.4) {
+        fillC(g, vary(Y, 3, 4, 5), 100);
+        g.beginShape();
+        for (float x = -span; x <= span; x += m) g.vertex(x, y + ((round(x / m) % 2 == 0) ? 0 : m * 0.6));
+        for (float x = span; x >= -span; x -= m) g.vertex(x, y + m * 0.55 + ((round(x / m) % 2 == 0) ? 0 : m * 0.6));
+        g.endShape(CLOSE);
+      }
+    } else if (v == 1) {   // diamonds
+      int i = 0;
+      for (float x = -span; x < span; x += m, i++) for (float y = -span; y < span; y += m) {
+        if ((i + round(y / m)) % 2 != 0) continue;
+        fillC(g, vary(Y, 3, 4, 5), 100);
+        diamond(g, x, y, m * 0.5, m * 0.5);
+      }
+    } else {               // triangles
+      int i = 0;
+      for (float x = -span; x < span; x += m, i++) {
+        int j = 0;
+        for (float y = -span; y < span; y += m, j++) {
+          if ((i + j) % 2 != 0) continue;
+          fillC(g, vary(Y, 3, 4, 5), 100);
+          if ((i + j) % 4 == 0) g.triangle(x, y, x + m, y, x, y + m); else g.triangle(x + m, y, x + m, y + m, x, y + m);
+        }
+      }
+    }
+    g.popMatrix();
+    mottle(g, K, 5, 6);
+  }
+
+  // Phenomenon 7: lacería, Moorish strapwork — a lattice of interlaced eight-point stars
+  // in light bands outlined in dark, the stars and the gaps between them glazed in colours;
+  // pure geometry (as in the tile panels of the period), never a flower
+  void paintStrapwork(PGraphics g) {
+    float[] cob = hsbOf(HERALD_COLOR), teal = hsbOf(TEAL_COLOR), och = cAcc2;
+    float[][] fills = { cBase, cob, och, teal };
+    float[] fStar = fills[style % 4], fGap = fills[(style + 1 + (cBase[0] > 180 && cBase[0] < 240 ? 1 : 0)) % 4];
+    g.background(fGap[0], fGap[1], fGap[2]);
+    mottle(g, fGap, 6, 8);
+    float m = u * rnd(r, 2.0, 2.8);
+    g.pushMatrix();
+    g.translate(W / 2, rib + CH / 2);
+    g.rotate(rnd(r, -0.5, 0.5));
+    float span = dist(0, 0, W, CH) * 0.6 + m;
+    for (float y = -span; y < span; y += m) for (float x = -span; x < span; x += m) {
+      // the star: two squares, glazed, outlined by a light band edged in dark
+      float R = m * 0.42;
+      for (int pass = 0; pass < 3; pass++) {
+        float rr = (pass == 0) ? R * 1.12 : (pass == 1) ? R * 1.02 : R * 0.86;
+        float[] c = (pass == 0) ? cDark : (pass == 1) ? cLight : fStar;
+        fillC(g, c, 100);
+        g.pushMatrix(); g.translate(x, y);
+        for (int k = 0; k < 2; k++) { g.rotate(QUARTER_PI); g.rect(-rr * 0.7, -rr * 0.7, rr * 1.4, rr * 1.4); }
+        g.popMatrix();
+      }
+      fillC(g, cDark, 100); diamond(g, x, y, R * 0.14, R * 0.14);
+      // the small cross-shaped knot between four stars
+      fillC(g, cLight, 100); diamond(g, x + m / 2, y + m / 2, m * 0.11, m * 0.11);
+      fillC(g, cDark, 100); diamond(g, x + m / 2, y + m / 2, m * 0.05, m * 0.05);
+    }
+    g.popMatrix();
+  }
+
+  void dotsOnCircle(PGraphics g, float x, float y, float rad, int n, float d, float[] c) {
+    fillC(g, c, 100);
+    for (int i = 0; i < n; i++) { float a2 = TWO_PI * i / n; g.ellipse(x + cos(a2) * rad, y + sin(a2) * rad, d * 2, d * 2); }
+  }
+
   void paintChecker(PGraphics g) {
     g.background(cDark[0], cDark[1], cDark[2]);
     g.pushMatrix();
@@ -789,11 +928,11 @@ class TrencadisTile {
   // Pieces end up with 3 to 7 sides and odd angles, like broken tile.
 
   void shatter(ArrayList<PVector> content) {
-    float minA = sq(u) * 0.05;
+    float minA = sq(u) * SHARD_MIN;   // never tiny shards
 
-    // A few spots where the tile was hit harder: crushed into small chips
+    // A spot or two where the tile was hit harder: smaller pieces there (never chips)
     ArrayList<PVector> crush = new ArrayList<PVector>();
-    int nCrush = 1 + r.nextInt(3) + (cult >= 5 ? 2 : 0);   // very Catalan words: more crushed spots
+    int nCrush = r.nextInt(2) + (cult >= 5 ? 1 : 0);
     for (int i = 0; i < nCrush; i++) crush.add(new PVector(X0 + rnd(r, 0, W), Y0 + rib + rnd(r, 0, CH)));
 
     ArrayList<ArrayList<PVector>> todo = new ArrayList<ArrayList<PVector>>();
@@ -803,9 +942,10 @@ class TrencadisTile {
       ArrayList<PVector> p = todo.remove(todo.size() - 1);
       float area = abs(signedArea(p));
       // Each piece wants its own size: from big plate pieces to small chips
-      float target = sq(u) * pow(2, rnd(r, -1.8, 1.6));
+      float target = sq(u) * pow(2, rnd(r, -0.8, 1.7));
       PVector c = polyCenter(p);
-      for (PVector k : crush) target *= lerp(0.2, 1, constrain(PVector.dist(c, k) / (u * 2), 0, 1));
+      for (PVector k : crush) target *= lerp(0.55, 1, constrain(PVector.dist(c, k) / (u * 2), 0, 1));
+      target = max(target, minA * 2.5);
       if (area <= target || done.size() > 500) { done.add(p); continue; }
       ArrayList<PVector>[] halves = crack(p, minA);
       if (halves == null) { done.add(p); continue; }
@@ -817,7 +957,7 @@ class TrencadisTile {
     ArrayList<ArrayList<PVector>> pieces = new ArrayList<ArrayList<PVector>>();
     for (ArrayList<PVector> p : done) {
       for (int k = 0; k < 2; k++) {
-        if (p.size() < 4 || r.nextFloat() > (1 - quadProb) * 0.7) break;
+        if (p.size() < 4 || abs(signedArea(p)) < minA * 6 || r.nextFloat() > (1 - quadProb) * 0.7) break;   // only big pieces lose a corner
         int n = p.size(), i = r.nextInt(n);
         PVector v = p.get(i), a = p.get((i - 1 + n) % n), b = p.get((i + 1) % n);
         PVector ca = PVector.lerp(v, a, rnd(r, 0.2, 0.55)), cb = PVector.lerp(v, b, rnd(r, 0.2, 0.55));
@@ -825,12 +965,14 @@ class TrencadisTile {
         if (PVector.sub(v, ca).dot(normal) > 0) normal.mult(-1);   // the corner on the kept side of clipPlane
         ArrayList<PVector> rest = clipPlane(p, ca, PVector.mult(normal, -1));
         ArrayList<PVector> chip = clipPlane(p, ca, normal);
-        if (rest == null || chip == null || abs(signedArea(chip)) < minA * 0.6 || chunkiness(chip) < 0.03) break;
+        if (rest == null || chip == null || abs(signedArea(chip)) < minA * 1.2 || chunkiness(chip) < 0.035) break;
         pieces.add(chip);
         p = rest;
       }
       pieces.add(p);
     }
+
+    tileOutline = content;   // for bending the cracks (addPiece)
 
     // Phenomena 3 and 4: neighbouring shards come in groups from the same broken source tile
     boolean clustered = (phen == 1 || phen == 3 || phen == 4);
@@ -876,9 +1018,14 @@ class TrencadisTile {
         addPiece(pieces.get(i), vary(GOLD_LUSTRE, 3, 6, 6), false);
         pieceKind = KIND_TILE;
         if (this.pieces.size() > before) this.pieces.get(before).spec = 1;
+      } else if (rare >= 5 && q > 0.3 && q < 0.3 + map(rare, 5, 7, 0.05, GLASS_SHARE)) {
+        // very rare words: shards of coloured glass, some of them round bottle bottoms (Ceramic.pde)
+        pieceKind = KIND_GLASS;
+        addPiece(pieces.get(i), hsbOf(GLASS_COLORS[r.nextInt(GLASS_COLORS.length)]), false);
+        pieceKind = KIND_TILE;
       } else if (cult >= 2 && q > 1 - map(cult, 2, 7, 0.04, RICH_ACCENT)) {
         // culturalitat: shards from other tiles, in contrasting glazes
-        float[][] acc = { cAcc, cAcc2, tones[5], cDark, cAcc };
+        float[][] acc = { cAcc, cAcc2, cDark, hsbOf(EARTH_COLORS[r.nextInt(EARTH_COLORS.length)]), hsbOf(EARTH_COLORS[r.nextInt(EARTH_COLORS.length)]) };
         pieceKind = KIND_OTHER;
         addPiece(pieces.get(i), vary(acc[r.nextInt(acc.length)], 4, 6, 6), false);
         pieceKind = KIND_TILE;
@@ -886,6 +1033,38 @@ class TrencadisTile {
         addPiece(pieces.get(i), new float[] { 0, 0, rnd(r, 88, 100) }, true);   // each shard glazed a touch differently
       }
     }
+  }
+
+  // Bends the edges of a shard by a piecewise-linear warp (kinks every ~0.6 shard sizes), fading
+  // to nothing at the outline of the tile so it still fits its neighbours in the mural
+  ArrayList<PVector> kinkPiece(ArrayList<PVector> p, ArrayList<PVector> outline) {
+    if (VN == null) initCeramicNoise();
+    float step = max(3, u * 0.14), amp = CUT_WOBBLE * u, gsz = u * 0.6;
+    float sx = (seed % 977) * 0.13, sy = (seed % 983) * 0.17;
+    ArrayList<PVector> out = new ArrayList<PVector>();
+    int n = p.size();
+    for (int i = 0; i < n; i++) {
+      PVector a = p.get(i), b = p.get((i + 1) % n);
+      int k = max(1, ceil(PVector.dist(a, b) / step));
+      for (int j = 0; j < k; j++) {
+        PVector q = PVector.lerp(a, b, j / (float) k);
+        float fade = sstep(0, u * 0.4, distToPoly(q, outline));
+        float dx = (vnLin(q.x / gsz + sx, q.y / gsz) - 0.5) * 2 * amp * fade;
+        float dy = (vnLin(q.x / gsz + sy + 31, q.y / gsz + 17) - 0.5) * 2 * amp * fade;
+        out.add(new PVector(q.x + dx, q.y + dy));
+      }
+    }
+    // keep only the bends (drop points on a straight run)
+    ArrayList<PVector> simp = new ArrayList<PVector>();
+    int m = out.size();
+    for (int i = 0; i < m; i++) {
+      PVector a = out.get((i - 1 + m) % m), b = out.get(i), c = out.get((i + 1) % m);
+      PVector d1 = PVector.sub(b, a), d2 = PVector.sub(c, b);
+      if (d1.mag() < 1e-3 || d2.mag() < 1e-3) continue;
+      if (abs(PVector.angleBetween(d1, d2)) > radians(4)) simp.add(b);
+    }
+    if (simp.size() < 3 || abs(signedArea(simp)) < abs(signedArea(p)) * 0.5) return p;
+    return simp;
   }
 
   // One straight crack across the piece. null if it would only shave off a sliver.
@@ -913,7 +1092,7 @@ class TrencadisTile {
         normal = new PVector(-(far.y - v.y), far.x - v.x);
       } else {
         // Across the long axis (tilted, off-centre), or now and then in any direction
-        float ang = (kind < 0.45) ? rnd(r, 0, TWO_PI) : axis + rnd(r, -1, 1) * (0.3 + jit * 1.6);
+        float ang = (kind < 0.6) ? rnd(r, 0, TWO_PI) : axis + rnd(r, -1, 1) * (0.5 + jit * 1.8);   // odd angles: irregular cuts
         normal = new PVector(cos(ang), sin(ang));
         at = PVector.add(c, PVector.mult(new PVector(cos(axis), sin(axis)), rnd(r, -0.45, 0.45) * ext));
       }
@@ -936,7 +1115,7 @@ class TrencadisTile {
   void addPiece(ArrayList<PVector> poly, float[] col, boolean painted) {
     float gw = GROUT_WIDTH * rnd(r, 0.7, 1.5);
     ArrayList<PVector> c = null;
-    if (CERAMIC_BAKE && pieceKind != KIND_RIBBON) {
+    if (CERAMIC_BAKE && pieceKind != KIND_RIBBON && isConvex(poly)) {
       // A real joint isn't even: every edge of the shard sits at its own distance from its neighbour
       Random rg = new Random(seed * 131 + pieces.size() * 7 + 3);
       float[] d = new float[poly.size()];
@@ -945,6 +1124,9 @@ class TrencadisTile {
     }
     if (c == null) c = insetPoly(poly, gw);
     if (c == null && pieceKind == KIND_RIBBON) c = insetPoly(poly, gw * 0.4);   // the ribbon's corner pieces are bent: thinner joint
+    // The cracks are not ruler-straight: shard and joint bend together at odd angles, as real broken
+    // ceramic does (a smooth warp, the same for the neighbours; none near the tile's outline, so it fits)
+    if (c != null && CUT_WOBBLE > 0 && pieceKind != KIND_RIBBON && tileOutline != null) c = kinkPiece(c, tileOutline);
     if (c == null || abs(signedArea(c)) < sq(GROUT_WIDTH * 2.5)) return;
     int n = c.size();
     PVector c0 = polyCenter(c);
@@ -1190,6 +1372,65 @@ class TrencadisTile {
   }
 
 
+  // Their backs, as when a chunk turns over in the air: unglazed fired clay
+  void drawPiecesBack(PGraphics pg, IntList idx, float ox, float oy, float dim) {
+    float[] c = hsbOf(BODY_TERRACOTTA);
+    pg.noStroke();
+    for (int i : idx) {
+      Piece p = pieces.get(i);
+      pg.fill(c[0], c[1] * 0.9, c[2] * dim * 0.85);
+      pg.beginShape();
+      for (int j = 0; j < p.x.length; j++) pg.vertex(p.x[j] - ox, p.y[j] - oy);
+      pg.endShape(CLOSE);
+    }
+  }
+
+  // A soft dark shadow of these pieces (a chunk flying in front of the wall)
+  void drawPiecesShadow(PGraphics pg, IntList idx, float ox, float oy, float a) {
+    pg.noStroke();
+    pg.fill(0, 0, 0, 100 * a);
+    for (int i : idx) {
+      Piece p = pieces.get(i);
+      pg.beginShape();
+      for (int j = 0; j < p.x.length; j++) pg.vertex(p.x[j] - ox, p.y[j] - oy);
+      pg.endShape(CLOSE);
+    }
+  }
+
+  // A golden reflection sweeping across the tile (special words, while it is shown on WALL 3).
+  // phase grows with time; k = strength. Light added over each shard, brightest along a diagonal band.
+  void drawSheen(PGraphics pg, float phase, float k) {
+    float pos = -1.5 + (phase % 3.4);   // the band crosses, then a pause
+    pg.blendMode(ADD);
+    pg.noStroke();
+    for (Piece p : pieces) {
+      pg.beginShape();
+      for (int j = 0; j < p.x.length; j++) {
+        float sp = (p.x[j] * 0.55 + p.y[j] * 0.83) / max(1, radius);
+        float a = exp(-sq((sp - pos) / 0.28)) * (p.kind == KIND_GOLD || p.kind == KIND_GLASS ? 1.4 : 1);
+        pg.fill(42, 45, 100, 100 * k * a);
+        pg.vertex(p.x[j], p.y[j]);
+      }
+      pg.endShape(CLOSE);
+    }
+    pg.blendMode(BLEND);
+  }
+
+  // The cracks lighting up just before the tile breaks (k 0..1); s = the scale it is drawn at
+  void drawCracks(PGraphics pg, float k, float s) {
+    pg.blendMode(ADD);
+    pg.noFill();
+    pg.stroke(40, 30, 100, 85 * k);
+    pg.strokeWeight(3.0 / s);
+    for (Piece p : pieces) {
+      pg.beginShape();
+      for (int j = 0; j < p.x.length; j++) pg.vertex(p.x[j], p.y[j]);
+      pg.endShape(CLOSE);
+    }
+    pg.noStroke();
+    pg.blendMode(BLEND);
+  }
+
   // Only some of the pieces (a travelling fragment), centred on (ox, oy)
   void drawPieces(PGraphics pg, float alpha, IntList idx, float ox, float oy) {
     pg.noStroke();
@@ -1404,6 +1645,31 @@ float signedArea(ArrayList<PVector> p) {
     a += q.x * w.y - w.x * q.y;
   }
   return a / 2;
+}
+
+boolean isConvex(ArrayList<PVector> p) {
+  int n = p.size();
+  if (n < 4) return true;
+  float sg = 0;
+  for (int i = 0; i < n; i++) {
+    PVector a = p.get(i), b = p.get((i + 1) % n), c = p.get((i + 2) % n);
+    float cr = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+    if (abs(cr) < 1e-4) continue;
+    if (sg == 0) sg = Math.signum(cr); else if (Math.signum(cr) != sg) return false;
+  }
+  return true;
+}
+
+float distToPoly(PVector q, ArrayList<PVector> poly) {
+  float d = Float.MAX_VALUE;
+  int n = poly.size();
+  for (int i = 0; i < n; i++) {
+    PVector a = poly.get(i), b = poly.get((i + 1) % n);
+    float sx = b.x - a.x, sy = b.y - a.y, l2 = max(1e-6, sx * sx + sy * sy);
+    float t = constrain(((q.x - a.x) * sx + (q.y - a.y) * sy) / l2, 0, 1);
+    d = min(d, dist(q.x, q.y, a.x + sx * t, a.y + sy * t));
+  }
+  return d;
 }
 
 // Moves edge i (from vertex i to i+1) inwards by d[i] — an uneven joint — by cutting the

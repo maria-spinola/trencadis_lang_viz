@@ -74,27 +74,28 @@ Each wall touches the floor with its bottom edge. Everything is drawn on the sur
 The shape depends on the phenomenon, not on the word class, because visitors mostly type nouns.
 
 **Rich words are rewarded.** Rare or very Catalan words make visibly bigger and more complex tiles, so visitors notice that it's worth looking for them. Each of the two parameters has its own, readable effect (`Trencadis.pde`, `Mosaic.pde`, settings in `Config.pde`):
-- **`raresa` → size of the tile.** Common words (raresa ≤ `SIZE_SMALL_MAX`, 2) take **half a cell** of the mural; normal ones a whole cell; rare ones (≥ `SIZE_BIG_MIN`, 6) **two neighbouring cells joined**. All tiles are shown at the same scale on WALL 3, so a rare word is visibly bigger there too. From raresa 4, up to `RICH_GOLD` (14 %) of the shards are *reflex daurat*, the gold lustre of Valencian ceramics.
+- **`raresa` → size of the tile.** Common words (raresa ≤ `SIZE_SMALL_MAX`, 2) take **half a cell** of the mural; normal ones a whole cell; rare ones (≥ `SIZE_BIG_MIN`, 6) **two neighbouring cells joined**. All tiles are shown at the same scale on WALL 3, so a rare word is visibly bigger there too. From raresa 4, up to `RICH_GOLD` (14 %) of the shards are *reflex daurat*, the gold lustre of Valencian ceramics; from raresa 5, up to `GLASS_SHARE` (14 %) are **coloured glass** — cobalt, emerald, amber, aqua, violet — deep and glowing where the light comes out (round bottle bottoms can be switched on with `GLASS_BOTTLES`; off by default).
 - **`culturalitat` → how many shards.** At 1 a few big shards (shard size × `RICH_SHARD_SIMPLE` 1.5), at 7 many small ones (× `RICH_SHARD_RICH` 0.5), with more crushed spots; from 2, up to `RICH_ACCENT` (28 %) of the shards come from other tiles in contrasting glazes (cobalt / orange, ochre, white crockery, navy), as real trencadís mixes the pieces of many plates.
 
 So *casa* is a small tile of a few big shards; *castellers* a normal tile of many small, mixed shards; *xiuxiuejar* a big tile with gold.
 
 Tiles saved before these parameters existed are drawn as before.
 
-**Palette.** Strong glazes as on Park Güell: every colour is moved to the nearest glaze — red, terracotta, orange, ochre, olive, bottle green, turquoise, cobalt, navy. Violets and indigo become cobalt, pinks become red; never pastel. The accent comes from the opposite family (cobalt against warm colours, orange against cool ones), on a cream ground with near-black outlines. Emotion → colour (when no model answers): anger red, surprise ochre, fear terracotta, love red, disgust bottle green, sadness cobalt, joy orange.
+**Palette.** Strong, contrasted glazes as on Park Güell (from photos of the benches): every colour is moved to the nearest glaze — red, terracotta, orange, ochre, olive, bottle green, turquoise, cobalt, navy — and made more saturated. Violets and indigo become cobalt, pinks red. The accent comes from the opposite family (cobalt against warm colours, orange against cool ones), with near-black outlines. The painted tiles have warm, earthy **grounds** — ivory, mustard, sand, porcelain, celadon (`GROUND_COLORS`) — the shards from other tiles include khaki, ochre-brown, mauve and teal glazes (`EARTH_COLORS`), the ribbons are the ochre, brown, khaki and green glazed capping of the benches with darker streaks (`RIBBON_COLORS`), and there are very few white crockery shards (`WHITE_SHARE`); the mortar is a darker warm grey. All in `Colors.pde`. Emotion → colour (when no model answers): anger red, surprise ochre, fear terracotta, love red, disgust bottle green, sadness cobalt, joy orange.
 
 **Real ceramic (`Ceramic.pde`).** To look like the benches of Park Güell rather than a drawing, every tile is *baked* once, pixel by pixel, when it is made: two images (the tile set in its mortar, and the shards alone) that are then drawn as they are — cheaper than layering effects every frame. What it simulates:
 - **Each shard** sits a few degrees tilted in the mortar (`SHARD_TILT_DEG`), so neighbours catch the light differently; light comes from the upper left.
 - **The glaze** isn't flat glass: long gentle waves where it pooled (deeper colour in the hollows) and a faint orange peel (`UNDULATION`); it **reflects a bright sky** (`GLOSS`, colour `SKY_REFLECTION`) with a soft, uneven horizon, and a **highlight** where a surface faces the light (`SPECULAR`).
-- **The edges**: a narrow rolled edge that catches the light or goes dark (`RIM_WIDTH`, `RIM_BEND`); broken edges slightly ragged (`EDGE_ROUGH`); here and there the glaze **flaked off** in shell-shaped bites and the fired clay shows — terracotta or pale (`CHIP_DEPTH`, `BODY_*` colours).
-- **Marbled glaze** (*jaspeado*) on some plain tiles, with fine light veins (`MARBLE_SHARE`).
+- **The edges**: a narrow rolled edge that catches the light or goes dark (`RIM_WIDTH`, `RIM_BEND`); broken edges wander, never ruler-straight (`EDGE_ROUGH`), the cracks run at odd angles and **bend** here and there — shard and joint bend together, as real broken ceramic (`CUT_WOBBLE`; never near the tile's outline, so it still fits the mural) — and no shard is tiny (`SHARD_MIN`); here and there the glaze **flaked off** in shell-shaped bites and the fired clay shows — terracotta or pale (`CHIP_DEPTH`, `BODY_*` colours).
+- **Marbled glaze** (*jaspeado*) on some plain tiles, with fine light veins (`MARBLE_SHARE`), and **crackled glaze** (craquelure, a fine net of cracks) on others (`CRACKLE_SHARE`).
+- **Coloured glass** for very rare words: deep, glowing where the light comes out, the mortar showing through its thin edges (`GLASS_BOTTLES` adds round bottle bottoms; off).
 - **Moulded relief tiles** (*rajoles de relleu*), like the green ones with leaves and berries on the benches: deep glaze in the hollows, thin on the tops where the clay shows through (`RELIEF_TILE_SHARE`, more among the shards from other tiles, i.e. very Catalan words; glazes `RELIEF_GLAZES`).
 - **The ribbon** on top of each tile is a round glazed moulding, as the capping of the benches.
 - **Gold lustre** shards reflect like metal.
 - **The mortar** is warm lime with sand grains and stains (`GROUT_COLOR`), the joints are uneven — every edge of a shard at its own distance from its neighbour (`GROUT_WIDTH`, `GROUT_IRREGULAR`) — darker right against the shards because they stand proud (`AO_STRENGTH`, `AO_RADIUS`), with a short contact shadow away from the light (`CONTACT_SHADOW`, `SHADOW_LEN`).
 - Motifs are sampled with a slight wobble, as if painted by hand (`PAINT_WOBBLE`).
 
-A tile takes ~0.1–0.3 s to bake (when the word arrives); the tiles restored into the mural at start and the poem tiles are baked with less detail (`BAKE_DETAIL_MURAL`, `BAKE_DETAIL_POEM`). `CERAMIC_BAKE = false` brings back the old flat look. All in the "Ceramic look" section of `Config.pde`; colours in `Colors.pde`.
+When a tile is set in the mural it is resampled from its baked image straight onto the mural's own pixel grid and drawn 1:1 (`muralStamp()`), so it stays as sharp as when it assembled (letting the graphics card shrink it on the fly blurred it). For full sharpness in the venue use `RENDER_SCALE = 1.0` (native resolution: at 0.5 the venue enlarges the image 2×, which softens the mural; the big tile assembling on WALL 3 hides it). A tile takes ~0.1–0.3 s to bake (when the word arrives); the tiles restored into the mural at start and the poem tiles are baked with less detail (`BAKE_DETAIL_MURAL`, `BAKE_DETAIL_POEM`). `CERAMIC_BAKE = false` brings back the old flat look. All in the "Ceramic look" section of `Config.pde`; colours in `Colors.pde`.
 
 ### Phenomenon → motif and breakage
 
@@ -103,10 +104,10 @@ A tile takes ~0.1–0.3 s to bake (when the word arrives); the tiles restored in
 | 1 | Static | Modernista ornamental tiles: scalloped arches, corner fans, interlaced strapwork, small sprigs | clean |
 | 2 | Soft dispersion | Plain shards in many shades of one colour | very chipped |
 | 3 | Spiral deformation | Moorish rosettes (eight-point star ringed by hexagonal petals) | medium |
-| 4 | Noisy sub-clusters | Six different decorated tiles, broken and mixed (stars, chains, stripes, small crosses, sunburst, small squares) | medium |
+| 4 | Noisy sub-clusters | Six different decorated tiles, broken and mixed (stars, chains, stripes, small crosses, sunburst, a heraldic tile: golden stars on a cobalt diamond) | medium |
 | 5 | High-frequency vibration | Valencian eight-point stars with small crosses | the most chipped |
-| 6 | Directional drift | Interlaced chains and stripes | crooked |
-| 7 | Three groupings | Bold two-colour checker of triangles | clean |
+| 6 | Directional drift | Bold near-black and yellow geometry: chevrons, diamonds, triangles, or the black / white / orange checker of the benches | crooked |
+| 7 | Place | *Lacería*: a lattice of interlaced eight-point stars, light bands outlined in dark — pure geometry, no flowers | clean |
 
 The tile is broken like real ceramic: straight cracks cut the biggest pieces again and again, some areas are crushed into small chips, and some pieces lose a corner — so shards have 3 to 7 sides and irregular angles. Each shard is set back slightly off, so the motif is cut by the cracks. Every tile on the top of a band has a ribbon of dark pieces along its top edge; each band of the mural has its own ribbon tone, which draws the wavy lines of the mural.
 
@@ -127,7 +128,7 @@ All shards come from far behind WALL 3 (`ASSEMBLE_DEPTH`), scattered wide (`ASSE
 
 ### Emotion → the journey
 
-When it leaves WALL 3 the tile comes apart: every piece travels on its own, leaving in turn, drifting into a loose cloud and turning a little, and they all close up again in the slot on WALL 1. The emotion decides how the cloud splits:
+When it leaves WALL 3 **the tile breaks**: it shakes for an instant, then it bursts into big **chunks** of neighbouring shards (about `CHUNK_SHARDS` each) thrown out all at once (`BURST`); each chunk travels on its own and they all close up again in the slot on WALL 1. In the air a chunk has **depth**: it comes off the wall — a soft shadow falls on the wall behind it (`CHUNK_SHADOW`, `CHUNK_SHADOW_DIST`), it grows a little (`CHUNK_GROW`), tilts in perspective (`CHUNK_TILT`, never showing its back) and shows its thickness of fired clay (`CHUNK_THICK`). The emotion decides how the cloud splits:
 
 | Emotion | Routes |
 |---|---|
@@ -142,9 +143,19 @@ The left part of the tile goes round by WALL 2, the right part by WALL 4, the lo
 - **2D (default):** the pieces slide along the walls and the floor. Looks right from anywhere in the room.
 - **3D:** the pieces leave WALL 3 into the room and fly through the air, each at its own depth (on the WALL 2 side, the WALL 4 side or low over the floor), and land on WALL 1. Each surface is rendered from the audience's point of view — centre of the room, eye height `VIEWER_HEIGHT` — with an off-axis projection (a virtual camera rig, `viewerCamera()` in `Room.pde`), so the pieces line up across walls and floor. The illusion is perfect from that point and more distorted further away. Pieces stay below eye level: anything higher would be projected towards the ceiling, where nothing is shown.
 
+### Moments (`Moments.pde`)
+What makes people go "ooh" (settings in "The journey and the moments", `Config.pde`):
+- **Your tile, found again.** When a tile settles in the mural it lights up for a few seconds (`LAND_GLOW_FRAMES`, `MARK_GLOW`). Typing a word that is already in the mural makes its older tiles pulse ("la meva encara hi és", `AGAIN_GLOW_FRAMES`).
+- **Special words.** A word with raresa or culturalitat ≥ `SPECIAL_MIN` (6) is announced on WALL 3 — "✦ Paraula rara ✦", "✦ Molt catalana ✦", "✦ Rara i molt catalana ✦" (`MSG_RARE*`) — assembles and stays slower (`SPECIAL_SLOW`) and a golden reflection sweeps over it (`SPECIAL_SHEEN`).
+- **Light on the mural.** Now and then a soft diagonal band of light travels over WALL 4 → WALL 1 → WALL 2 and catches the glazes, the gold and the glass, not the mortar (every tile also bakes a gloss image for this; `MURAL_SHEEN`, `SWEEP_FRAMES`, `SWEEP_PAUSE`).
+- **The mural is full.** It glows and sweeps fast, a chord plays, and a new layer begins over the oldest tiles (`CELEBRATE_FRAMES`).
+- **A verse forms.** Every `VERSE_EVERY` (4 min) the first two lines of the poem form in the middle of the floor, word by word, read facing the main wall, stay `VERSE_HOLD` and fade (no floor: along the bottom of the mural, over a dark band).
+- **The text box** has no line any more; when empty it invites "Escriu una paraula en català…" (`MSG_INVITE`), and the cursor breathes instead of blinking.
+
 ### The mural (WALL 1)
 
 - WALL 1 is divided once (`MOSAIC_SEED`) into wavy bands (`MOSAIC_ROWS`) of straight-edged cells; the waves are faceted. With the defaults there are 69 cells. They fill from the centre outwards; when the whole mural is full new tiles cover the oldest.
+- **Neighbours never look alike.** Every tile gets a variant (0–3: another ground, another shade of its colour, another version of its motif), chosen unlike the nearby tiles that share its motif or its colour (`pickStyle()`, saved with the tile).
 - **The cells adapt to the tiles** (`allocate()` in `Mosaic.pde`): a small tile (common word) takes half a cell — split left / right with a slanted cut if the cell is wide (`SPLIT_WIDE`), top / bottom if not — and the next small tile fills the other half; a big tile (rare word) joins a cell with its free neighbour in the same band. So the mural keeps its wavy bands but its pieces have many sizes. Where each tile went is saved with it, so the mural comes back the same after a restart. The mural always closes up: a small tile first fills the free half of a split cell (at most one half is open at a time); a rare word that finds no free neighbour takes one cell; when only half cells are left, normal words take them; it only starts again when every cell is full. On the side walls every tile still touches one already placed. (Checked with 2000 random words.)
 - The dark ribbons along the top of the tiles draw the coloured wavy lines that divide the mural into horizontal bands. A lower half (the bottom part of a split cell) has no ribbon — the upper half above it has it, so the line stays whole. `RIBBON_SHARE` < 1 leaves some tiles without it (the lines then come in pieces).
 - When WALL 1 is full the mural grows on both side walls at once, from the back corner towards the front; every new tile touches one already placed (`MOSAIC_SIDES`). The poem keeps to the part of the side walls the mural hasn't reached.
@@ -160,6 +171,7 @@ language_viz/
 ├── language_viz.pde      — Main sketch: setup, draw, keyboard
 ├── Config.pde            — All settings (room, output, mosaic, timing, LLM, sound…)
 ├── Colors.pde            — Every colour (background, text, floor words, emotion → tile colour, ceramic, grout, ribbons) and the typeface
+├── Moments.pde           — Tiles lighting up with their word, special words, light sweeping the mural, full-mural celebration, the verse on the floor
 ├── RoomView.pde          — Ctrl+I: first-person view inside the room, with simulated projectors (Ctrl+J)
 ├── Room.pde              — Walls + floor, media matrix, cameras (flat, main wall, 3D viewer), preview, calibration
 ├── Trencadis.pde         — A tile: palette, painted motifs, breaking into shards, drawing, assembly
@@ -360,6 +372,9 @@ Every colour is in its own file, written as `"#RRGGBB"` (any colour picker gives
 | `SHOW_POEM` | Floating poem tiles on / off |
 | `TEST_MODE` | Start in test mode |
 | `TYPED_WORDS_TO_FLOOR` | The visitors' words also float on the floor |
+| `CHUNK_SHARDS`, `BURST`, `CHUNK_TILT`, `CHUNK_GROW`, `CHUNK_THICK`, `CHUNK_SHADOW*` | How the tile breaks and travels |
+| `SPECIAL_*`, `LAND_GLOW_FRAMES`, `AGAIN_GLOW_FRAMES`, `MARK_GLOW`, `MURAL_SHEEN`, `SWEEP_*`, `CELEBRATE_FRAMES`, `VERSE_*` | The moments (`Moments.pde`) |
+| `WHITE_SHARE`, `CRACKLE_SHARE`, `GLASS_SHARE`, `SHARD_MIN` | Less white, crackled glaze, glass shards, smallest shard |
 | `THINK_ALPHA` | How opaque the shards turning while the model thinks are |
 | `DEBUG_KEYS` | Print every key in the console (accent keys) |
 | `TEST_RANDOM` | Test mode with random parameters instead of the real analysis |

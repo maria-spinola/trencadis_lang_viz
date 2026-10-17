@@ -35,6 +35,7 @@ void setupMosaic() {
   buildSlots();
   int[] walls = MOSAIC_SIDES ? new int[] { W1, W2, W4 } : new int[] { W1 };
   for (int w : walls) mosaicLayers[w] = createGraphics(faces[w].pg.width, faces[w].pg.height, P2D);
+  if (CERAMIC_BAKE && MURAL_SHEEN > 0) for (int w : walls) glossLayers[w] = createGraphics(faces[w].pg.width, faces[w].pg.height, P2D);   // Moments.pde: the light sweeping the mural
   clearLayer();
   loadMosaic();
   println("Mosaic: " + slots.size() + " slots (" + faces[W1].name + (MOSAIC_SIDES ? " + " + faces[W2].name + " + " + faces[W4].name : "") + "), " + mosaicCount + " tiles placed");
@@ -64,12 +65,16 @@ void spawnWordTile() {
   rec.setInt("raresa",          pRaresa);
   allocate(rec);   // where it goes, and how big (raresa)
   mosaicTiles.append(rec);
+  rec.setInt("style", pickStyle(rec));   // a variant unlike its neighbours
   TrencadisTile tile = tileFor(rec, mosaicCount);
   mosaicCount++;
   saveMosaic();
 
   for (TileFlight fl : flights) if (fl.state == FLIGHT_HOLD) fl.depart();   // the previous word makes room
   flights.add(new TileFlight(tile, rec));
+  addWordMarks(currentWord);                                       // Moments.pde: its older tiles light up
+  String badge = specialBadge(pRaresa, pCultura);                  // a rare or very Catalan word is announced
+  if (badge.length() > 0) showMessage(msgUntil > 0 && displayText.length() > 0 ? displayText + "   " + badge : badge);
   dropTypedWord(currentWord);   // WordsSystem.pde: the word also goes down to the floor
 }
 
@@ -380,6 +385,7 @@ void allocate(JSONObject rec) {
     }
     resetSlotUse();   // the mural is full: start again over the oldest tiles
     mosaicCycle++;
+    startCelebration();   // Moments.pde
   }
 }
 
@@ -420,6 +426,33 @@ PVector[] joinLines(PVector[] a, PVector[] b) {
   return out;
 }
 
+int nextTileStyle = -1;   // the variant the next tile is made with (−1: from its seed)
+
+// A variant (0..3) unlike those of its neighbours in the mural that share its motif or its colour,
+// so the same patterns and colours don't end up side by side
+int pickStyle(JSONObject rec) {
+  if (!rec.hasKey("slot")) return -1;
+  int slot = rec.getInt("slot"), face = slotFaces.get(slot);
+  PVector c = partPatch(slot, rec.getInt("part", PART_WHOLE), rec.getInt("slot2", -1)).center();
+  boolean[] used = new boolean[4];
+  float near = WALL_H / MOSAIC_ROWS * 1.9;
+  for (int i = 0; i < mosaicTiles.size(); i++) {
+    JSONObject o = mosaicTiles.getJSONObject(i);
+    if (o == rec || !o.hasKey("slot") || !o.hasKey("style") || o.getInt("cycle", 0) != rec.getInt("cycle", 0)) continue;
+    int os = o.getInt("slot");
+    if (slotFaces.get(os) != face) continue;
+    PVector oc = partPatch(os, o.getInt("part", PART_WHOLE), o.getInt("slot2", -1)).center();
+    if (PVector.dist(c, oc) > near) continue;
+    boolean alike = o.getInt("phenomena_class", 0) == rec.getInt("phenomena_class", 0)
+                 || o.getInt("emotion", 0) == rec.getInt("emotion", 0)
+                 || o.getString("color_hex", "").equalsIgnoreCase(rec.getString("color_hex", ""));
+    if (alike) used[o.getInt("style") & 3] = true;
+  }
+  int start = (int) (wordSeed(rec.getString("word", "")) & 3);
+  for (int k = 0; k < 4; k++) if (!used[(start + k) & 3]) return (start + k) & 3;
+  return start;
+}
+
 TrencadisTile makeWordTile(JSONObject rec, Patch patch, int band) {
   String word = rec.getString("word", "");
   String hex  = rec.getString("color_hex", "#FFA500");
@@ -430,11 +463,31 @@ TrencadisTile makeWordTile(JSONObject rec, Patch patch, int band) {
   long seed = wordSeed(word + hex, em, wc, ab, ag, og, ph, tm);
   hex = tileHex(hex, em);   // the model's colour or the table's (Colors.pde)
   int cu = rec.getInt("culturalitat", 0), ra = rec.getInt("raresa", 0);   // 0 in old saved mosaics: no effect
-  return new TrencadisTile(seed, parseHexColor(hex), ab, og, ph, wc, patch, band, cu, ra, WALL_H / MOSAIC_ROWS);
+  nextTileStyle = rec.getInt("style", -1);
+  TrencadisTile t = new TrencadisTile(seed, parseHexColor(hex), ab, og, ph, wc, patch, band, cu, ra, WALL_H / MOSAIC_ROWS);
+  nextTileStyle = -1;
+  return t;
 }
 
 void stampTile(TrencadisTile tile) {
   PGraphics L = mosaicLayers[tile.face];
+  if (tile.bakeAll != null) {   // baked ceramic: resampled onto the mural's pixels and set 1:1 (Ceramic.pde) — sharp
+    int[] at = new int[2];
+    PImage st = muralStamp(tile, tile.bakeAll, RENDER_SCALE, at);
+    L.beginDraw();
+    L.image(st, at[0], at[1]);
+    L.endDraw();
+    PGraphics G = glossLayers[tile.face];
+    if (G != null && tile.bakeGloss != null) {   // where it shines, for the light sweeping the mural
+      PImage gs = muralStamp(tile, tile.bakeGloss, RENDER_SCALE, at);
+      G.beginDraw();
+      G.blendMode(REPLACE);   // a new tile replaces whatever shone there before
+      G.image(gs, at[0], at[1]);
+      G.blendMode(BLEND);
+      G.endDraw();
+    }
+    return;
+  }
   L.beginDraw();
   L.colorMode(HSB, 360, 100, 100, 100);
   L.pushMatrix();
@@ -446,6 +499,12 @@ void stampTile(TrencadisTile tile) {
 }
 
 void clearLayer() {
+  for (PGraphics L : glossLayers) {
+    if (L == null) continue;
+    L.beginDraw();
+    L.clear();
+    L.endDraw();
+  }
   for (PGraphics L : mosaicLayers) {
     if (L == null) continue;
     L.beginDraw();
@@ -482,7 +541,8 @@ void drawHoldPanel(PGraphics pg, Face f) {
 
 void loadMosaic() {
   bakeDetailK = BAKE_DETAIL_MURAL;   // restored tiles are only seen in the mural: smaller images, faster start
-  try { loadMosaicTiles(); } finally { bakeDetailK = 1; }
+  restoringMural = true;
+  try { loadMosaicTiles(); } finally { bakeDetailK = 1; restoringMural = false; }
 }
 
 void loadMosaicTiles() {
@@ -501,6 +561,11 @@ void loadMosaicTiles() {
         int cy = rec.getInt("cycle", 0);
         if (cy != mosaicCycle) { resetSlotUse(); mosaicCycle = cy; }
         markSlot(rec.getInt("slot"), rec.getInt("part", PART_WHOLE), rec.getInt("slot2", -1));
+      }
+      if (!rec.hasKey("style")) {   // saved before the variants: one unlike its neighbours
+        mosaicTiles.append(rec);
+        rec.setInt("style", pickStyle(rec));
+        mosaicTiles.remove(mosaicTiles.size() - 1);
       }
       stampTile(tileFor(rec, rec.getInt("n", i)));
       mosaicTiles.append(rec);
@@ -625,6 +690,8 @@ class Fragment {
   PVector sc3;                   // where it scatters to (room units)
   PVector w;                     // current position in the room
   float theta, tumble;           // turn round (WALL 3 → WALL 1) and tumbling on the way
+  float bx, by;                  // the burst when the tile breaks: outwards from its centre
+  float flip, flipAx;            // whole turns over itself on the way (its clay back shows), and about which axis
 }
 
 class TileFlight {
@@ -637,9 +704,13 @@ class TileFlight {
   float hu, hv;                     // hold position on WALL 3 (local u, v)
   ArrayList<Fragment> frags = new ArrayList<Fragment>();
   boolean landed = false;
+  String word = "";
+  boolean special = false;          // a rare or very Catalan word: slower, with a golden sheen (Moments.pde)
 
   TileFlight(TrencadisTile tile, JSONObject rec) {
     this.tile = tile;
+    word = rec.getString("word", "");
+    special = rec.getInt("raresa", 0) >= SPECIAL_MIN || rec.getInt("culturalitat", 0) >= SPECIAL_MIN;
     Random r = new Random(tile.seed * 31 + 7);
     int agency  = rec.getInt("agency", 4);
     int organic = rec.getInt("organic", 4);
@@ -648,6 +719,7 @@ class TileFlight {
     assembleT = map(agency, 1, 7, ASSEMBLE_FRAMES_MAX, ASSEMBLE_FRAMES_MIN);   // energetic words assemble fast...
     travelT   = map(agency, 1, 7, 760, 360);   // ...and travel fast
     holdT     = map(time,   1, 7, HOLD_FRAMES_MIN, HOLD_FRAMES_MAX);           // long-lasting words stay longer on the main wall
+    if (special) { assembleT *= SPECIAL_SLOW; holdT *= SPECIAL_SLOW; }          // the special ones take their time
 
     Face m = faces[W3];
     hu = m.w / 2;
@@ -724,32 +796,64 @@ class TileFlight {
     // A slot on a side wall: the whole cloud goes along that wall
     if (tile.face == W2 || tile.face == W4) for (Fragment f : frags) f.route = (tile.face == W2) ? ROUTE_W2 : ROUTE_W4;
 
-    // The whole tile comes apart: every piece travels on its own, on its group's route
+    // The tile breaks into big chunks of neighbouring shards (about CHUNK_SHARDS each); every chunk
+    // bursts out and travels on its own, on its group's route, turning over on the way
     ArrayList<Fragment> groups = frags;
     frags = new ArrayList<Fragment>();
     for (Fragment g : groups) {
+      int n = g.idx.size();
       float gx0 = Float.MAX_VALUE, gx1 = -Float.MAX_VALUE, gy1 = -Float.MAX_VALUE;
       for (int i : g.idx) { Piece p = tile.pieces.get(i); gx0 = min(gx0, p.cx); gx1 = max(gx1, p.cx); gy1 = max(gy1, p.cy); }
-      for (int i : g.idx) {
-        Piece p = tile.pieces.get(i);
+      int nc = constrain(round(n / max(1f, CHUNK_SHARDS)), 1, n);
+      float[] sx = new float[nc], sy = new float[nc];
+      Piece p0 = tile.pieces.get(g.idx.get(r.nextInt(n)));
+      sx[0] = p0.cx; sy[0] = p0.cy;
+      for (int c = 1; c < nc; c++) {   // seeds spread out over the tile
+        float best = -1;
+        for (int i : g.idx) {
+          Piece p = tile.pieces.get(i);
+          float dm = Float.MAX_VALUE;
+          for (int c2 = 0; c2 < c; c2++) dm = min(dm, sq(p.cx - sx[c2]) + sq(p.cy - sy[c2]));
+          if (dm > best) { best = dm; sx[c] = p.cx; sy[c] = p.cy; }
+        }
+      }
+      int[] asg = new int[n];
+      for (int it = 0; it < 3; it++) {   // a few rounds of grouping by distance
+        float[] mx = new float[nc], my = new float[nc]; int[] cnt = new int[nc];
+        for (int q = 0; q < n; q++) {
+          Piece p = tile.pieces.get(g.idx.get(q));
+          int bc = 0; float bd = Float.MAX_VALUE;
+          for (int c = 0; c < nc; c++) { float d = sq(p.cx - sx[c]) + sq(p.cy - sy[c]); if (d < bd) { bd = d; bc = c; } }
+          asg[q] = bc; mx[bc] += p.cx; my[bc] += p.cy; cnt[bc]++;
+        }
+        for (int c = 0; c < nc; c++) if (cnt[c] > 0) { sx[c] = mx[c] / cnt[c]; sy[c] = my[c] / cnt[c]; }
+      }
+      for (int c = 0; c < nc; c++) {
         Fragment f = new Fragment();
-        f.idx.append(i);
+        for (int q = 0; q < n; q++) if (asg[q] == c) f.idx.append(g.idx.get(q));
+        if (f.idx.size() == 0) continue;
+        for (int i : f.idx) { f.ox += tile.pieces.get(i).cx / f.idx.size(); f.oy += tile.pieces.get(i).cy / f.idx.size(); }
+        for (int i : f.idx) { Piece p = tile.pieces.get(i); for (int j = 0; j < p.x.length; j++) f.rad = max(f.rad, dist(p.x[j], p.y[j], f.ox, f.oy)); }
         f.route = g.route;
-        f.ox = p.cx;
-        f.oy = p.cy;
-        for (int j = 0; j < p.x.length; j++) f.rad = max(f.rad, dist(p.x[j], p.y[j], p.cx, p.cy));
         // Scatter: away from the group's centre, opening into a loose cloud
-        float a = atan2(p.cy - g.oy, p.cx - g.ox) + rnd(r, -0.9, 0.9);
+        float a = atan2(f.oy - g.oy, f.ox - g.ox) + rnd(r, -0.9, 0.9);
         float d = tile.radius * rnd(r, 0.3, 1.3) * SCATTER;
         f.dx = cos(a) * d;
         f.dy = sin(a) * d;
-        f.spin = rnd(r, -1, 1) * 1.2;
-        // Leaves in turn: the pieces nearest to its way out go first
+        f.spin = rnd(r, -1, 1) * 1.6;
+        // the burst: straight out from the tile's centre
+        float bl = max(1, dist(0, 0, f.ox, f.oy));
+        float ba = atan2(f.oy, f.ox) + rnd(r, -0.35, 0.35);
+        f.bx = cos(ba) * min(1, bl / (tile.radius * 0.5) + 0.3);
+        f.by = sin(ba) * min(1, bl / (tile.radius * 0.5) + 0.3);
+        f.flip = rnd(r, 0.35, 1) * CHUNK_TILT * (r.nextBoolean() ? 1 : -1);   // how much it tilts in the air (radians, never past edge-on)
+        f.flipAx = rnd(r, 0, PI);
+        // Leave almost together (the burst), the ones nearest to the way out a little first
         float order;
-        if (g.route == ROUTE_W2)      order = (p.cx - gx0) / max(1, gx1 - gx0);
-        else if (g.route == ROUTE_W4) order = (gx1 - p.cx) / max(1, gx1 - gx0);
-        else                          order = (gy1 - p.cy) / max(1, tile.tileH);
-        f.delay    = (0.3 * order + rnd(r, 0, 0.12)) * travelT;
+        if (g.route == ROUTE_W2)      order = (f.ox - gx0) / max(1, gx1 - gx0);
+        else if (g.route == ROUTE_W4) order = (gx1 - f.ox) / max(1, gx1 - gx0);
+        else                          order = (gy1 - f.oy) / max(1, tile.tileH);
+        f.delay    = (0.14 * order + rnd(r, 0, 0.06)) * travelT;
         f.dur      = (travelT - f.delay) * rnd(r, 0.8, 1.0) * (f.route == ROUTE_FLOOR ? 0.85 : 1);
         f.meanderA = map(organic, 1, 7, 60, 260) * rnd(r, 0.5, 1.2) * (r.nextBoolean() ? 1 : -1);
         f.meanderF = rnd(r, 0.5, 1.5);
@@ -836,6 +940,7 @@ class TileFlight {
     if (arrived) {
       state = FLIGHT_SET;
       age   = 0;
+      addLandMark(tile, word);   // Moments.pde: it lights up in the mural, its word beside it
     }
   }
 
@@ -857,6 +962,12 @@ class TileFlight {
     float apart = pow(max(0, sin(PI * e)), 0.7);   // sin(PI) is a tiny negative number: pow() of it would be NaN
     float lx = f.ox * f.scale + f.dx * apart;       // offset from the tile centre (x right, y down)
     float ly = f.oy * f.scale + f.dy * apart;
+    // the burst: every chunk is thrown outwards at the same instant the tile breaks (fast, then
+    // slowing), and the journey catches it up
+    float tb = age - TILT_FRAMES;
+    float bk = (state == FLIGHT_TRAVEL && tb > 0) ? BURST * tile.radius * f.scale * (1 - (float) Math.exp(-tb / 9.0)) * (1 - smooth01((f.p - 0.05) / 0.5)) : 0;
+    lx += f.bx * bk;
+    ly += f.by * bk;
     float wave = f.meanderA * sin(PI * e) * (0.6 + 0.4 * sin(TWO_PI * f.meanderF * e + f.meanderP));
 
     if (TRAVEL_3D) {
@@ -865,6 +976,7 @@ class TileFlight {
                         bezierPoint(f.a0.y, f.a1.y, f.a2.y, f.a3.y, e),
                         bezierPoint(f.a0.z, f.a1.z, f.a2.z, f.a3.z, e));
       f.w.add(PVector.mult(f.sc3, apart));
+      f.w.add(-0.6 * bk, f.bx * bk, -f.by * bk);   // the burst, out of WALL 3 into the room
       f.w.x = constrain(f.w.x, 0, ROOM_W);
       f.w.y = constrain(f.w.y, 0, ROOM_D);
       f.w.z = constrain(f.w.z, 0, WALL_H);   // (only the ends, on WALL 3 / WALL 1, are above the eyes)
@@ -909,12 +1021,15 @@ class TileFlight {
   void displayMain(PGraphics pg, Face f) {
     if (!onMainWall()) return;
     float z0 = (f.h / 2) / tan(PI / 6);
+    // just before it breaks: it shakes and its cracks light up
+    float crack = (state == FLIGHT_TRAVEL) ? smooth01((age - TILT_FRAMES * 0.45) / (TILT_FRAMES * 0.5)) : 0;
     pg.push();
-    pg.translate(hu, hv, 0);
+    pg.translate(hu + (noise(frameCount * 0.9, 1) - 0.5) * 18 * crack, hv + (noise(frameCount * 0.9, 7) - 0.5) * 18 * crack, 0);
     pg.rotateY(rotY);
     pg.rotateX(rotX);
-    pg.scale(holdScale);
+    pg.scale(holdScale * (1 + 0.025 * crack));
     tile.drawAssembling(pg, 100, assembly, z0 * ASSEMBLE_DEPTH / holdScale);
+    if (special && state == FLIGHT_HOLD && assembly > 0.75) tile.drawSheen(pg, (age - assembleT * 0.75) / 150.0, SPECIAL_SHEEN);   // Moments.pde
     pg.pop();
   }
 
@@ -930,7 +1045,7 @@ class TileFlight {
                      1, 0,  0, 0,
                      0, -1, 0, 0,
                      0, 0,  0, 1);
-      pg.rotateY(fr.tumble * sin(PI * easeInOutCubic(fr.p)));
+      pg.rotateY(fr.tumble * sin(PI * easeInOutCubic(fr.p)) * 0.6);
       pg.rotate(fr.spin * sin(PI * easeInOutCubic(fr.p)));
       pg.scale(fr.scale);
       tile.drawPieces(pg, 100, fr.idx, fr.ox, fr.oy);
@@ -961,9 +1076,35 @@ class TileFlight {
       pg.push();
       pg.translate(p.x, p.y);
       pg.rotate(atan2(u.y, u.x) + HALF_PI);
-      pg.scale(fr.scale);
-      pg.rotate(fr.spin * sin(PI * easeInOutCubic(fr.p)));   // turns on itself, back in place at the end
-      tile.drawPieces(pg, 100, fr.idx, fr.ox, fr.oy);
+      // Depth: in the air the chunk comes off the wall — a soft shadow on the wall behind it,
+      // it grows a little, tilts in perspective and shows its thickness (fired clay)
+      float lift = sin(PI * easeInOutCubic(fr.p));
+      float sh = lift * CHUNK_SHADOW_DIST;
+      float spin = fr.spin * sin(PI * easeInOutCubic(fr.p));
+      float ta = fr.flip * lift, fc = cos(ta);
+      if (lift > 0.02) {   // the shadow: away from the light, softer and lighter the further it flies
+        pg.pushMatrix();
+        pg.translate(-LIGHT_X * sh, -LIGHT_Y * sh);
+        pg.scale(fr.scale * (1 + 0.06 * lift));
+        pg.rotate(spin);
+        pg.rotate(fr.flipAx); pg.scale(fc, 1); pg.rotate(-fr.flipAx);
+        for (int pass = 0; pass < 3; pass++) {
+          float o = pass * 3 * lift;
+          tile.drawPiecesShadow(pg, fr.idx, fr.ox - o, fr.oy - o, CHUNK_SHADOW * (1 - 0.45 * lift) / 3);
+        }
+        pg.popMatrix();
+      }
+      pg.scale(fr.scale * (1 + CHUNK_GROW * lift));
+      pg.rotate(spin);
+      pg.rotate(fr.flipAx);
+      pg.scale(fc, 1);                       // tilted in perspective
+      pg.rotate(-fr.flipAx);
+      float th = CHUNK_THICK * (0.4 + 0.6 * lift);
+      for (int k = 3; k >= 1; k--)           // its thickness, on the side away from the light
+        tile.drawPiecesBack(pg, fr.idx, fr.ox + LIGHT_X * th * k / 3, fr.oy + LIGHT_Y * th * k / 3, 0.75 - 0.12 * k);
+      pg.noStroke();
+      pg.textureMode(NORMAL);
+      for (int i : fr.idx) tile.drawPiece(pg, tile.pieces.get(i), 100, fr.ox, fr.oy, 0.8 + 0.2 * fc);
       pg.pop();
     }
   }

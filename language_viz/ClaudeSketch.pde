@@ -64,12 +64,6 @@ void drawLLMInterface(PGraphics pg) {
     pg.rect(x0, y0, bw, bh);
   }
 
-  // Separator line
-  pg.stroke(hexColor(UI_LINE_COLOR));
-  pg.strokeWeight(max(1, ui));
-  pg.line(x0, y0 + 10 * ui, x1, y0 + 10 * ui);
-  pg.noStroke();
-
   // Last prompt echo
   if (lastPrompt.length() > 0) {
     pg.fill(hexColor(UI_LAST_COLOR));
@@ -92,10 +86,20 @@ void drawLLMInterface(PGraphics pg) {
   pg.textAlign(LEFT, CENTER);
   pg.text(">", x0 + 20*ui, mid);
 
-  // Input text + cursor
-  pg.fill(hexColor(UI_INPUT_COLOR));
-  String displayed = inputText + (cursorVisible ? "█" : " ");
-  pg.text(displayed, x0 + 44*ui, mid);
+  // Input text, or an invitation when it's empty; and a cursor that breathes instead of blinking
+  float tx = x0 + 44*ui;
+  float breath = 0.5 + 0.5 * sin(millis() / 1000.0 * TWO_PI * 0.6);
+  if (inputText.length() == 0 && !isLoading) {
+    pg.fill(hexColor(UI_INPUT_COLOR), 35 + 20 * breath);
+    pg.text(MSG_INVITE + "…", tx + 10 * ui, mid);
+  } else {
+    pg.fill(hexColor(UI_INPUT_COLOR));
+    pg.text(inputText, tx, mid);
+  }
+  float cxp = tx + pg.textWidth(inputText) + 3 * ui;
+  pg.noStroke();
+  pg.fill(hexColor(UI_INPUT_COLOR), 25 + 75 * breath);
+  pg.rect(cxp, mid - 9 * ui, max(1.5, 1.6 * ui), 18 * ui);
 
   // Test mode badge
   if (TEST_MODE) {
