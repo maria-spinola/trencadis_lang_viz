@@ -667,6 +667,7 @@ class Fragment {
   float meanderA, meanderF, meanderP;
   int   turnDir;                 // turning direction when crossing the floor
   float p, scale;                // progress 0..1, current scale
+  boolean playedArriveSound = false;
   PVector pos, up;
   int   face;
   // 3D travel: a curve through the air of the room
@@ -932,7 +933,14 @@ class TileFlight {
     boolean arrived = true;
     for (Fragment f : frags) {
       f.p = constrain((t - f.delay) / f.dur, 0, 1);
-      if (f.p < 1) arrived = false;
+      if (f.p < 1) {
+        arrived = false;
+      } else if (!f.playedArriveSound /*&& f.p > 0.99*/) {
+        // The fragment arriving sound effect
+        playNote(7, 52, floor(random(80, 100)), 500);
+        print("piece arrived");
+        f.playedArriveSound = true;
+      }
       place(f);
     }
     if (arrived) {
