@@ -954,8 +954,8 @@ class TileFlight {
 
   // Position of a fragment along its route
   void place(Fragment f) {
-    float e = easeInOutCubic(f.p);
-    f.scale = lerp(holdScale, 1, easeInOutCubic(f.p / 0.3));
+    float e = easeInCubic(f.p);
+    f.scale = lerp(holdScale, 1, easeInCubic(f.p / 0.3));
     // The pieces drift apart on the way and close up again at the end
     float apart = pow(max(0, sin(PI * e)), 0.7);   // sin(PI) is a tiny negative number: pow() of it would be NaN
     float lx = f.ox * f.scale + f.dx * apart;       // offset from the tile centre (x right, y down)
@@ -1051,8 +1051,8 @@ class TileFlight {
                      1, 0,  0, 0,
                      0, -1, 0, 0,
                      0, 0,  0, 1);
-      pg.rotateY(fr.tumble * sin(PI * easeInOutCubic(fr.p)) * 0.6);
-      pg.rotate(fr.spin * sin(PI * easeInOutCubic(fr.p)));
+      pg.rotateY(fr.tumble * sin(PI * easeInCubic(fr.p)) * 0.6);
+      pg.rotate(fr.spin * sin(PI * easeInCubic(fr.p)));
       pg.scale(fr.scale);
       tile.drawPieces(pg, 100, fr.idx, fr.ox, fr.oy);
       pg.popMatrix();
