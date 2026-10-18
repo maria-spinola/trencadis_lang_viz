@@ -34,3 +34,7 @@ void playArpeggio(int channel, int degree, int velocity, int emotion, int stepMs
   //background(20);
   //text("Note: " + noteDegree + "  Emotion: " + emotion, width/2, height/2);
 }
+
+void playNote(int channel, int pitch, int velocity, int durationMs) {
+  midi.note(channel, pitch, velocity, durationMs);
+}
