@@ -62,7 +62,10 @@ boolean PREVIEW_INPUT = true;   // also show what you type, big, at the bottom o
 float PROJ_BLACK   = 0.02;   // light a projector gives on black (0.05 = 5 % of white; real rooms 2–8 %)
 float ROOM_BOUNCE  = 0.08;   // light each wall receives back from the others (white walls of an immersive room: 15–35 %)
 float PROJ_GAIN    = 1.0;    // how bright the projected white is compared with this screen
-float ROOM_EXTRA_H = (VENUE == 1) ? WALL_H * (3.16 / 2.7 - 1) : 0;   // unprojected wall above the image (IASLab: 2.7 m of 3.16 m)
+float ROOM_EXTRA_H = (VENUE == 1) ? WALL_H * (3.16 / 2.7 - 1) : 0;
+boolean ROOM_SHELL     = true;    // room view: a ceiling and the wall above the image, lit by the projection (feels like a room)
+float   ROOM_SHELL_TOP = 0.25;    // …the unprojected wall above the image, at least this × the image height
+float   ROOM_SHELL_BOUNCE = 0.5;  // …how much light the projection throws on them   // unprojected wall above the image (IASLab: 2.7 m of 3.16 m)
 
 // Rich words are rewarded with a more complex tile (Trencadis.pde). raresa also sets the tile size (SIZE_*).
 float RICH_SHARD_SIMPLE = 1.5;    // shard size at culturalitat 1: a few big shards
@@ -71,7 +74,7 @@ float RICH_ACCENT       = 0.28;   // culturalitat 7: share of shards from other 
 float RICH_GOLD         = 0.14;   // raresa 7: share of golden lustre shards (from raresa 4)
 // Text input box: centred, about as wide as the tile, at 3/4 of the wall's height
 float UI_WIDTH = 0.55;   // width, × wall height (≈ the tile on the main wall)
-float UI_Y     = 0.72;   // top of the box, fraction of the wall height (0 = top, 1 = bottom)
+float UI_Y     = 0.66;   // top of the box, fraction of the wall height (0 = top, 1 = bottom)
 // Darkness of the band behind the text input (0 = none, 100 = solid black)
 float UI_BAR_ALPHA = 35;
 
@@ -81,6 +84,23 @@ float CEILING_MARGIN  = 250;    // figures turn back before the top of the walls
 // ── TRENCADÍS MOSAIC (WALL 1) ───────────────────────────────
 final long MOSAIC_SEED   = 1914;  // layout of the mural; change it → a different mural
 boolean MOSAIC_SIDES     = true;  // when WALL 1 is full, the mural grows on both side walls (back → front)
+boolean CENEFA          = true;    // a border of trencadís round the top of the four walls (Cenefa.pde); the mural sits below it
+float CENEFA_H           = 0.09;  // …its height (× the wall height)
+boolean CENEFA_POEM     = true;    // …made of the words of the poem, in order round the room (false = the glazes of CENEFA_COLORS in turn)
+float CENEFA_WAVE        = 0.35;  // …how much its lower edge waves, like the mural's bands (0 = a straight line)
+float CENEFA_GAP         = 0.002; // …a thin dark joint between it and the mural (× the wall height)
+int   CENEFA_RIBBON      = 1;     // …the glazed capping along its top: a tone of RIBBON_COLORS (−1 = none)
+float CENEFA_CELL_MIN    = 1.1;   // …width of its cells (× its height), from…
+float CENEFA_CELL_MAX    = 1.9;   // …to
+float CENEFA_SLANT       = 0.3;   // …how slanted the joins are (odd angles, as in the mural)
+float CENEFA_SHARD       = 0.85;  // …shard size (× a mural tile's)
+int   CENEFA_PAINTED_EVERY = 0;   // …(CENEFA_POEM false) every n-th cell is a painted one (0 = all plain glazes)
+boolean MOTES           = true;    // little shards of tile floating, very faintly, in the empty parts of the walls (Motes.pde)
+int   MOTES_COUNT        = 70;    // …how many round the room
+float MOTES_SIZE         = 46;    // …size of the nearest ones (room units; far ones down to a third)
+float MOTES_ALPHA        = 38;    // …opacity of the nearest ones (0–100; far ones a quarter of it)
+float MOTES_SPEED        = 0.45;  // …drift round the room (room units per frame, nearest ones)
+float MOTES_FAR_DIM      = 0.45;  // …how dark the farthest ones are (1 = as bright as the near ones)
 int   MOSAIC_ROWS        = 5;     // wavy bands on WALL 1 (more rows = smaller tiles, more words fit)
 float MOSAIC_CELL_MIN    = 0.9;   // cell width, in band heights
 float MOSAIC_CELL_MAX    = 1.6;
@@ -89,7 +109,7 @@ int   SIZE_SMALL_MAX     = 2;     // raresa up to this → half a cell
 int   SIZE_BIG_MIN       = 6;     // raresa from this → two cells
 float SPLIT_WIDE         = 1.25;  // cells wider than this (band heights) split left / right, narrower ones top / bottom
 float RIBBON_SHARE       = 1.0;   // share of tiles with the dark ribbon along the top (1 = the bands are drawn whole)
-float GROUT_WIDTH        = 1.5;   // half the gap between shards, matrix units (varies a little per shard)
+float GROUT_WIDTH        = 2.0;   // half the gap between shards, matrix units (varies a little per shard)
 // (grout colour: GROUT_COLOR in Colors.pde)
 float GROUT_SET_FRAMES   = 170;   // frames the grout takes to seep in and dry when a tile lands on WALL 1
 // Relief and finish of the shards (Trencadis.pde)
@@ -100,7 +120,7 @@ float GLAZE              = 30;    // glaze highlight on the shards tilted toward
 
 // ── Ceramic look (Ceramic.pde) — how real the trencadís looks. Colours: Colors.pde ──
 boolean CERAMIC_BAKE   = true;    // each tile baked pixel by pixel as glazed ceramic in lime mortar (false = the old flat look)
-float SHARD_TILT_DEG   = 7;       // how tilted the shards sit in the mortar (degrees): neighbours catch the light differently
+float SHARD_TILT_DEG   = 10;       // how tilted the shards sit in the mortar (degrees): neighbours catch the light differently
 float UNDULATION       = 1.0;     // the glaze is not quite flat: orange peel and pools (0 = flat as glass)
 float GLOSS            = 0.45;    // reflection of the sky on the glaze (0 = matte)
 float SPECULAR         = 0.7;     // bright highlight where a shard or its edge faces the light
@@ -114,7 +134,7 @@ float RELIEF_TILE_SHARE       = 0.012;   // share of shards from moulded relief 
 float RELIEF_TILE_SHARE_OTHER = 0.18;    // …among the shards from other tiles (very Catalan words have more)
 float RELIEF_DEPTH     = 7;       // how deep those reliefs are (units)
 float GROUT_IRREGULAR  = 1.0;     // the joints are uneven: each edge of a shard at its own distance (0 = even)
-float AO_STRENGTH      = 0.38;    // the mortar is darker right against the shards (they stand proud)
+float AO_STRENGTH      = 0.45;    // the mortar is darker right against the shards (they stand proud)
 float AO_RADIUS        = 1.3;     // …over this distance (units)
 float CONTACT_SHADOW   = 0.32;    // short shadow of each shard on the mortar, away from the light
 float SHADOW_LEN       = 1.1;     // …its length (units)
@@ -126,9 +146,129 @@ float CRACKLE_SHARE    = 0.3;     // share of plain glazed shards with a crackle
 float GLASS_SHARE      = 0.14;    // raresa 7: share of glass shards (from raresa 5); some are round bottle bottoms
 float BAKE_MAX_PX      = 1400;
 
+// ── Art direction (2026-10-17): every new effect can be switched off; Ctrl+B switches them all (before / after).
+//    Material switches (ART_PLAIN_MIX, ART_HARMONY) apply to tiles made from then on.
+boolean ART_NEW         = true;    // master switch (Ctrl+B)
+boolean ART_PLAIN_MIX   = true;    // tiles ~70 % clean glaze, ~30 % painted pattern in patches
+float   PLAIN_SHARE     = 0.45;    // …share of clean glaze
+boolean ART_HARMONY     = true;    // calmer, harmonised glazes over the whole mural
+float   HARMONY_SAT     = 0.84;    // …saturation multiplier (1 = as before)
+boolean ART_WORD_REVEAL = true;    // the typed word appears big on the main wall and the tile forms behind it
+float   WORD_REVEAL_SIZE = 0.24;   // …its size (× wall height)
+boolean ART_TRAVEL_GLOW = true;    // the travelling stream lights the walls it passes softly
+float   TRAVEL_GLOW     = 0.22;    // …how much
+boolean ART_IMPACT_WAVE = true;    // when a tile settles: a wave of light running out through the glazes and ribbons
+float   IMPACT_WAVE     = 1.6;     // …how bright
+int     IMPACT_FRAMES   = 210;     // …how long (60 = 1 s)
+boolean ART_FLOOR_FLOW  = true;    // floor words drift in a slow current round the room, in lanes, the centre kept clear
+float   FLOW_LANE_MIN   = 0.24;    // …lanes between these radii (× the smaller floor side)
+float   FLOW_LANE_MAX   = 0.47;
+boolean ART_TYPED_GLOW  = true;    // a visitor's word arrives on the floor golden and warm, then joins the poem's colour
+int     TYPED_GLOW_FRAMES = 60 * 25;
+
+boolean ART_MURAL_LIGHT = true;    // the mural lit live (shader, Mural.pde): moving lights on its relief, waves along the bands
+float   MURAL_RELIEF    = 1.1;     // …how much the relief shows under the live light
+float   MURAL_SHININESS = 38;      // …how sharp the glaze reflections are
+float   AMBIENT_LIGHT   = 0.55;    // …the calm light wandering along the mural
+int     AMBIENT_PERIOD  = 60 * 50; // …how long it takes to go along the mural and back
+float   TRAVEL_LIGHT    = 0.8;     // …the light the travelling stream carries
+float   IMPACT_LIGHT    = 1.4;     // …the light where a tile settles
+float   WAVE_REACH      = 6500;    // …how far the wave runs along the mural (WALL 4 → 1 → 2, room units)
+float   WAVE_WIDTH      = 240;     // …how wide its front is
+int     WAVE_FRAMES     = 600;     // …how long until it has died away
+float   CALM_DIM        = 0.45;    // while a word travels, the poem and the calm light step back this much
+boolean ART_FLOOR_TYPE  = true;    // floor typography: weight by word class, a hint of each word's tile colour
+float   FLOOR_TINT      = 0.28;    // …how much of that colour
+float   CHUNK_DEPTH     = 0.55;    // the chunks travel in different planes: nearer ones bigger, further ones smaller and dimmer
+float   STREAM_SWIRL    = 0.9;     // the stream turns on itself as it travels (radians)
+
+// v4: the word turns into the tile; a typographic floor
+int     WORD_IN_FRAMES   = 18;     // the typed word fades in (60 = 1 s)
+int     WORD_SHOW_FRAMES = 90;     // …stays alone, big, this long
+int     WORD_XFADE_FRAMES = 80;    // …then crossfades into the tile (word 100 → 0 %, tile 0 → 100 %)
+float   WORD_MAX_WIDTH   = 0.82;   // …never wider than this share of the wall
+boolean ART_FLOOR_POEM   = true;   // the poem is written on the floor, verse by verse (FloorPoem.pde); off: the old drifting words
+float   VERSE_EM         = 0.03;   // …letter size (× the smaller floor side)
+int     VERSE_STAGGER    = 26;     // …frames between words appearing
+int     VERSE_FADE_IN    = 80;     // …how long a word takes to appear
+int     VERSE_STAY       = 60 * 16;// …how long a verse stays once complete
+int     VERSE_FADE_OUT   = 240;    // …how long it takes to go
+int     VERSE_MAX        = 2;      // …verses on the floor at once
+float   VERSE_ALPHA      = 92;     // …how bright (0–100)
+int     FOOTPRINT_MAX    = 24;     // visitors' words kept on the floor as small footprints
+float   FOOTPRINT_EM     = 0.014;  // …their size
+int     FOOTPRINT_GOLD_FRAMES = 60 * 20; // …how long they stay golden before turning discreet
+float   FOOTPRINT_ALPHA  = 42;     // …how bright once discreet
+
+// PROTOTYPES — the floor as "the echo of the trencadís" (FloorEcho.pde). 0 = the v4 floor (verses + footprints);
+// 1 = A soft reflections · 2 = B fragmented reflections · 3 = C almost black, strong reaction. Ctrl+F cycles them.
+int     FLOOR_ECHO       = 1;      // chosen: A
+float   ECHO_A_STRENGTH  = 0.8;    // how bright the reflections are, per prototype
+float   ECHO_B_STRENGTH  = 0.8;
+float   ECHO_C_STRENGTH  = 0.12;
+float   ECHO_REACH       = 3200;   // how far into the room the reflections reach (room units; the walls are 1200 high)
+float   ECHO_WARP        = 90;     // how much the slow warp bends them
+float   ECHO_STRETCH     = 3.3;    // the reflections reach this many times the wall height into the room
+float   ECHO_BLUR        = 0.012;  // A and C: softness of the reflections
+float   ECHO_CELL        = 330;    // B: size of the reflecting shards
+float   ECHO_WAVE        = 1.0;    // the word's wave across the floor
+float   ECHO_C_WAVE      = 1.8;    // …stronger in C
+float   ECHO_WAVE_REACH  = 4200;   // …how far it goes
+float   ECHO_WAVE_WIDTH  = 260;
+int     ECHO_WAVE_FRAMES = 420;
+int     ECHO_VERSE_FIRST = 60 * 3;         // the first verse after this (frames)
+int     ECHO_VERSE_GAP   = 60 * 5;         // then one after another: each appears, stays, fades, and 5 s later the next
+                                           // (a verse waits while a word is travelling, and the floor stays calm meanwhile)
+int     ECHO_VERSE_IN    = 300;    // the verse fades in
+int     ECHO_VERSE_STAY  = 60 * 9; // stays
+int     ECHO_VERSE_OUT   = 300;    // fades out
+float   ECHO_VERSE_EM    = 0.025;  // the verse's size (× the smaller floor side)
+boolean ECHO_VERSE_FACING_MURAL = true;   // the verse reads standing in the room facing the mural (false: facing the main wall)
+int     ECHO_SOFT_PX     = 220;
+int     ECHO_PREBLUR     = 0;      // the reflected walls are blurred this much first (pixels of that small copy)
+float   ECHO_VERSE_X     = 0.3;    // where the verse opens: across the floor from the mural (0) to the main wall (1), in the reflections
+boolean ECHO_REVEAL_STYLE = true;  // texts on the floor: true = the verse is revealed, the word is inscribed in light; false = the openings
+float   ECHO_CALM_W      = 0.2;    // the verse's calm zone: half its width…
+float   ECHO_CALM_H      = 0.3;    // …and half its length (× the smaller floor side); soft, no edge
+float   ECHO_CALM_DIM    = 0.55;   // …how much the reflection dims there
+float   ECHO_VERSE_FOG   = 0.18;   // the verse starts as a typographic haze this wide (× letter size) and gathers
+float   ECHO_VERSE_ALPHA = 82;     // …how bright, once clear (0–100): quiet
+float   ECHO_WORD_GLOW   = 0.22;   // a visitor's word: the warm light gathering where it is written
+int     ECHO_WORD_LEAD   = 70;     // …how long the light gathers before the first letter
+int     ECHO_WORD_WRITE  = 7;      // …frames between letters (written in light)
+float   ECHO_WORD_ALPHA  = 100;    // …how bright (0–100)
+float   ECHO_OPEN_W      = 0.11;   // the verse's window in the reflection: half its width…
+float   ECHO_OPEN_H      = 0.47;   // …and half its length (× the smaller floor side)
+float   ECHO_WORD_EM     = 0.03;   // a visitor's word on the floor: size
+float   ECHO_WORD_INSET  = 0.3;    // …how far from its wall towards the centre
+int     ECHO_WORD_DELAY  = 50;     // …frames after its tile settles
+int     ECHO_WORD_IN     = 40;
+int     ECHO_WORD_STAY   = 60 * 4;
+int     ECHO_WORD_OUT    = 120;
+boolean ECHO_WORDS_DRIFT = true;   // after being written, the visitors' words stay on the floor and drift slowly
+int     ECHO_WORDS_KEEP  = 20;     // the floor's register: the last 20 words typed stay on the floor (the oldest fades)
+int     ECHO_WORD_LIFE   = 60 * 15;   // …for this many seconds after settling, more and more transparent as they age
+float   ECHO_DRIFT_SPEED = 0.45;   // …how fast they drift (room units per frame)
+float   ECHO_DRIFT_ALPHA = 0.45;   // …how bright once settled (0–1)
+float   ECHO_DRIFT_ROOM  = 0.22;
+boolean ECHO_WORDS_IN_GLAZE = true; // the words are set into the floor's glaze (shader): lit by the reflection, warped with it, soft edges, sinking as they age; false = drawn on top
+float   ECHO_GLAZE_LIGHT = 1.0;    // …how bright they are in the glaze
+float   ECHO_GLAZE_KEEP  = 1.8;    // …their opacity once settled, × ECHO_DRIFT_ALPHA (the glaze dims them already)
+float   ECHO_GLAZE_SOFT  = 0.025;  // …softness of their edges (× letter size)
+float   ECHO_GLAZE_SINK  = 0.14;
+int     ECHO_GLAZE_PX    = 1024;   // …resolution of their layer (a power of two)   // …extra softness as they age and sink
+float   ECHO_WORD_TURN   = 0.35;   // …how much they turn as they drift (radians, either way)
+float   ECHO_WORD_RIPPLE = 1.0;    // …how much they stir the glaze under them (slow rings, the reflection brightening)
+float   ECHO_VERSE_TILT  = 10;     // each verse appears somewhere else on the floor, with a slight tilt up to this (degrees)   // …how much room they keep from each other (× the smaller floor side)
+int     ECHO_MEMORY      = 1;      // …how many recent words keep a faint memory
+float   ECHO_MEMORY_ALPHA = 0.1;   // …how faint
+int     ECHO_MEMORY_FRAMES = 60 * 60; // …and for how long    // A and C: how blurred the reflected walls are (smaller = softer)
+
+boolean art(boolean b) { return ART_NEW && b; }
+
 // ── The journey and the moments (Mosaic.pde, Moments.pde) ──
 float CHUNK_SHARDS     = 6;       // the tile breaks into chunks of about this many shards (bigger = fewer, bigger chunks)
-float BURST            = 0.9;     // how far the chunks are thrown out when the tile breaks (× its radius)
+float BURST            = 0.35;    // how far the chunks are thrown out when the tile breaks (× its radius)
 float CHUNK_TILT       = 0.75;    // how much the chunks tilt in perspective in the air (radians; never show their back)
 float CHUNK_GROW       = 0.12;    // …how much bigger they look mid-flight (closer to us)
 float CHUNK_THICK      = 6;       // …their thickness, the fired clay edge (units)
@@ -139,7 +279,7 @@ float SPECIAL_SLOW     = 1.5;     // …it assembles and stays this much slower
 float SPECIAL_SHEEN    = 0.55;    // …with a golden reflection sweeping over it
 int   LAND_GLOW_FRAMES = 420;     // a tile that settles in the mural lights up, its word beside it (frames)
 int   AGAIN_GLOW_FRAMES = 480;    // a word typed again: its older tiles in the mural pulse (frames)
-float MARK_GLOW        = 0.45;    // how bright that light is
+float MARK_GLOW        = 0.32;    // how bright that light is
 float MURAL_SHEEN      = 0.5;     // the slow light sweeping over the mural (0 = none)
 int   SWEEP_FRAMES     = 900;     // …how long it takes to cross WALL 4, WALL 1, WALL 2 (60 = 1 s)
 int   SWEEP_PAUSE      = 1500;    // …and the pause before the next one
@@ -149,7 +289,7 @@ int   VERSE_FIRST      = 60 * 60;    // …the first time after this
 int   VERSE_HOLD       = 60 * 12;    // …and stays this long once complete    // largest baked image side (memory)
 float BAKE_DETAIL_MURAL = 0.4;    // image detail of the tiles restored into the mural at start (× TEXTURE_DETAIL)
 float BAKE_DETAIL_POEM  = 0.4;    // image detail of the poem tiles
-float SCATTER            = 1.0;   // how far the pieces drift apart while travelling (0 = they travel as one tile)
+float SCATTER            = 0.6;   // how far the pieces drift apart while travelling (0 = they travel as one tile)
 float ASSEMBLE_DEPTH     = 9;     // how far behind WALL 3 the shards come from while assembling (× the camera distance)
 float ASSEMBLE_SPREAD    = 3;     // how scattered the shards are when they start far away (× tile size)
 // Time on the main wall (frames, 60 = 1 s)
@@ -157,14 +297,15 @@ float ASSEMBLE_FRAMES_MIN = 110;  // assembling, agency 7
 float ASSEMBLE_FRAMES_MAX = 220;  // assembling, agency 1
 float HOLD_FRAMES_MIN    = 45;    // still, once assembled, time_duration 1
 float HOLD_FRAMES_MAX    = 240;   // still, once assembled, time_duration 7
-// Travel: false = the pieces slide along the walls / floor (2D, looks right from
-// anywhere); true = they fly through the air of the room (3D, perfect from the
-// viewer's point, more distorted the further you are). Ctrl+D toggles it live.
-boolean TRAVEL_3D        = false;
+// Travel: true = 3D, the pieces fly through the room with depth, every surface rendered
+// as if by a camera rig at the centre of the room at eye height (VIEWER_HEIGHT): perfect
+// from there, more distorted the further you are; false = 2D, they travel flat on the
+// walls / floor (with their own relief), right from anywhere. Ctrl+D toggles it live.
+boolean TRAVEL_3D        = true;
 float VIEWER_HEIGHT      = WALL_H * ((VENUE == 1) ? 0.59 : 0.4);   // eye height of the audience: IASLab 1.6 m of 2.7 m projected
 float DEPTH_3D           = 1.0;            // how far into the room the pieces fly (3D)
 float HOLD_HEIGHT        = 0.45;  // size of the new tile on the main wall (fraction of its height)
-float HOLD_Y             = 0.33;
+float HOLD_Y             = 0.37;  // height of the centre of the new tile (and of the big word) on the main wall (0 = top, 1 = bottom)
 float THINK_ALPHA        = 55;    // the shards turning while the model thinks: how opaque (0–100)
 boolean TYPED_WORDS_TO_FLOOR = true;   // the visitors' words also go down to the floor and float with the poem's  // its centre, fraction of the wall height (leaves room for the text input below)
 float HOLD_PANEL_ALPHA   = 72;    // dark see-through window behind the new tile (0 = none, 100 = black)
@@ -267,7 +408,7 @@ String currentWord = "—";
 // Poem system (small floating tiles)
 boolean SHOW_POEM       = true; // false = no floating poem tiles (Ctrl+P toggles it live)
 int MAX_POEM_WORDS      = 200;   // little shards wandering at the same time (beyond that the oldest shard fades; its word stays)
-int MAX_FLOOR_WORDS     = 400;  // words floating on the floor (repeats included); only beyond that the oldest fades
+int MAX_FLOOR_WORDS     = 180;  // words floating on the floor (repeats included); only beyond that the oldest fades
 int POEM_SPAWN_INTERVAL = 600;  // frames between poem words (60 = 1 s)
 float POEM_TILE_SIZE    = 420;  // width of a poem tile, matrix units
 float POEM_ALPHA        = 100;  // 0..100: fully opaque (only the fades in and out are see-through)

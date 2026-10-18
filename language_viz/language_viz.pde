@@ -20,6 +20,7 @@ boolean soundReady = false;
 // To send by Syphon / Spout (OUTPUT_SEND in Config.pde), install the library and remove
 // the // before its line. Processing needs the import to load the library; leave the
 // other one commented (Syphon only exists on macOS, Spout only on Windows).
+
 // import codeanticode.syphon.*;   // OUTPUT_SEND = "syphon"  (macOS)
 // import spout.*;                 // OUTPUT_SEND = "spout"   (Windows)
 
@@ -42,6 +43,8 @@ void setup() {
   setupOutputs(); // Output.pde — output images / windows (OUTPUT_GROUPS)
   if (OUTPUT_GROUPS.length > 0) viewMode = faces.length + 1;   // preview the first output
   setupMosaic();  // Mosaic.pde — trencadís mural on WALL 1 (restores data/mosaic.json)
+  setupCenefa();  // Cenefa.pde — the trencadís border round the top of the room
+  setupMotes();   // Motes.pde — little shards floating in the empty parts of the walls
   setupWords();   // WordsSystem.pde
   setupLLM();     // ClaudeSketch.pde — carga system prompt
   loadJSONFromPath(jsonPath, false);   // last parameters, without adding a tile again
@@ -58,8 +61,11 @@ void draw() {
   updateLLM();         // ClaudeSketch.pde — procesa respuesta API
   updateCameraDrag();  // Room.pde — Ctrl+M mode
   updateWords();       // WordsSystem.pde — poem tiles
-  updateVerse();       // Moments.pde — now and then a verse forms on the floor
+  updateVerse();       // Moments.pde — now and then a verse forms on the floor (old floor)
+  updateFloorPoem();
+  updateFloorEcho();   // FloorEcho.pde — prototypes   // FloorPoem.pde — the poem written on the floor, verse by verse
   updateMosaic();      // Mosaic.pde — word tiles assembling / travelling / landing
+  updateMural();       // Mural.pde — the live light of the mural
   renderFaces();       // Room.pde — draws each wall + floor (camera, words, text input)
   if (OUTPUT_GROUPS.length == 0 || viewMode == 0) composeMatrix();   // Room.pde — media matrix → matrixOut (only if used)
   composeOutputs();    // Output.pde — the output images, sent out
@@ -97,6 +103,8 @@ void keyPressed(KeyEvent event) {
   if (keyCode == 'O') cycleLLMMode();    // LocalLLM.pde: model mode auto → cloud → local
   if (keyCode == 'I') toggleRoomView();    // RoomView.pde: as if standing inside the room
   if (keyCode == 'J') projSim = !projSim;  // RoomView.pde: simulate the projectors (black level, light between walls)
+  if (keyCode == 'F') { FLOOR_ECHO = (FLOOR_ECHO + 1) % 4; println("Floor: " + (FLOOR_ECHO == 0 ? "v4 verses" : "echo " + "ABC".charAt(FLOOR_ECHO - 1))); }
+  if (keyCode == 'B') { ART_NEW = !ART_NEW; println("New art direction " + (ART_NEW ? "ON" : "OFF") + " (materials: new tiles only)"); }
   if (keyCode == 'D') TRAVEL_3D = !TRAVEL_3D;   // pieces travel along the walls (2D) or through the room (3D)
 }
 

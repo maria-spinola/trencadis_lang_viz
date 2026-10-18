@@ -234,6 +234,7 @@ class TrencadisTile {
     boolean warm = (h0 < 60 || h0 > 330);
     float s0 = constrain(saturation(col) * 1.25, 80, 95);   // strong glazes: more contrast in the room
     float b0 = constrain(brightness(col), 52, 86);
+    if (art(ART_HARMONY)) s0 *= HARMONY_SAT;                 // the mural as one composition: calmer glazes
     if (h0 >= 200 && h0 <= 240) b0 = min(b0, 72);   // blues are deep
     if (h0 >= 130 && h0 <= 160) { s0 = max(s0, 85); b0 = constrain(b0, 38, 52); }   // greens: bottle green
     if (h0 >= 8 && h0 <= 16)    { s0 = max(s0, 80); b0 = constrain(b0, 50, 64); }   // terracotta
@@ -269,6 +270,10 @@ class TrencadisTile {
     }
 
     float[] white = hsbOf(CROCKERY_COLOR);   // white crockery (Colors.pde)
+    if (art(ART_HARMONY)) {   // accents and grounds calmer too
+      cAcc[1] *= HARMONY_SAT; cAcc2[1] *= HARMONY_SAT;
+      if (cLight[1] > 25) cLight = new float[] { cLight[0], cLight[1] * HARMONY_SAT, cLight[2] };
+    }
     // One colour family, many strong shades (the blue areas of the benches)
     tones = new float[][] {
       { h0, s0, b0 },
@@ -277,6 +282,18 @@ class TrencadisTile {
       { (h0 + 14) % 360,  s0 * 0.8,           min(b0 + 10, 98) },
       { h0,               min(s0 * 1.05, 100), b0 * 0.48 },
       white };
+    if (nextTileGlaze != null) {   // the border (Cenefa.pde): exactly this glaze, also pale ones, in a few shades
+      float[] g = nextTileGlaze;
+      cBase = g.clone();
+      if (band >= 0) cRib = RIBBON_TONES[band % RIBBON_TONES.length].clone();   // its capping untinted (a cobalt tint turns it magenta)
+      tones = new float[][] {
+        g,
+        { g[0], g[1] * 0.92, min(g[2] * 1.06, 98) },
+        { g[0], min(g[1] * 1.05, 100), g[2] * 0.82 },
+        { (g[0] + 6) % 360, g[1] * 0.85, min(g[2] + 5, 98) },
+        { g[0], g[1], g[2] * 0.7 },
+        g };
+    }
   }
 
 
@@ -1029,10 +1046,22 @@ class TrencadisTile {
         pieceKind = KIND_OTHER;
         addPiece(pieces.get(i), vary(acc[r.nextInt(acc.length)], 4, 6, 6), false);
         pieceKind = KIND_TILE;
+      } else if (art(ART_PLAIN_MIX) && tex != null && phen != 2 && patternMask(cen[i]) < PLAIN_SHARE) {
+        // most of the tile is clean glaze in shades of its colour; the painted pattern survives in patches
+        addPiece(pieces.get(i), vary(tones[min(tone[i], 4)], 3, 4, 5), false);
       } else {
         addPiece(pieces.get(i), new float[] { 0, 0, rnd(r, 88, 100) }, true);   // each shard glazed a touch differently
       }
     }
+  }
+
+  // 0..1, smooth over the tile: where the painted pattern stays (high) and where it's plain glaze (low).
+  // Rank-like spread so PLAIN_SHARE is roughly the share of plain shards.
+  float patternMask(PVector c) {
+    if (VN == null) initCeramicNoise();
+    float s = u * 2.2;
+    float n = vn(c.x / s + (seed % 911) * 0.37, c.y / s + (seed % 919) * 0.41);
+    return constrain((n - 0.2) / 0.6, 0, 1);
   }
 
   // Bends the edges of a shard by a piecewise-linear warp (kinks every ~0.6 shard sizes), fading

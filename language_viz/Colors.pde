@@ -11,15 +11,18 @@ String BACKGROUND_COLOR   = "#000000";   // background of every wall and the flo
 
 // ── Text box on the main wall (what the public types) ─────────
 String UI_INPUT_COLOR     = "#9C9C9C";   // the word being typed and its cursor
-String UI_PROMPT_COLOR    = "#404040";   // the ">" before it
-String UI_LAST_COLOR      = "#393939";   // "↳ last word" above the line
 String UI_MESSAGE_COLOR   = "#959595";   // messages: "Aquesta paraula no és catalana", "Volies dir «cafè»?"…
 String UI_TEST_COLOR      = "#FF9F19";   // "TEST MODE" (only in test mode)
 String UI_BAR_COLOR       = "#000000";   // band behind the box (how dark: UI_BAR_ALPHA in Config; 0 = none)
 
 // ── Words on the floor ────────────────────────────────────────
 String POEM_WORD_COLOR    = "#FAF3E6";   // the poem's words
-String TYPED_WORD_COLOR   = "#FAF3E6";   // the visitors' words (TYPED_WORDS_TO_FLOOR)
+String TYPED_WORD_COLOR   = "#FAF3E6";
+String TYPED_NEW_COLOR    = "#F2C46A";
+String FOOTPRINT_COLOR    = "#B9B2A6";   // a visitor's word on the floor once it has settled (discreet)
+String VERSE_COLOR        = "#F3EEE4";   // the poem's verses on the floor   // a visitor's word while it is new on the floor (warm gold)
+String WARM_LIGHT_COLOR   = "#FFD9A0";
+String AMBIENT_LIGHT_COLOR = "#FFF0DA";  // the calm light wandering along the mural   // the light of the stream, the impact and the wave (warm, never white)   // the visitors' words (TYPED_WORDS_TO_FLOOR)
 String WORD_HALO_COLOR    = "#0A0D14";   // soft dark halo around every word, so it reads over anything
 
 // ── The tile while it assembles on the main wall ──────────────
@@ -80,7 +83,16 @@ String[] RIBBON_COLORS = {   // the glazed capping of the benches: ochre, brown,
   "#5C3D2B"    // dark brown
 };
 
+// The border round the top of the room (Cenefa.pde): its glazes, in turn along the walls
+String[] CENEFA_COLORS = {   // a steady rhythm, so it reads as a border against the mural
+  "#1F4E9C",   // cobalt
+  "#E6DDC8",   // white crockery
+  "#C08A2E",   // ochre
+  "#E6DDC8"    // white crockery
+};
+
 // ── Room view (Ctrl+I) only — never in the output: what isn't projected, so the walls stand out ──
+String ROOM_SHELL_COLOR  = "#0B0A0A";   // the ceiling and the wall above the image, unlit (light from the projection is added)
 String ROOM_VIEW_OUTSIDE = "#2B3240";   // background
 String ROOM_VIEW_CEILING = "#3A4354";   // ceiling
 String ROOM_VIEW_FLOOR   = "#323A49";   // floor, when the venue has no floor projection
@@ -92,6 +104,12 @@ String TEXT_FONT = "Georgia";
 
 
 // ════════ (below: conversions used by the code) ════════
+
+// two colours mixed in RGB (k 0 = a, 1 = b), whatever the colour mode
+int mixRGB(int a, int b, float k) {
+  int r = round(lerp((a >> 16) & 255, (b >> 16) & 255, k)), g = round(lerp((a >> 8) & 255, (b >> 8) & 255, k)), bl = round(lerp(a & 255, b & 255, k));
+  return 0xFF000000 | (r << 16) | (g << 8) | bl;
+}
 
 // "#RRGGBB" → a colour for fill() / stroke(), whatever the colour mode
 int hexColor(String hex) {

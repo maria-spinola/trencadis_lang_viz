@@ -1,16 +1,15 @@
 {
-  "agency": 2,
+  "agency": 4,
   "raresa": 2,
   "word_class": 1,
-  "abstraction": 1,
+  "abstraction": 5,
   "color_hex": "#E07A1F",
   "culturalitat": 1,
   "emotion": 7,
   "emotion_label": "Alegria",
-  "definicio": "Dispositiu d'enregistrament i d'emmagatzematge de dades d'accés directe que s'utilitza com a suport d'informació. / Cos cilíndric de molt poca alçària fet de cautxú vulcanitzat de color negre.",
-  "time_duration": 5,
-  "zipf": 4.789999961853027,
-  "word": "disc",
-  "organic": 1,
-  "phenomena_class": 1
+  "time_duration": 1,
+  "zipf": 4.960000038146973,
+  "word": "hola",
+  "organic": 6,
+  "phenomena_class": 5
 }

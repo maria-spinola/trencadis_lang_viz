@@ -64,39 +64,23 @@ void drawLLMInterface(PGraphics pg) {
     pg.rect(x0, y0, bw, bh);
   }
 
-  // Last prompt echo
-  if (lastPrompt.length() > 0) {
-    pg.fill(hexColor(UI_LAST_COLOR));
-    pg.textSize(13*ui);
-    pg.textAlign(LEFT, BOTTOM);
-    pg.text("↳ " + lastPrompt, x0 + 20*ui, y0 - 4*ui);
-  }
-
-  // Response / error text — small strip above the box
+  // Messages (rejections, "Volies dir…?", "✦ Paraula rara ✦"): small, centred under the field
   if (displayText.length() > 0) {
     pg.fill(hexColor(UI_MESSAGE_COLOR));
     pg.textSize(13*ui);
-    pg.textAlign(LEFT, BOTTOM);
-    pg.text(displayText, x0 + 20*ui, y0 - 60*ui, bw - 40*ui, 38*ui);
+    pg.textAlign(CENTER, TOP);
+    pg.text(displayText, W / 2, y0 + bh * 0.82);
   }
 
-  // Prompt symbol
-  pg.fill(hexColor(UI_PROMPT_COLOR));
-  pg.textSize(14*ui);
-  pg.textAlign(LEFT, CENTER);
-  pg.text(">", x0 + 20*ui, mid);
-
-  // Input text, or an invitation when it's empty; and a cursor that breathes instead of blinking
-  float tx = x0 + 44*ui;
+  // The field: centred; what is typed, or an invitation when it's empty; a cursor that breathes
   float breath = 0.5 + 0.5 * sin(millis() / 1000.0 * TWO_PI * 0.6);
-  if (inputText.length() == 0 && !isLoading) {
-    pg.fill(hexColor(UI_INPUT_COLOR), 35 + 20 * breath);
-    pg.text(MSG_INVITE + "…", tx + 10 * ui, mid);
-  } else {
-    pg.fill(hexColor(UI_INPUT_COLOR));
-    pg.text(inputText, tx, mid);
-  }
-  float cxp = tx + pg.textWidth(inputText) + 3 * ui;
+  pg.textSize(14*ui);
+  pg.textAlign(CENTER, CENTER);
+  boolean empty = inputText.length() == 0;
+  String shown = empty ? MSG_INVITE + "…" : inputText;
+  pg.fill(hexColor(UI_INPUT_COLOR), empty ? 30 + 18 * breath : 100);
+  if (!(empty && isLoading)) pg.text(shown, W / 2, mid);
+  float cxp = W / 2 + (empty ? -pg.textWidth(shown) / 2 - 8 * ui : pg.textWidth(shown) / 2 + 3 * ui);
   pg.noStroke();
   pg.fill(hexColor(UI_INPUT_COLOR), 25 + 75 * breath);
   pg.rect(cxp, mid - 9 * ui, max(1.5, 1.6 * ui), 18 * ui);
@@ -106,11 +90,11 @@ void drawLLMInterface(PGraphics pg) {
     pg.fill(hexColor(UI_TEST_COLOR));
     pg.textSize(13*ui);
     pg.textAlign(RIGHT, TOP);
-    pg.text("TEST MODE · not saved (Ctrl+E)", x1 - 20*ui, y0 + bh + 4*ui);   // under the box, clear of the last word
+    pg.text("TEST MODE · not saved (Ctrl+E)", x1 - 20*ui, y0 + bh + 22*ui);
   }
 
   // While the model thinks: a few shards turning where the tile will appear ("something is being made")
-  drawThinking(pg, W / 2, H * HOLD_Y, H);
+  if (revealAlpha() < 0.01) drawThinking(pg, W / 2, H * HOLD_Y, H);   // (the big word itself is the wait)
 
   // Test mode: the analysis of the last word, category by category, on the left of the wall
   if (TEST_MODE && lastAnalysis.length > 0) {

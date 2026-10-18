@@ -43,6 +43,7 @@ void updateWords() {
   }
   // A new poem word now and then; when there are too many, the oldest little shard fades away
   poemSpawnTimer++;
+  if (floorPoemOn() || echoOn()) poemSpawnTimer = 0;   // the poem is written on the floor now (FloorPoem.pde)
   if (poemSpawnTimer >= POEM_SPAWN_INTERVAL) {
     poemSpawnTimer = 0;
     // Too many little shards: the oldest one fades away (its word stays on the floor)
@@ -100,6 +101,9 @@ PFont poemFont;
 class PoemWord {
   String word;
   boolean typed = false;     // a visitor's word: no tile, it only goes down to the floor
+  float hier = 1, hierA = 1;  // typographic weight on the floor: nouns, verbs, adjectives bigger; little words smaller and softer
+  int tintC = 0;             // the word's own colour (its tile's), a hint of it in the letters
+  int pulseStart = -99999;   // a visitor's word answers when its tile settles in the mural
   int   stretch;              // 0 = A, 1 = B
   float c, v;                 // centre on the ring of walls
   float c0, v0, c1, v1;       // start (main wall) and destination
@@ -205,6 +209,10 @@ class PoemWord {
     wordStart = tE + tT + tW; tX = POEM_COLLAPSE_FRAMES;
 
     word           = wordObj.getString("word", "");
+    int wcl = wordObj.getInt("word_class", 1);
+    hier  = (wcl <= 3) ? 1.18 : (wcl == 4 ? 1.0 : 0.72);
+    hierA = (wcl <= 4) ? 1.0 : 0.7;
+    tintC = hexColor(wordObj.getString("color_hex", "#FFFFFF"));
     String hex     = wordObj.getString("color_hex", "#FFFFFF");
     int emotion    = constrain(wordObj.getInt("emotion",         4), 1, 7);
     int wordClass  = constrain(wordObj.getInt("word_class",      1), 1, 8);
@@ -338,7 +346,7 @@ class PoemWord {
       fade *= 1 - smooth01((age - leaveAge) / 600);
       if (age - leaveAge > 600) tile = null;     // the shard is gone: free its tile (the word stays)
     }
-    alpha = POEM_ALPHA * fade * alphaK;
+    alpha = POEM_ALPHA * fade * alphaK * (1 - (art(ART_MURAL_LIGHT) ? CALM_DIM * interactK : 0));
     wordAlpha = POEM_ALPHA * alphaK * (wordLeaving ? 1 - smooth01((age - wordLeaveAge) / 600) : 1);
   }
 
@@ -374,6 +382,7 @@ class PoemWord {
   // Floats across the whole floor: it drifts towards a destination anywhere on the floor,
   // with long, gentle curves; when it gets close it picks the next one
   void floatOnFloor() {
+    if (art(ART_FLOOR_FLOW)) { flowOnFloor(); return; }
     float m = POEM_TILE_SIZE * 0.5;
     if (wtarget == null || dist(wpos.x, wpos.y, wtarget.x, wtarget.y) < POEM_TILE_SIZE * 0.6) {
       Random rt = new Random((long) (seed * 1000) + wlegs * 7919L);   // evenly anywhere on the floor, same on every run
@@ -403,6 +412,35 @@ class PoemWord {
     wup.normalize();
   }
 
+
+  // A slow current round the room: every word has its lane (a circle round the centre), drifts
+  // along it with a gentle sway, keeps a little room from the others and reads along its way.
+  // The centre stays clear (the verse forms there).
+  void flowOnFloor() {
+    float side = min(ROOM_W, ROOM_D), cx = ROOM_W / 2, cy = ROOM_D / 2;
+    float lane = side * lerp(FLOW_LANE_MIN, FLOW_LANE_MAX, (seed * 7.31f) % 1);
+    float dx = wpos.x - cx, dy = wpos.y - cy, rr = max(1, sqrt(dx * dx + dy * dy));
+    PVector tang = new PVector(-dy / rr, dx / rr, 0);                    // round the room, always the same way
+    float pull = constrain((lane - rr) / (side * 0.12), -1, 1);
+    PVector want = PVector.add(tang, new PVector(dx / rr * pull, dy / rr * pull, 0));
+    float sway = (noise(seed + 100, age * 0.0015) - 0.5) * 0.7;
+    want = new PVector(want.x * cos(sway) - want.y * sin(sway), want.x * sin(sway) + want.y * cos(sway), 0);
+    for (PoemWord o : poemWordsList) {
+      if (o == this || o.wpos == null) continue;
+      float d = dist(wpos.x, wpos.y, o.wpos.x, o.wpos.y);
+      float room = POEM_TILE_SIZE * 0.8 * (depS + o.depS);
+      if (d < room && d > 0.01) want.add((wpos.x - o.wpos.x) / d * (1 - d / room) * 1.4, (wpos.y - o.wpos.y) / d * (1 - d / room) * 1.4, 0);
+    }
+    want.normalize().mult(POEM_WORD_SPEED * spdK * pace * 0.7 * (0.6 + 0.8 * noise(seed + 700, age * 0.002)));
+    wvel.lerp(want, 0.01);
+    wpos.add(wvel);
+    wpos.x = constrain(wpos.x, 5, ROOM_W - 5);
+    wpos.y = constrain(wpos.y, 5, ROOM_D - 5);
+    wpos.z = 0;
+    wup.lerp(wvel.copy().normalize(), 0.006);
+    if (wup.mag() < 0.01) wup.set(1, 0, 0);
+    wup.normalize();
+  }
 
   // The little shard: free over all the walls (crossing corners), never on the floor
   void wander() {
@@ -500,14 +538,30 @@ class PoemWord {
     pg.textFont(poemFont);
     pg.textAlign(CENTER, CENTER);
     pg.textSize(96);
-    pg.scale(POEM_TILE_SIZE * 0.22 * depS * (age < wordStart ? scl : 1) / 96);
-    float ta = 100 * wordA * wordAlpha / POEM_ALPHA * dimK;
+    float fresh = (typed && art(ART_TYPED_GLOW)) ? 1 - smooth01(age / (float) TYPED_GLOW_FRAMES) : 0;   // a visitor's word, new
+    float pulse = (typed && art(ART_TYPED_GLOW)) ? sin(PI * constrain((frameCount - pulseStart) / 100.0, 0, 1)) : 0;   // its tile has settled
+    fresh = max(fresh, pulse);
+    boolean ty = art(ART_FLOOR_TYPE);
+    float hs = ty ? hier : 1;
+    pg.scale(POEM_TILE_SIZE * 0.22 * depS * hs * (age < wordStart ? scl : 1) * (1 + 0.15 * fresh) / 96);
+    float ta = 100 * wordA * wordAlpha / POEM_ALPHA * dimK * (ty ? hierA : 1);
+    if (fresh > 0.01) {   // a warm glow round it while it is new
+      pg.blendMode(ADD);
+      for (int k = 0; k < 8; k++) {
+        float a = TWO_PI * k / 8, d = 96 * 0.11;
+        pg.fill(hexColor(TYPED_NEW_COLOR), ta * 0.12 * fresh);
+        pg.text(word, cos(a) * d, sin(a) * d);
+      }
+      pg.blendMode(BLEND);
+    }
     for (int k = 0; k < 4; k++) {   // soft dark halo so it reads over anything
       float a = TWO_PI * k / 4 + QUARTER_PI, d = 96 * 0.055;
       pg.fill(hexColor(WORD_HALO_COLOR), ta * 0.4);
       pg.text(word, cos(a) * d, sin(a) * d);
     }
-    pg.fill(hexColor(typed ? TYPED_WORD_COLOR : POEM_WORD_COLOR), ta);
+    int base = hexColor(typed ? TYPED_WORD_COLOR : POEM_WORD_COLOR);
+    if (ty && !typed) base = mixRGB(base, mixRGB(tintC, 0xFFFFFFFF, 0.45), FLOOR_TINT);   // a hint of its tile's colour: the floor speaks the mural's language
+    pg.fill(fresh > 0 ? mixRGB(base, hexColor(TYPED_NEW_COLOR), fresh) : base, ta);
     pg.text(word, 0, 0);
     pg.pop();
   }
@@ -521,5 +575,13 @@ class PoemWord {
 int typedWordCount = 0;
 void dropTypedWord(String w) {
   if (!TYPED_WORDS_TO_FLOOR || !HAS_FLOOR || !SHOW_POEM || w.length() == 0) return;
+  if (FLOOR_ECHO > 0) return;                      // the echo floor keeps no words
+  if (floorPoemOn()) { addFootprint(w); return; }   // FloorPoem.pde: a small footprint, clear of the poem
   poemWordsList.add(new PoemWord(w, typedWordCount++));
+}
+
+// A visitor's tile has settled: its word on the floor answers with a warm pulse
+void pulseFloorWord(String w) {
+  pulseFootprints(w);
+  for (PoemWord pw : poemWordsList) if (pw.typed && pw.word.equalsIgnoreCase(w)) pw.pulseStart = frameCount;
 }

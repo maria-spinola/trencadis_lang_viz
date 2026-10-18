@@ -140,8 +140,33 @@ The left part of the tile goes round by WALL 2, the right part by WALL 4, the lo
 
 ### 2D or 3D travel (`TRAVEL_3D`, Ctrl+D)
 
-- **2D (default):** the pieces slide along the walls and the floor. Looks right from anywhere in the room.
-- **3D:** the pieces leave WALL 3 into the room and fly through the air, each at its own depth (on the WALL 2 side, the WALL 4 side or low over the floor), and land on WALL 1. Each surface is rendered from the audience's point of view — centre of the room, eye height `VIEWER_HEIGHT` — with an off-axis projection (a virtual camera rig, `viewerCamera()` in `Room.pde`), so the pieces line up across walls and floor. The illusion is perfect from that point and more distorted further away. Pieces stay below eye level: anything higher would be projected towards the ceiling, where nothing is shown.
+- **2D (`false`):** the pieces travel on the walls and the floor, with their own relief — they tilt in perspective, show their fired-clay thickness, cast a soft shadow on the wall and move in different depth planes (`CHUNK_TILT`, `CHUNK_THICK`, `CHUNK_SHADOW`, `CHUNK_DEPTH`). Looks right from anywhere in the room.
+- **3D (default, `true`):** the pieces leave WALL 3 into the room and fly through the air, each at its own depth (on the WALL 2 side, the WALL 4 side or low over the floor), and land on WALL 1. Each surface is rendered from the audience's point of view — centre of the room, eye height `VIEWER_HEIGHT` — with an off-axis projection (a virtual camera rig, `viewerCamera()` in `Room.pde`), so the pieces line up across walls and floor. The illusion is perfect from that point and more distorted further away. Pieces stay below eye level: anything higher would be projected towards the ceiling, where nothing is shown.
+
+### Art direction (`ART_*` in `Config.pde`, `Ctrl+B` before / after)
+"Walls keep the words as matter; the floor keeps them as language." Every effect has its own switch, and `Ctrl+B` turns them all off and on to compare (materials apply to tiles made from then on):
+- **Materials:** each tile is about two thirds clean glaze in shades of its colour, the painted pattern surviving in patches (`ART_PLAIN_MIX`, `PLAIN_SHARE`); calmer, harmonised glazes over the whole mural (`ART_HARMONY`, `HARMONY_SAT`); joints a little darker (`AO_STRENGTH`).
+- **The word:** it first appears big and readable on the main wall and the tile forms behind it as it fades (`ART_WORD_REVEAL`, `WORD_REVEAL_SIZE`); the tile barely trembles and its cracks open slowly before the chunks leave as a cohesive stream (`BURST`, `SCATTER`).
+- **Light:** the stream lights the walls it passes, softly and warm (`ART_TRAVEL_GLOW`, `TRAVEL_GLOW`); when the tile settles, a warm local glow and a wave of light running out through the glazes and ribbons of the mural (`ART_IMPACT_WAVE`, `IMPACT_WAVE`, `IMPACT_FRAMES`). All light is warm (`WARM_LIGHT_COLOR`), never white.
+- **The floor:** words drift in a slow current round the room, each in its lane, reading along their way, the centre kept clear for the verse (`ART_FLOOR_FLOW`, `FLOW_LANE_*`); fewer at once (`MAX_FLOOR_WORDS` 180); a visitor's word arrives golden and a little bigger and joins the poem's colour over ~25 s (`ART_TYPED_GLOW`, `TYPED_NEW_COLOR`).
+
+**The mural under a live light (`Mural.pde`, shader `data/mural.glsl`, `ART_MURAL_LIGHT`).** Every tile also bakes a **relief map** — the normal of each shard (its tilt, its rolled edges, the moulded reliefs) and how glossy it is — stamped into a layer next to the mural's colour. The mural is then drawn through a GLSL shader lit by moving lights, so the glaze shines and the edges catch the light as they move, while the sunk mortar stays matte:
+- a calm, broad light wandering slowly along the mural (WALL 4 → 1 → 2 and back; `AMBIENT_LIGHT`, `AMBIENT_PERIOD`, `AMBIENT_LIGHT_COLOR`);
+- the warm light the travelling stream carries over the walls it passes (`TRAVEL_LIGHT`);
+- when a tile settles, a local warm light (`IMPACT_LIGHT`) and a **wave of light running along the bands of the mural, across the corners onto the next walls**, decaying slowly (`IMPACT_WAVE`, `WAVE_REACH`, `WAVE_WIDTH`, `WAVE_FRAMES`);
+- `MURAL_RELIEF`, `MURAL_SHININESS`: how much the relief shows, how sharp the reflections are.
+While a word travels the room steps back: the poem and the calm light dim (`CALM_DIM`). The chunks travel in different planes (`CHUNK_DEPTH`: nearer ones bigger, further ones smaller and dimmer) and the stream turns on itself as one body (`STREAM_SWIRL`). On the floor, nouns, verbs and adjectives are bigger and little words smaller and softer, each with a hint of its tile's colour (`ART_FLOOR_TYPE`, `FLOOR_TINT`); a visitor's word on the floor pulses when its tile settles in the mural.
+
+### The word, and the floor as a page (v4)
+- **The word becomes the tile** (`Reveal.pde`, `ART_WORD_REVEAL`). On ENTER the word appears very big and centred where its tile will form on the main wall (`WORD_REVEAL_SIZE`, never wider than `WORD_MAX_WIDTH`), fading in over `WORD_IN_FRAMES`; it stays alone `WORD_SHOW_FRAMES` (1.5 s, or longer while the model answers — the word itself is the wait); then word and tile **crossfade in the same place** over `WORD_XFADE_FRAMES` (word 100 → 0 %, tile 0 → 100 %, eased); once the tile is whole it breaks and travels as before. A rejected word just fades away.
+- **The text box** is minimal: centred, the invitation or what is being typed, a breathing cursor; messages small underneath. No "last word" line and no ">" any more; the box sits higher (`UI_Y` 0.66), clear of the big word.
+- **The floor as a page** (`FloorPoem.pde`, `ART_FLOOR_POEM`). No more drifting, orbiting words: the poem is **written directly on the floor**, verse by verse (two or three lines, in order), word by word with slow fades (`VERSE_STAGGER`, `VERSE_FADE_IN`), stays (`VERSE_STAY`), fades (`VERSE_FADE_OUT`) while the next verse builds in another place (`LANES`); at most `VERSE_MAX` at once, all reading the same way, lots of black. The visitors' words become **small footprints** along the two ends of the floor, never over the poem: they arrive golden (`FOOTPRINT_GOLD_FRAMES`, and again when their tile settles), then turn discreet (`FOOTPRINT_COLOR`, `FOOTPRINT_ALPHA`); at most `FOOTPRINT_MAX`, the oldest fades. With it on, poem words no longer come out of the walls. Without a floor (IASLab) the old behaviour stays.
+
+### The floor: the echo of the trencadís (`FloorEcho.pde`, shader `data/floor_echo.glsl`; `FLOOR_ECHO = 1`)
+The floor is black glaze reflecting the mural: every point reflects the wall in front of it, soft and slow, strongest at the foot of the walls and fading towards the centre (`ECHO_A_STRENGTH`, `ECHO_REACH`, `ECHO_STRETCH`, `ECHO_BLUR`, `ECHO_WARP`). It is mostly atmosphere, and only now and then language:
+- **A verse is revealed** (one after another: each appears, stays, fades, and `ECHO_VERSE_GAP` — 5 s — later the next; a verse waits while a word is travelling): in a wide, edgeless area the reflection calms (its slow movement settles) and dims (`ECHO_CALM_*`), as if showing a layer underneath; the line of Espriu is latent there — first a faint typographic haze (`ECHO_VERSE_FOG`), then it gathers into clear, quiet letters (`ECHO_VERSE_ALPHA`), stays, and loosens back into haze and the floor (`ECHO_VERSE_IN`, `_STAY`, `_OUT`). In two lines, small (`ECHO_VERSE_EM`), each verse somewhere else on the floor away from the drifting words, with a slight tilt of its own (`ECHO_VERSE_TILT`); no movement, no scaling, warm off-white, one at a time, the lines in order.
+- **A visitor's word is inscribed**: when its tile settles, a wave in the tile's colour leaves the foot of its wall; then a little warm light gathers a little into the room (`ECHO_WORD_GLOW`, `ECHO_WORD_LEAD`) and the word is written there in light, letter by letter (`ECHO_WORD_WRITE`), each letter appearing bright and settling to amber; readable for a few seconds (`ECHO_WORD_STAY`), then it fades (`ECHO_WORD_OUT`); then it settles into a discreet amber and stays on the floor, drifting slowly in long gentle curves and turning subtly (`ECHO_WORD_TURN`), stirring the glaze under it — slow rings, the reflection brightening beneath it (`ECHO_WORD_RIPPLE`) — keeping its distance from the others and from the verse's place (`ECHO_WORDS_DRIFT`, `ECHO_DRIFT_SPEED`, `ECHO_DRIFT_ALPHA`, `ECHO_DRIFT_ROOM`); The words are **set into the glaze**, not laid on top (`ECHO_WORDS_IN_GLAZE`): drawn into their own layer and placed by the floor shader, they are lit by the reflection around them (brighter over the mural's light, faint in the dark), warped with the slow movement of the surface, with soft edges that breathe slowly, and as they age they sink — softer and fainter (`ECHO_GLAZE_*`). **The floor keeps a register**: the last `ECHO_WORDS_KEEP` (20) words typed stay on the floor for `ECHO_WORD_LIFE` (15 min), more and more transparent as they age, then they are gone; when a 21st arrives the oldest fades. The time each word was typed is saved with the mural, so after a restart the recent ones come back to the floor as old as they really are.
+`ECHO_REVEAL_STYLE = false` brings back the openings. No orbiting, drifting or accumulated words. `FLOOR_ECHO = 0` brings back the v4 floor; `Ctrl+F` cycles v4 / A / B / C (B fragmented reflections, C almost black — the other prototypes).
 
 ### Moments (`Moments.pde`)
 What makes people go "ooh" (settings in "The journey and the moments", `Config.pde`):
@@ -162,6 +187,20 @@ What makes people go "ooh" (settings in "The journey and the moments", `Config.p
 - The grout (thin grey cement) only appears when a tile lands: it seeps in under the shards, dark and wet, and dries to its final colour.
 - The mural is saved in `data/mosaic.json` and restored on start. `Ctrl+N` clears it.
 
+### The border (`Cenefa.pde`, `CENEFA`)
+
+A row of trencadís runs round the top of the room, over the four walls (WALL 4 → 1 → 2 → 3), like the glazed capping of the Park Güell benches. It frames the room and makes the mural read as one piece. On / off: `CENEFA` in `Config.pde`.
+
+- **Made of the poem** (`CENEFA_POEM`): every cell is a word of Espriu's poem, in order round the room (it starts again when the words run out), each with the colour, motif and cuts of its own analysis in `data/poem_words.json`. So the walls hold the visitors' words and the poem crowns them. With `CENEFA_POEM = false` the cells take the glazes of `CENEFA_COLORS` (`Colors.pde`) in turn, and `CENEFA_PAINTED_EVERY` > 0 makes every n-th one painted.
+- **Irregular, like the mural**: its lower edge waves like the mural's bands (`CENEFA_WAVE`, 0 = a straight line), in straight facets; the joins run at odd angles (`CENEFA_SLANT`). The wave closes on itself round the room, so it carries on from wall to wall at every corner. A glazed capping runs along its top (`CENEFA_RIBBON`, a tone of `RIBBON_COLORS`).
+- Baked once at start (under a second) into a layer per wall and drawn under the same live light as the mural, so the wave of a tile settling also runs along it.
+- The mural sits just below it, following its wave, with a thin dark joint (`CENEFA_GAP`): its bands are squeezed into the rest of the wall, the cells keep their widths, so a saved mural comes back in the same slots. `CENEFA = false` gives the whole wall back to the mural.
+- Other settings: `CENEFA_H` (height, × the wall height), `CENEFA_CELL_MIN` / `MAX`, `CENEFA_SHARD`.
+
+### Floating shards (`Motes.pde`, `MOTES`)
+
+Little shards of tile float very faintly in the empty parts of the walls: real baked shards (tiles made from words of the poem), drifting slowly round the room, turning and now and then tumbling edge-on. Each has its own depth: far ones are small, darker (`MOTES_FAR_DIM`), slower and fainter; near ones bigger and clearer — a quiet parallax. They pass behind the mural and the border, so they only show where the wall is still empty; they keep clear of the centre of the main wall (the word, the tile forming) and fade while a word is on its way. On / off: `MOTES`; also `MOTES_COUNT`, `MOTES_SIZE`, `MOTES_ALPHA`, `MOTES_SPEED`.
+
 ---
 
 ## Project structure
@@ -171,6 +210,12 @@ language_viz/
 ├── language_viz.pde      — Main sketch: setup, draw, keyboard
 ├── Config.pde            — All settings (room, output, mosaic, timing, LLM, sound…)
 ├── Colors.pde            — Every colour (background, text, floor words, emotion → tile colour, ceramic, grout, ribbons) and the typeface
+├── Reveal.pde            — The typed word, big, crossfading into its tile
+├── FloorPoem.pde         — The poem written on the floor verse by verse; visitors' words as footprints
+├── FloorEcho.pde         — The floor reflecting the mural; verses and visitors' words from openings in the reflection
+├── Cenefa.pde            — The trencadís border round the top of the room
+├── Motes.pde             — Little shards floating faintly in the empty parts of the walls
+├── Mural.pde             — The mural under a live light (shader data/mural.glsl): moving lights on the relief map, waves along the bands
 ├── Moments.pde           — Tiles lighting up with their word, special words, light sweeping the mural, full-mural celebration, the verse on the floor
 ├── RoomView.pde          — Ctrl+I: first-person view inside the room, with simulated projectors (Ctrl+J)
 ├── Room.pde              — Walls + floor, media matrix, cameras (flat, main wall, 3D viewer), preview, calibration
@@ -329,7 +374,7 @@ significat     Sensació que s'experimenta en algunes parts del…
 ```
 `mode` says who answered: `cloud`, `local`, `cache`, `fallback` (no model) or `test` (random). In test mode (`Ctrl+E`) the same panel is shown on WALL 3.
 
-**Language on screen:** everything the public sees in the projection is in Catalan (the messages for rejected or corrected words, the analysis panel); technical text for the team — the preview window, the calibration pattern, "TEST MODE", the console — stays in English. While the model thinks, seven shards of a freshly broken tile — the same glazed, relief shards as the mural — orbit slowly where the tile will appear, half transparent (`THINK_ALPHA`), turning over on themselves as if the tile were being put together (`drawThinking()` in `ClaudeSketch.pde`); the tile still on the wall leaves at once to make room. The tile on WALL 3 is never drawn over the text box: tall cells are shown a little smaller (`HOLD_Y` 0.33).
+**Language on screen:** everything the public sees in the projection is in Catalan (the messages for rejected or corrected words, the analysis panel); technical text for the team — the preview window, the calibration pattern, "TEST MODE", the console — stays in English. While the model thinks, seven shards of a freshly broken tile — the same glazed, relief shards as the mural — orbit slowly where the tile will appear, half transparent (`THINK_ALPHA`), turning over on themselves as if the tile were being put together (`drawThinking()` in `ClaudeSketch.pde`); the tile still on the wall leaves at once to make room. The tile on WALL 3 is never drawn over the text box: tall cells are shown a little smaller (`HOLD_Y` 0.37), and never over the border at the top.
 
 The bottom of the preview window always shows, large, what is being typed, "thinking…" while the model answers, the rejection message or the last word (`PREVIEW_INPUT`; never in the output).
 

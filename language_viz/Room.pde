@@ -83,12 +83,17 @@ void renderFaces() {
     flatCamera(pg, f);
     if (SHOW_POEM) {                                           // the poem goes behind everything else
       for (PoemWord pw : poemByDepth) pw.display(pg, f);   // far ones first, near ones over them
+      drawFloorPoem(pg, f);                                 // FloorPoem.pde: the poem written on the floor
+      drawFloorEcho(pg, f);                                 // FloorEcho.pde: prototypes of the reflecting floor
     }
-    if (mosaicLayers[f.id] != null) pg.image(mosaicLayers[f.id], 0, 0, f.w, f.h);   // the trencadís mural (Mosaic.pde, transparent between tiles)
-    drawSweep(pg, f);                                          // Moments.pde: the light sweeping the mural
+    drawMotes(pg, f);                                          // Motes.pde: little shards floating in the empty parts (behind the mural)
+    if (f.id == W3) drawHoldPanel(pg, f);                      // dark window behind the new tile (Mosaic.pde): over the poem and the floating shards, under the border
+    if (muralLit(f)) drawMuralLit(pg, f);                      // Mural.pde: the mural under its live light (shader)
+    else if (mosaicLayers[f.id] != null) pg.image(mosaicLayers[f.id], 0, 0, f.w, f.h);   // the trencadís mural (Mosaic.pde, transparent between tiles)
+    drawCenefa(pg, f);                                         // Cenefa.pde: the trencadís border round the top of the room
+    if (!art(ART_MURAL_LIGHT)) drawSweep(pg, f);               // Moments.pde: the old light sweeping the mural
     drawMarks(pg, f);                                          // …tiles lighting up, with their word
     drawVerse(pg, f);                                          // …a verse of the poem forming
-    if (f.id == W3) drawHoldPanel(pg, f);                      // dark window behind the new tile (Mosaic.pde), always behind it
     for (TileFlight fl : flights) fl.displayFlat(pg, f);      // tiles travelling to WALL 1
     if (showTest) drawTestPattern(pg, f);
 
@@ -96,6 +101,7 @@ void renderFaces() {
     if (f.id == W3) {
       wallCamera(pg, f);
       for (TileFlight fl : flights) fl.displayMain(pg, f);
+      drawRevealWord(pg, f);                                   // Reveal.pde: the typed word, big, turning into the tile
     }
     // Pieces flying through the room (3D travel), seen from the audience
     if (TRAVEL_3D) {

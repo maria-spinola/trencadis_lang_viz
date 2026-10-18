@@ -94,6 +94,7 @@ void submitWord(String typed) {
     showMessage(MSG_DID_YOU_MEAN.replace("%s", fixed));
   }
   lastPrompt = word;
+  startReveal(word);                     // Reveal.pde: the word, big, on the main wall
   if (TEST_MODE && TEST_RANDOM) {        // random test: local filter only, random parameters
     llmModeUsed = "test";
     generateTestWord(word);
@@ -126,6 +127,7 @@ void applyLLMResult(String word, JSONObject res, boolean store) {
   if (!ok) {
     String why = res.hasKey("motiu") ? res.getString("motiu") : "";
     showMessage(MSG_NOT_CATALAN);
+    endReveal();
     println("Rejected (LLM): \"" + word + "\"" + (why.length() > 0 ? " — " + why : "") + "  [mode: " + llmModeUsed + "]");
     return;
   }

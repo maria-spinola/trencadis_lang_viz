@@ -301,6 +301,7 @@ void bakeCeramic(TrencadisTile t) {
       if (pi < 0) {
         all[q] = argb(1, mr, mg, mb);
         shards[q] = 0;
+        gloss[q] = argb(1, 0.5, 0.5, 0.03);   // the mortar: flat, matte
         continue;
       }
       Piece p = t.pieces.get(pi);
@@ -471,7 +472,7 @@ void bakeCeramic(TrencadisTile t) {
         }
       }
       if (p.kind == KIND_GOLD) gl = 1; else if (p.kind == KIND_RIBBON) gl = 0.75;
-      gloss[q] = argb(gl * cov, 1, 1, 1);
+      gloss[q] = argb(1, lerp(0.5, nx * 0.5 + 0.5, cov), lerp(0.5, ny * 0.5 + 0.5, cov), lerp(0.03, gl, cov));   // relief map: normal x, y in R, G; gloss in B
       shards[q] = argb(cov, r_, g_, b_);
       all[q] = argb(1, lerp(mr, r_, cov), lerp(mg, g_, cov), lerp(mb, b_, cov));
     }
@@ -536,7 +537,7 @@ PImage muralStamp(TrencadisTile t, PImage src, float s, int[] at) {
   int[] out = new int[w * h];
   int n = t.gx.length;
   for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) {
-    float r = 0, g = 0, b = 0; int cov = 0;
+    float r = 0, g = 0, b = 0, al = 0; int cov = 0;
     for (int sy = 0; sy < ss; sy++) for (int sx = 0; sx < ss; sx++) {
       float X = (px0 + i + (sx + 0.5) / ss) / s - ox, Y = (py0 + j + (sy + 0.5) / ss) / s - oy;
       boolean in = false;
@@ -552,9 +553,10 @@ PImage muralStamp(TrencadisTile t, PImage src, float s, int[] at) {
       r += bil((c00 >> 16) & 255, (c10 >> 16) & 255, (c01 >> 16) & 255, (c11 >> 16) & 255, fu, fv);
       g += bil((c00 >> 8) & 255, (c10 >> 8) & 255, (c01 >> 8) & 255, (c11 >> 8) & 255, fu, fv);
       b += bil(c00 & 255, c10 & 255, c01 & 255, c11 & 255, fu, fv);
+      al += bil((c00 >>> 24) & 255, (c10 >>> 24) & 255, (c01 >>> 24) & 255, (c11 >>> 24) & 255, fu, fv);
     }
     if (cov == 0) continue;
-    out[j * w + i] = argb(cov / (float) (ss * ss), r / cov / 255, g / cov / 255, b / cov / 255);
+    out[j * w + i] = argb(cov / (float) (ss * ss) * (al / cov / 255), r / cov / 255, g / cov / 255, b / cov / 255);
   }
   PImage img = createImage(w, h, ARGB);
   img.loadPixels();

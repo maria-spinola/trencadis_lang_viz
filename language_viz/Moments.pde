@@ -42,6 +42,9 @@ void addLandMark(TrencadisTile t, String word) {
   ArrayList<PVector> o = new ArrayList<PVector>();
   for (int i = 0; i < t.gx.length; i++) o.add(new PVector(t.gx[i] + t.origin.x, t.gy[i] + t.origin.y));
   marks.add(newMark(t.face, o, word, LAND_GLOW_FRAMES, false));
+  if (art(ART_MURAL_LIGHT)) muralImpact(t);   // Mural.pde: local light + wave along the mural
+  pulseFloorWord(word);                       // WordsSystem.pde: its word on the floor answers
+  echoImpact(t, java.awt.Color.HSBtoRGB(t.cBase[0] / 360f, t.cBase[1] / 100f, t.cBase[2] / 100f), word);   // FloorEcho.pde
 }
 
 // A word typed again: its tiles already in the mural light up ("la meva encara hi és")
@@ -67,18 +70,65 @@ void drawMarks(PGraphics pg, Face f) {
     if (t >= 1) { marks.remove(k); continue; }
     if (m.face != f.id) continue;
     // the light: up quickly, down slowly; the older tiles pulse twice
-    float a = m.again ? pow(sin(PI * t * 2), 2) * (1 - t * 0.4) : smooth01(t / 0.04) * pow(1 - t, 1.6);
+    float a = m.again ? pow(sin(PI * t * 2), 2) * (1 - t * 0.4) : smooth01(t / (art(ART_IMPACT_WAVE) ? 0.08 : 0.04)) * pow(1 - t, 1.6);
     pg.blendMode(ADD);
     pg.noStroke();
     for (int ring = 2; ring >= 0; ring--) {   // a soft halo around it, the tile itself brighter
       float s = 1 + ring * 0.06;
-      pg.fill(40, 40, 100, 100 * MARK_GLOW * a * (ring == 0 ? 1 : 0.25));
+      pg.fill(art(ART_IMPACT_WAVE) ? hexColor(WARM_LIGHT_COLOR) : color(40, 40, 100), 100 * MARK_GLOW * a * (ring == 0 ? 1 : 0.25));
       pg.beginShape();
       for (int i = 0; i < m.xs.length; i++) pg.vertex(m.cx + (m.xs[i] - m.cx) * s, m.bot - m.h / 2 + (m.ys[i] - (m.bot - m.h / 2)) * s);
       pg.endShape(CLOSE);
     }
     pg.blendMode(BLEND);
+    // the impact: a wave of light running out from it through the glazes and the ribbons of the mural
+    if (!m.again && art(ART_IMPACT_WAVE) && !art(ART_MURAL_LIGHT)) {
+      float tw = (frameCount - m.t0) / (float) IMPACT_FRAMES;
+      if (tw < 1) drawGlossRing(pg, f, m.cx, m.bot - m.h / 2, lerp(m.h * 0.3, WALL_H * 2.2, easeOutQuad(tw)), WALL_H * 0.22, IMPACT_WAVE * pow(1 - tw, 1.5));
+    }
   }
+}
+
+float easeOutQuad(float t) { t = constrain(t, 0, 1); return 1 - (1 - t) * (1 - t); }
+
+// A soft round light (white, alpha falling off), tinted when drawn
+PImage glowImg;
+PImage glowSprite() {
+  if (glowImg != null) return glowImg;
+  int n = 64;
+  glowImg = createImage(n, n, ARGB);
+  glowImg.loadPixels();
+  for (int y = 0; y < n; y++) for (int x = 0; x < n; x++) {
+    float d = dist(x + 0.5, y + 0.5, n / 2.0, n / 2.0) / (n / 2.0);
+    float a = d >= 1 ? 0 : pow(1 - d * d, 2);
+    glowImg.pixels[y * n + x] = (round(a * 255) << 24) | 0xFFFFFF;
+  }
+  glowImg.updatePixels();
+  return glowImg;
+}
+
+// A ring of light (centre cx, cy; radius R; width w) that only lights what shines in the mural
+void drawGlossRing(PGraphics pg, Face f, float cx, float cy, float R, float w, float k) {
+  PGraphics G = glossLayers[f.id];
+  if (G == null || k < 0.01) return;
+  int cols = 72, rows = 14;
+  pg.blendMode(ADD);
+  pg.noStroke();
+  pg.textureMode(NORMAL);
+  for (int i = 0; i < cols; i++) for (int j = 0; j < rows; j++) {
+    float u0 = f.w * i / cols, u1 = f.w * (i + 1) / cols, v0 = f.h * j / rows, v1 = f.h * (j + 1) / rows;
+    float d = dist((u0 + u1) / 2, (v0 + v1) / 2, cx, cy);
+    float a = exp(-sq((d - R) / w)) * k;
+    if (a < 0.01) continue;
+    pg.beginShape(QUADS);
+    pg.texture(G);
+    pg.tint(hexColor(WARM_LIGHT_COLOR), 100 * min(1, a));
+    pg.vertex(u0, v0, u0 / f.w, v0 / f.h); pg.vertex(u1, v0, u1 / f.w, v0 / f.h);
+    pg.vertex(u1, v1, u1 / f.w, v1 / f.h); pg.vertex(u0, v1, u0 / f.w, v1 / f.h);
+    pg.endShape();
+  }
+  pg.noTint();
+  pg.blendMode(BLEND);
 }
 
 // A word written on a wall, in the poem's typeface, with a soft dark halo so it reads over the mural
@@ -175,7 +225,7 @@ String[] verseLines;
 int verseStart = -99999;
 
 void updateVerse() {
-  if (!SHOW_POEM || VERSE_EVERY <= 0) return;
+  if (!SHOW_POEM || VERSE_EVERY <= 0 || floorPoemOn() || echoOn()) return;   // (the echo floor has its own verses)
   if (verseLines == null) {
     try {
       String[] l = loadJSONObject("poem_words.json").getString("text", "").split("\n");
@@ -187,7 +237,7 @@ void updateVerse() {
 }
 
 void drawVerse(PGraphics pg, Face f) {
-  if (verseLines == null || verseLines.length == 0) return;
+  if (verseLines == null || verseLines.length == 0 || floorPoemOn() || echoOn()) return;
   int age = frameCount - verseStart;
   int nWords = 0;
   for (String l : verseLines) nWords += l.split(" ").length;
