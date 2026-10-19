@@ -42,53 +42,67 @@ String[] EMOTION_COLORS = {
   "#1F4E9C",   // 6 Tristesa  cobalt
   "#E07A1F"    // 7 Alegria   orange
 };
-// Every colour is then moved to the nearest of these Park Güell glaze hues (0–360 on the colour
-// wheel: 2 red, 12 terracotta, 18 brick, 30 orange, 42 ochre, 72 olive, 142 green, 185 turquoise,
-// 210 cobalt). Violets become cobalt and pinks red (Trencadis.pde, ceramicHue).
-float[] GLAZE_HUES = { 2, 12, 18, 30, 42, 72, 142, 185, 210 };
+// ── Two palettes (PALETTE in Config.pde) ──────────────────────
+// "viva": bright, strong glazes — cobalt, ultramarine, turquoise, jade, raspberry; bright grounds,
+//         coloured ribbons (the default)
+// "terracota": the earthy Park Güell look — ochre, khaki, brown, cobalt; ivory and mustard
+//         grounds, ochre and brown ribbons; violets become cobalt and pinks red
+// Every tile is baked again at start, so the whole mural changes with it. The emotion → colour
+// table above is the same for both.
+final boolean TERRACOTA = paletteIs("terracota");
+boolean paletteIs(String name) { return PALETTE.equalsIgnoreCase(name); }   // (PALETTE is a constant: safe before Config.pde is read)
+
+// Every colour is moved to the nearest of these glaze hues (0–360 on the colour wheel)
+float[] GLAZE_HUES = TERRACOTA
+  ? new float[] { 2, 12, 18, 30, 42, 72, 142, 185, 210 }                 // red, terracotta, brick, orange, ochre, olive, green, turquoise, cobalt
+  : new float[] { 2, 12, 30, 48, 115, 150, 178, 198, 222, 242, 335 };    // + yellow, leaf, jade, sky, ultramarine, raspberry
 
 // ── The ceramic ───────────────────────────────────────────────
-String TILE_CREAM_COLOR   = "#F1E3C2";   // the ivory ground of some painted tiles (warm, never paper white)
-// Grounds of the painted tiles: ivory, mustard, sand, porcelain, celadon — warm and earthy, as on the benches
-String[] GROUND_COLORS = { "#F1E6CF", "#E8C46C", "#D8BE94", "#F4EEE2", "#C9DCD2" };
-// Earthy glazes among the shards from other tiles: khaki, ochre-brown, mauve, teal
-String[] EARTH_COLORS = { "#9C8A5E", "#A8743A", "#C98A9A", "#3E8C86", "#7A5A3A" };
-String TEAL_COLOR         = "#2E8C84";
-String LEAF_COLOR         = "#3E8F3A";
+String TILE_CREAM_COLOR   = TERRACOTA ? "#F1E3C2" : "#EEE8DD";   // the ivory ground of some painted tiles (warm, never paper white)
+// Grounds of the painted tiles — terracota: ivory, mustard, sand, porcelain, celadon; viva: sky, jade, rose, leaf, yellow, ivory
+String[] GROUND_COLORS = TERRACOTA
+  ? new String[] { "#F1E6CF", "#E8C46C", "#D8BE94", "#F4EEE2", "#C9DCD2" }
+  : new String[] { "#75C7DE", "#66C6AF", "#E899B4", "#A9CA75", "#F0CE63", "#EEE8DD" };
+// Glazes among the shards from other tiles — terracota: khaki, ochre-brown, mauve, teal; viva: cobalt, turquoise, rose, leaf, coral
+String[] EARTH_COLORS = TERRACOTA
+  ? new String[] { "#9C8A5E", "#A8743A", "#C98A9A", "#3E8C86", "#7A5A3A" }
+  : new String[] { "#2455C4", "#069D98", "#D84683", "#36954F", "#E56C48" };
+String TEAL_COLOR         = TERRACOTA ? "#2E8C84" : "#079D99";
+String LEAF_COLOR         = TERRACOTA ? "#3E8F3A" : "#389D48";
 // Bold geometric tiles (phenomenon 6): near black and a strong yellow, as on the benches
-String GEO_DARK_COLOR     = "#17120E";
-String GEO_LIGHT_COLOR    = "#EBA51E";
+String GEO_DARK_COLOR     = TERRACOTA ? "#17120E" : "#141D30";
+String GEO_LIGHT_COLOR    = TERRACOTA ? "#EBA51E" : "#F2C438";
+float  GEO_LIGHT_SHARE    = TERRACOTA ? 0.6 : 0.25;   // how often they take that yellow (else the word's own colour)
 // Heraldic tiles: cobalt ground with golden stars
-String HERALD_COLOR       = "#1D4FA6";
+String HERALD_COLOR       = TERRACOTA ? "#1D4FA6" : "#2455C4";
 String STAR_COLOR         = "#F2B92A";
 // Glass (rare words): coloured glass shards and round bottle bottoms, as in Gaudí's mosaics
 String[] GLASS_COLORS     = { "#1B46B8", "#1F8A3E", "#B8680E", "#7FC6C0", "#5B2A86" };
 String CROCKERY_COLOR     = "#F2EEE4";   // the few white "crockery" shards among the coloured ones
 String GOLD_LUSTRE_COLOR  = "#E8B73A";   // golden lustre shards of rare words (raresa)
-String GROUT_COLOR        = "#9A9285";   // the lime mortar between the shards, once dry (warm, as at Park Güell)
+String GROUT_COLOR        = TERRACOTA ? "#9A9285" : "#A7A6A0";   // the lime mortar between the shards, once dry
 String BODY_TERRACOTTA    = "#B8784F";   // the fired clay under the glaze, where it chipped (most tiles)…
 String BODY_CREAM         = "#E2D3B8";   // …or a pale body (the rest)
 String SKY_REFLECTION     = "#F2F6FB";   // what the glaze reflects: a bright sky
 // Glazes of the moulded relief tiles (leaves and berries, as on the benches)
-String[] RELIEF_GLAZES = { "#2F7A34", "#3C8A3A", "#C9952C", "#2A5AA6", "#7A4A2A" };
+String[] RELIEF_GLAZES = TERRACOTA
+  ? new String[] { "#2F7A34", "#3C8A3A", "#C9952C", "#2A5AA6", "#7A4A2A" }
+  : new String[] { "#258449", "#45A14E", "#DCB532", "#2859BD", "#AE3C70" };
 
-// The dark ribbon along the top of the tiles, one tone per band of the mural (top band first;
+// The ribbon along the top of the tiles, one tone per band of the mural (top band first;
 // they repeat if there are more bands). Each tile tints it a little with its own colour.
-String[] RIBBON_COLORS = {   // the glazed capping of the benches: ochre, brown, khaki, green — with darker streaks
-  "#B98B4E",   // ochre
-  "#6E4A2C",   // brown
-  "#8F8A55",   // khaki olive
-  "#4E6B3E",   // green
-  "#A87A44",   // amber
-  "#5C3D2B"    // dark brown
-};
+String[] RIBBON_COLORS = TERRACOTA
+  ? new String[] {   // the glazed capping of the benches: ochre, brown, khaki, green, amber, dark brown
+      "#B98B4E", "#6E4A2C", "#8F8A55", "#4E6B3E", "#A87A44", "#5C3D2B" }
+  : new String[] {   // coloured capping: cobalt, turquoise, raspberry, green, yellow, navy
+      "#2355AE", "#108F91", "#B63B70", "#36834B", "#DDAE32", "#314889" };
 
-// The border round the top of the room (Cenefa.pde): its glazes, in turn along the walls
+// The border round the top of the room (Cenefa.pde) when CENEFA_POEM is off: its glazes, in turn
 String[] CENEFA_COLORS = {   // a steady rhythm, so it reads as a border against the mural
-  "#1F4E9C",   // cobalt
-  "#E6DDC8",   // white crockery
-  "#C08A2E",   // ochre
-  "#E6DDC8"    // white crockery
+  "#1F4E9C",                       // cobalt
+  "#E6DDC8",                       // white crockery
+  TERRACOTA ? "#C08A2E" : "#139F9A",   // ochre / turquoise
+  "#E6DDC8"                        // white crockery
 };
 
 // ── Room view (Ctrl+I) only — never in the output: what isn't projected, so the walls stand out ──
@@ -147,4 +161,10 @@ float[] emotionHues() {
 String tileHex(String modelHex, int emotion) {
   if (EMOTION_COLOR_SOURCE.equals("table")) return EMOTION_COLORS[constrain(emotion, 1, 7) - 1];
   return modelHex;
+}
+
+// Companion glazes: selected by hue relation, not an extra random draw.
+// The word retains its base; its pattern gets a contrasting and an analogous ink.
+float ceramicHueDistance(float a, float b) {
+  return abs(((a - b) % 360 + 540) % 360 - 180);
 }

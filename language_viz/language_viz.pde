@@ -100,6 +100,7 @@ void keyPressed(KeyEvent event) {
   if (keyCode == 'N') clearMosaic();   // empty the mural on WALL 1
   if (keyCode == 'E') toggleTestMode(); // real analysis shown on WALL 3, nothing saved
   if (keyCode == 'K') runLanguageTest(); // CatalanLLM.pde: the test word list through both filters and the model
+  if (keyCode == 'A') analysePrefillWords();   // CatalanLLM.pde: data/prefill_list.txt through the model → data/prefill_words.json (MURAL_PREFILL)
   if (keyCode == 'O') cycleLLMMode();    // LocalLLM.pde: model mode auto → cloud → local
   if (keyCode == 'I') toggleRoomView();    // RoomView.pde: as if standing inside the room
   if (keyCode == 'J') projSim = !projSim;  // RoomView.pde: simulate the projectors (black level, light between walls)

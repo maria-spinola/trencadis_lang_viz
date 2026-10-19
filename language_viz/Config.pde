@@ -146,13 +146,21 @@ float CRACKLE_SHARE    = 0.3;     // share of plain glazed shards with a crackle
 float GLASS_SHARE      = 0.14;    // raresa 7: share of glass shards (from raresa 5); some are round bottle bottoms
 float BAKE_MAX_PX      = 1400;
 
+// ── Palette ───────────────────────────────────────────────────
+// "viva" (default): bright, strong glazes — cobalt, ultramarine, turquoise, jade, raspberry,
+//   bright grounds and coloured ribbons
+// "terracota": the earthy Park Güell look — ochre, khaki, brown, cobalt, ivory and mustard grounds,
+//   ochre and brown ribbons, no violets or pinks
+// The colours of each are in Colors.pde. Restart to change it (the whole mural is baked again).
+final String PALETTE = "viva";
+
 // ── Art direction (2026-10-17): every new effect can be switched off; Ctrl+B switches them all (before / after).
 //    Material switches (ART_PLAIN_MIX, ART_HARMONY) apply to tiles made from then on.
 boolean ART_NEW         = true;    // master switch (Ctrl+B)
 boolean ART_PLAIN_MIX   = true;    // tiles ~70 % clean glaze, ~30 % painted pattern in patches
 float   PLAIN_SHARE     = 0.45;    // …share of clean glaze
 boolean ART_HARMONY     = true;    // calmer, harmonised glazes over the whole mural
-float   HARMONY_SAT     = 0.84;    // …saturation multiplier (1 = as before)
+float   HARMONY_SAT     = TERRACOTA ? 0.84 : 0.96;   // …saturation multiplier (1 = as before), by palette
 boolean ART_WORD_REVEAL = true;    // the typed word appears big on the main wall and the tile forms behind it
 float   WORD_REVEAL_SIZE = 0.24;   // …its size (× wall height)
 boolean ART_TRAVEL_GLOW = true;    // the travelling stream lights the walls it passes softly
@@ -311,6 +319,17 @@ boolean TYPED_WORDS_TO_FLOOR = true;   // the visitors' words also go down to th
 float HOLD_PANEL_ALPHA   = 72;    // dark see-through window behind the new tile (0 = none, 100 = black)
 String  MOSAIC_FILE      = "mosaic.json";   // in data/
 boolean MOSAIC_SAVE      = true;  // keep the mural between runs
+// Start with the mural already partly full (to rehearse or show it): −1 = off, the saved mural as usual;
+// 0…100 = this % of the whole mural (WALL 1 first, then WALL 2 / 4) filled with the words of
+// data/prefill_words.json, as if they had been typed, and the last ECHO_WORDS_KEEP of them on the floor.
+// While it is on, the mural is not saved: data/mosaic.json stays as it was. (WALL 1 alone ≈ 32 %.)
+float   MURAL_PREFILL    = 30;
+String  PREFILL_FILE     = "prefill_words.json";   // in data/: the words, analysed by the model (made with Ctrl+A)…
+String  PREFILL_LIST_FILE = "prefill_list.txt";    // …from this list, one word per line: edit it, then Ctrl+A
+int     PREFILL_PAUSE_MS = 1500;   // …pause between words while analysing (the Viquidiccionari limits fast requests)
+int     PREFILL_LOOKAHEAD = 14;    // composing the mural: each cell gets the best of the next n words of the list (1 = strictly in order)
+float   PREFILL_BALANCE   = 0.35;  // …how much it keeps every glaze in its share, all over the mural
+float   PREFILL_MOTIF     = 2.0;   // …how much it avoids the same motif side by side
 
 // ── SOUND ───────────────────────────────────────────────────
 final String MIDI_PORT = "processing (A)";

@@ -526,7 +526,117 @@ void drawHoldPanel(PGraphics pg, Face f) {
 void loadMosaic() {
   bakeDetailK = BAKE_DETAIL_MURAL;   // restored tiles are only seen in the mural: smaller images, faster start
   restoringMural = true;
-  try { loadMosaicTiles(); } finally { bakeDetailK = 1; restoringMural = false; }
+  try { if (MURAL_PREFILL >= 0) prefillMosaic(); else loadMosaicTiles(); } finally { bakeDetailK = 1; restoringMural = false; }
+}
+
+// MURAL_PREFILL (Config.pde): the mural starts this % full with the words of data/prefill_words.json,
+// placed exactly as if they had been typed one after the other (same sizes, same order of the
+// cells, same variants), and their words on the floor. The saved mural (mosaic.json) is left as it was.
+void prefillMosaic() {
+  resetSlotUse();
+  mosaicCycle = 0;
+  JSONArray words = null;
+  try { words = loadJSONObject(PREFILL_FILE).getJSONArray("words"); } catch (Exception e) { }
+  if (words == null || words.size() == 0) { println("Prefill: " + PREFILL_FILE + " missing or empty"); return; }
+  float target = constrain(MURAL_PREFILL, 0, 100) / 100.0 * slots.size();
+  // the last ones typed are the most recent: the floor's register gets them, of different ages
+  long now = System.currentTimeMillis(), step = (long) (ECHO_WORD_LIFE * 1000L * 0.8 / max(1, ECHO_WORDS_KEEP));
+  ArrayList<JSONObject> recs = new ArrayList<JSONObject>();
+  boolean[] used = new boolean[words.size()];
+  int[] famCount = new int[GLAZE_HUES.length];
+  float[] famShare = new float[GLAZE_HUES.length];   // each glaze's share of the list: what the mural should keep everywhere
+  for (int k = 0; k < words.size(); k++) famShare[glazeFamily(words.getJSONObject(k))] += 1.0 / words.size();
+  int next = 0;   // the first word of the list not used yet
+  for (int i = 0; cellsUsed() < target - 0.25 && hasFreeCell() && i < 4000; i++) {
+    if (next >= words.size()) { used = new boolean[words.size()]; next = 0; }   // the list starts again if it runs out
+    // the curator: among the next few words, the one that suits the cell it would take best
+    int best = -1;
+    float bestScore = Float.MAX_VALUE;
+    int seen = 0;
+    for (int k = next; k < words.size() && seen < max(1, PREFILL_LOOKAHEAD); k++) {
+      if (used[k]) continue;
+      float sc = prefillScore(words.getJSONObject(k), recs, famCount, famShare) + 0.05 * seen;   // (and the list's order, a little)
+      if (sc < bestScore) { bestScore = sc; best = k; }
+      seen++;
+    }
+    used[best] = true;
+    while (next < words.size() && used[next]) next++;
+    JSONObject rec = parseJSONObject(words.getJSONObject(best).toString());   // a copy
+    rec.setInt("n", mosaicCount);
+    allocate(rec);
+    mosaicTiles.append(rec);
+    rec.setInt("style", pickStyle(rec));
+    stampTile(tileFor(rec, mosaicCount));
+    mosaicCount++;
+    recs.add(rec);
+    PVector pc = partPatch(rec.getInt("slot"), rec.getInt("part", PART_WHOLE), rec.getInt("slot2", -1)).center();
+    rec.setFloat("cx", pc.x); rec.setFloat("cy", pc.y); rec.setInt("fam", glazeFamily(rec));   // (for the next choices)
+    famCount[rec.getInt("fam")]++;
+  }
+  // how well composed it is: neighbours with the same glaze / the same motif (for tuning)
+  int pairs = 0, sameG = 0, sameM = 0;
+  float near = WALL_H / MOSAIC_ROWS * 1.3;
+  for (int a = 0; a < recs.size(); a++) for (int b = a + 1; b < recs.size(); b++) {
+    JSONObject A = recs.get(a), B = recs.get(b);
+    if (slotFaces.get(A.getInt("slot")) != slotFaces.get(B.getInt("slot"))) continue;
+    if (dist(A.getFloat("cx"), A.getFloat("cy"), B.getFloat("cx"), B.getFloat("cy")) > near) continue;
+    pairs++;
+    if (A.getInt("fam") == B.getInt("fam")) sameG++;
+    if (A.getInt("phenomena_class", 0) == B.getInt("phenomena_class", 0)) sameM++;
+  }
+  if (pairs > 0) println("Prefill: neighbours with the same glaze " + round(100.0 * sameG / pairs) + " %, the same motif " + round(100.0 * sameM / pairs) + " % (" + pairs + " pairs)");
+  for (JSONObject r : recs) { r.remove("cx"); r.remove("cy"); r.remove("fam"); }
+  for (int i = 0; i < recs.size(); i++) recs.get(i).setLong("time", now - (recs.size() - 1 - i) * step);
+  StringList mix = new StringList();
+  for (int f = 0; f < famCount.length; f++) if (famCount[f] > 0) mix.append(round(GLAZE_HUES[f]) + "°:" + famCount[f]);
+  println("Prefill: " + recs.size() + " words, mural " + round(100 * cellsUsed() / slots.size()) + " % full (MURAL_PREFILL " + MURAL_PREFILL + ")  glazes " + join(mix.array(), " "));
+}
+
+// Which glaze of GLAZE_HUES a word's tile is made in (its colour, as the tile will show it)
+int glazeFamily(JSONObject rec) {
+  int c = parseHexColor(tileHex(rec.getString("color_hex", "#E07A1F"), rec.getInt("emotion", 4)));
+  float[] hsb = java.awt.Color.RGBtoHSB((c >> 16) & 255, (c >> 8) & 255, c & 255, null);
+  float g = ceramicHue(hsb[0] * 360);
+  for (int f = 0; f < GLAZE_HUES.length; f++) if (GLAZE_HUES[f] == g) return f;
+  return 0;
+}
+
+// How badly a word would sit in the cell it would take now (lower = better): the same glaze or a
+// close one right next to it, the same motif next to it, and a glaze the mural already has more of than its share
+float prefillScore(JSONObject w, ArrayList<JSONObject> placed, int[] famCount, float[] famShare) {
+  int[] su = slotUse.clone(), sf = slotFreeHalf.clone();
+  int cy = mosaicCycle;
+  JSONObject t = parseJSONObject(w.toString());
+  allocate(t);   // where it would go (then undone)
+  slotUse = su; slotFreeHalf = sf; mosaicCycle = cy;
+  int slot = t.getInt("slot"), face = slotFaces.get(slot);
+  PVector c = partPatch(slot, t.getInt("part", PART_WHOLE), t.getInt("slot2", -1)).center();
+  int fam = glazeFamily(w), ph = w.getInt("phenomena_class", 0);
+  float near = WALL_H / MOSAIC_ROWS * 1.7, score = 0;
+  for (JSONObject o : placed) {
+    int os = o.getInt("slot");
+    if (slotFaces.get(os) != face) continue;
+    float d = dist(c.x, c.y, o.getFloat("cx"), o.getFloat("cy"));
+    if (d > near) continue;
+    float k = 1 - d / near;                                        // the closer, the more it matters
+    float dh = ceramicHueDistance(GLAZE_HUES[fam], GLAZE_HUES[o.getInt("fam")]);
+    if (dh < 1) score += 3 * k;                                    // the same glaze side by side
+    else if (dh < 25) score += 1.2 * k;                            // two glazes almost alike
+    if (o.getInt("phenomena_class", 0) == ph) score += PREFILL_MOTIF * k;   // the same motif (and so often the same ground) side by side
+  }
+  score += PREFILL_BALANCE * (famCount[fam] - placed.size() * famShare[fam]);   // each glaze in its share, all over the mural
+  return score;
+}
+
+float cellsUsed() {
+  float n = 0;
+  for (int u : slotUse) n += (u == 1) ? 1 : (u == 2 ? 0.5 : 0);
+  return n;
+}
+
+boolean hasFreeCell() {
+  for (int u : slotUse) if (u != 1) return true;
+  return false;
 }
 
 void loadMosaicTiles() {
@@ -561,7 +671,7 @@ void loadMosaicTiles() {
 }
 
 void saveMosaic() {
-  if (!MOSAIC_SAVE || TEST_MODE) return;
+  if (!MOSAIC_SAVE || TEST_MODE || MURAL_PREFILL >= 0) return;   // a prefilled mural never overwrites the saved one
   // Only the last full round of the mural and the current one (older tiles are covered)
   JSONArray keep = new JSONArray();
   for (int i = 0; i < mosaicTiles.size(); i++) {

@@ -400,6 +400,58 @@ void runLanguageTest() {
   }).start();
 }
 
+// ── Prefill words (Ctrl+A): the list for MURAL_PREFILL analysed exactly as if typed ──
+// data/prefill_list.txt (one word per line, # = comment) → Viquidiccionari + the model (or the
+// cache) + measured raresa → data/prefill_words.json. Every answer also goes into the cache, so a
+// visitor typing one of these words gets the same tile. Words the model rejects are left out.
+volatile boolean prefillBusy = false;
+
+void analysePrefillWords() {
+  if (prefillBusy) { println("Prefill analysis already running"); return; }
+  String[] lines = loadStrings(PREFILL_LIST_FILE);
+  if (lines == null) { println("Prefill: " + PREFILL_LIST_FILE + " missing"); return; }
+  prefillBusy = true;
+  new Thread(() -> {
+    JSONArray out = new JSONArray();
+    StringList rejected = new StringList(), failed = new StringList();
+    int n = 0, fromModel = 0;
+    for (String l : lines) {
+      String w = normalizeWord(l.trim());
+      if (w.length() == 0 || w.startsWith("#")) continue;
+      n++;
+      if (checkLocalWord(w) != null) { rejected.append(w + " (local filter)"); continue; }
+      JSONObject res = cacheGet(w);
+      String mode = "cache";
+      if (res == null) {
+        try {
+          Thread.sleep(PREFILL_PAUSE_MS);   // gently: the Viquidiccionari refuses too many requests in a row (HTTP 429)
+          Object[] ans = askModelNow(w);
+          res = (JSONObject) ans[0];
+          mode = (String) ans[1];
+          if (res == null) throw new Exception("unreadable answer");
+          if (!res.hasKey("definicio") && pendingDef.length() > 0) res.setString("definicio", pendingDef);
+          cachePut(w, res);
+          fromModel++;
+        } catch (Exception e) { failed.append(w + " (" + msgOf(e) + ")"); println("Prefill: " + w + " failed: " + msgOf(e)); continue; }
+      }
+      boolean ok = !res.hasKey("es_catala") || res.getBoolean("es_catala");
+      if (!ok) { rejected.append(w + " (" + (res.hasKey("motiu") ? res.getString("motiu") : "model") + ")"); continue; }
+      JSONObject c = cleanParams(res, w);
+      c.remove("definicio");
+      out.append(c);
+      println("Prefill " + n + ": " + w + "  [" + mode + "]  emo " + c.getInt("emotion") + " cls " + c.getInt("word_class") + " cul " + c.getInt("culturalitat") + " rar " + c.getInt("raresa") + " " + c.getString("color_hex"));
+    }
+    JSONObject o = new JSONObject();
+    o.setString("about", "Words to start the mural partly full (MURAL_PREFILL in Config.pde), analysed by the model as if typed (Ctrl+A, from " + PREFILL_LIST_FILE + ")");
+    o.setJSONArray("words", out);
+    saveJSONObject(o, dataPath(PREFILL_FILE));
+    println("Prefill analysis: " + out.size() + " of " + n + " words saved to data/" + PREFILL_FILE + " (" + fromModel + " asked to the model, the rest from the cache)");
+    if (rejected.size() > 0) println("  rejected: " + join(rejected.array(), ", "));
+    if (failed.size() > 0)   println("  failed (run Ctrl+A again to retry): " + join(failed.array(), ", "));
+    prefillBusy = false;
+  }).start();
+}
+
 // ********************
 //   Analysis printout
 // ********************

@@ -47,14 +47,17 @@ float[][] CUT_STYLE = {
 // Light comes from the upper left (y grows downwards); only used for the soft glaze sheen
 final float LIGHT_X = -0.6, LIGHT_Y = -0.8;
 
-// The glazes of Park Güell: nearest one to a hue (violets → indigo, pinks → red); GLAZE_HUES in Colors.pde
-
+// The nearest glaze to a hue (GLAZE_HUES, Colors.pde), by distance round the colour wheel.
+// Palette "terracota": violets / indigo → cobalt, pinks / magenta → red (no violets, no pinks).
 float ceramicHue(float h) {
   h = (h % 360 + 360) % 360;
-  if (h >= 225 && h < 315) return 210;   // violet / indigo → cobalt (no violet blues)
-  if (h >= 315)            return 354;   // pink / magenta → red
+  if (TERRACOTA) {
+    if (h >= 225 && h < 315) return 210;
+    if (h >= 315)            return 354;
+  }
   float best = GLAZE_HUES[0];
-  for (float g : GLAZE_HUES) if (abs(g - h) < abs(best - h)) best = g;
+  for (float g : GLAZE_HUES)
+    if (ceramicHueDistance(g, h) < ceramicHueDistance(best, h)) best = g;
   return best;
 }
 
@@ -232,17 +235,25 @@ class TrencadisTile {
   float[] cBase, cLight, cDark, cAcc, cAcc2, cRib;
 
   void makePalette(color col, int band) {
-    // Strong ceramic glazes as on Park Güell: the word's colour is moved to the nearest glaze
-    // (cobalt, navy, turquoise, deep green, olive, ochre, orange, red); violets and pinks go to
-    // indigo and red. Never pastel.
     float h0 = ceramicHue(hue(col));
-    boolean warm = (h0 < 60 || h0 > 330);
-    float s0 = constrain(saturation(col) * 1.25, 80, 95);   // strong glazes: more contrast in the room
-    float b0 = constrain(brightness(col), 52, 86);
-    if (art(ART_HARMONY)) s0 *= HARMONY_SAT;                 // the mural as one composition: calmer glazes
-    if (h0 >= 200 && h0 <= 240) b0 = min(b0, 72);   // blues are deep
-    if (h0 >= 130 && h0 <= 160) { s0 = max(s0, 85); b0 = constrain(b0, 38, 52); }   // greens: bottle green
-    if (h0 >= 8 && h0 <= 16)    { s0 = max(s0, 80); b0 = constrain(b0, 50, 64); }   // terracotta
+    boolean warm;
+    float s0, b0;
+    if (TERRACOTA) {   // strong earthy glazes as on Park Güell, never pastel
+      warm = (h0 < 60 || h0 > 330);
+      s0 = constrain(saturation(col) * 1.25, 80, 95);
+      b0 = constrain(brightness(col), 52, 86);
+      if (art(ART_HARMONY)) s0 *= HARMONY_SAT;
+      if (h0 >= 200 && h0 <= 240) b0 = min(b0, 72);                          // blues are deep
+      if (h0 >= 130 && h0 <= 160) { s0 = max(s0, 85); b0 = constrain(b0, 38, 52); }   // greens: bottle green
+      if (h0 >= 8 && h0 <= 16)    { s0 = max(s0, 80); b0 = constrain(b0, 50, 64); }   // terracotta
+    } else {           // viva: the emotion's hue family, bright glazes without one uniform saturation
+      warm = (h0 < 65 || h0 > 315);
+      s0 = constrain(saturation(col) * 1.15, 68, 92);
+      b0 = constrain(brightness(col) * 1.10, 68, 94);
+      if (art(ART_HARMONY)) s0 *= HARMONY_SAT;
+      if (h0 >= 210 && h0 <= 250) b0 = constrain(b0, 70, 85);
+      if (h0 >= 110 && h0 <= 160) b0 = constrain(b0, 65, 84);
+    }
     // the variant: the same colour in another shade, so two neighbours never look the same
     if (style == 1) { b0 *= 0.76; s0 = min(100, s0 + 5); }
     else if (style == 2) { b0 = min(92, b0 * 1.14); s0 *= 0.9; }
@@ -257,16 +268,30 @@ class TrencadisTile {
         float[] gc = hsbOf(gh);
         if (gc[1] < 30 || abs(((gc[0] - h0) % 360 + 540) % 360 - 180) > 50) ok.add(gc);
       }
-      cLight = ok.size() > 0 ? ok.get((style + r.nextInt(2) * 0) % ok.size()) : hsbOf(TILE_CREAM_COLOR);   // by variant: neighbours get other grounds
+      int pick = style + r.nextInt(2) * 0;
+      if (!TERRACOTA && ok.size() > 0) pick += (int) Math.floorMod(seed, (long) ok.size());   // viva: also by seed
+      cLight = ok.size() > 0 ? ok.get(pick % ok.size()) : hsbOf(TILE_CREAM_COLOR);   // by variant: neighbours get other grounds
     }
     cDark  = new float[] { lerpAngle(h0, 225, 0.7), 55, 11 };             // near-black outlines
-    // Accent from the other family: cobalt against warm colours, orange / ochre against cool ones
+    // The accent ink (the same random draws in both palettes, so the rest of the tile doesn't change)
     float q = r.nextFloat();
-    float hA = warm ? (q < 0.65 ? 218 : 190) : (q < 0.6 ? 28 : 8);
+    float hA;
+    if (TERRACOTA) hA = warm ? (q < 0.65 ? 218 : 190) : (q < 0.6 ? 28 : 8);   // the other family: cobalt against warm, orange against cool
+    else if (warm) hA = q < 0.65 ? 222 : 178;                                 // viva: it answers the base family
+    else if (h0 < 170) hA = q < 0.65 ? 335 : 222;
+    else hA = q < 0.65 ? 335 : 30;
     hA = (hA + rnd(r, -6, 6) + 360) % 360;
-    cAcc  = new float[] { hA, rnd(r, 80, 92), (hA > 180 && hA < 240) ? rnd(r, 58, 70) : rnd(r, 82, 92) };
-    cAcc2 = (abs(h0 - 42) < 15) ? new float[] { 4, 82, 72 }                // ochre base → red
-                                : new float[] { 42, 85, 90 };              // otherwise ochre / saffron
+    if (TERRACOTA) {
+      cAcc  = new float[] { hA, rnd(r, 80, 92), (hA > 180 && hA < 240) ? rnd(r, 58, 70) : rnd(r, 82, 92) };
+      cAcc2 = (abs(h0 - 42) < 15) ? new float[] { 4, 82, 72 }     // ochre base → red
+                                  : new float[] { 42, 85, 90 };   // otherwise ochre / saffron
+    } else {
+      cAcc = new float[] { hA, rnd(r, 76, 90), (hA > 210 && hA < 250) ? rnd(r, 72, 84) : rnd(r, 84, 94) };
+      // the second ink from a nearby family: coherent areas across the broken pieces
+      float hB = warm ? (h0 > 315 || h0 < 20 ? 335 : 12)
+                      : (h0 < 170 ? 178 : (h0 < 205 ? 222 : 178));
+      cAcc2 = new float[] { hB, 72, 88 };
+    }
     if (band >= 0) {
       float[] t = RIBBON_TONES[band % RIBBON_TONES.length];
       cRib = new float[] { lerpAngle(t[0], h0, 0.2), t[1], t[2] };
@@ -788,7 +813,7 @@ class TrencadisTile {
   // Phenomenon 6: bold geometry in near black and a strong yellow — chevrons, a checker of
   // diamonds or of triangles — the most contrasted tiles of the benches
   void paintBoldGeo(PGraphics g) {
-    float[] K = hsbOf(GEO_DARK_COLOR), Y = (r.nextFloat() < 0.6) ? hsbOf(GEO_LIGHT_COLOR) : new float[] { cBase[0], cBase[1], max(cBase[2], 80) };
+    float[] K = hsbOf(GEO_DARK_COLOR), Y = (r.nextFloat() < GEO_LIGHT_SHARE) ? hsbOf(GEO_LIGHT_COLOR) : new float[] { cBase[0], cBase[1], max(cBase[2], 80) };
     g.background(K[0], K[1], K[2]);
     g.pushMatrix();
     g.translate(W / 2, rib + CH / 2);
