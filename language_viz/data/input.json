@@ -1,15 +1,16 @@
 {
   "agency": 4,
-  "raresa": 2,
+  "raresa": 1,
   "word_class": 1,
-  "abstraction": 5,
-  "color_hex": "#E07A1F",
+  "abstraction": 6,
+  "color_hex": "#C8402E",
   "culturalitat": 1,
-  "emotion": 7,
-  "emotion_label": "Alegria",
-  "time_duration": 1,
-  "zipf": 4.960000038146973,
-  "word": "hola",
-  "organic": 6,
-  "phenomena_class": 5
+  "emotion": 4,
+  "emotion_label": "Amor",
+  "definicio": "Sentiment d'estimació profunda cap a una altra persona, criatura, objecte o idea. / Gust envers alguna cosa. / Membre d'una relació de parella.",
+  "time_duration": 7,
+  "zipf": 5.099999904632568,
+  "word": "amor",
+  "organic": 7,
+  "phenomena_class": 2
 }

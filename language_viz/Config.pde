@@ -265,7 +265,8 @@ float   ECHO_GLAZE_KEEP  = 1.8;    // …their opacity once settled, × ECHO_DRI
 float   ECHO_GLAZE_SOFT  = 0.025;  // …softness of their edges (× letter size)
 float   ECHO_GLAZE_SINK  = 0.14;
 int     ECHO_GLAZE_PX    = 1024;   // …resolution of their layer (a power of two)   // …extra softness as they age and sink
-float   ECHO_WORD_TURN   = 0.35;   // …how much they turn as they drift (radians, either way)
+float   ECHO_WORD_SPIN   = 2.0;    // …they keep turning slowly, each at its own pace and either way (degrees per second, about; 0 = they only sway)
+float   ECHO_WORD_TURN   = 0.35;   // …and sway a little as they drift (radians, either way)
 float   ECHO_WORD_RIPPLE = 1.0;    // …how much they stir the glaze under them (slow rings, the reflection brightening)
 float   ECHO_VERSE_TILT  = 10;     // each verse appears somewhere else on the floor, with a slight tilt up to this (degrees)   // …how much room they keep from each other (× the smaller floor side)
 int     ECHO_MEMORY      = 1;      // …how many recent words keep a faint memory
@@ -384,6 +385,19 @@ String SYSTEM_PROMPT;
 
 // Only ONE word in CATALAN is accepted (CatalanLLM.pde)
 int    MAX_WORD_LENGTH   = 30;
+
+// ── Words by themselves (AutoWords.pde) ──────────────────────
+// When nobody has typed for AUTO_IDLE_SECONDS (and nothing is happening), the room types a word
+// of the poem by itself, letter by letter in the text box, then ENTER: its tile forms, breaks,
+// travels and settles like a visitor's (it goes to the mural and to the floor). A key takes over.
+boolean  AUTO_WORDS        = true;
+float    AUTO_IDLE_SECONDS = 45;    // seconds without interaction before a word appears (and between them while it lasts)
+int      AUTO_TYPE_MS      = 230;   // time per letter (a little irregular, like a hand)
+String[] AUTO_WORDS_LIST   = {      // in order, over and over (one already in the mural is skipped); ordered so the colours alternate
+  "fràgil", "ocells", "veritat", "plata", "paranys", "cançons", "amor", "orelles",
+  "terra", "aire", "oliveres", "vent", "veu", "tarda", "claror", "parles"
+};
+
 String MSG_ONE_WORD      = "Escriu només una paraula en català";
 String MSG_NOT_CATALAN   = "Aquesta paraula no és catalana";
 String MSG_TOO_LONG      = "Paraula massa llarga";

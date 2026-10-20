@@ -340,7 +340,10 @@ void driftEchoWords() {
       float dx = e.x - echoVX, dy = e.y - echoVY, d = sqrt(dx * dx + dy * dy), room = side * ECHO_CALM_H;
       if (d < room && d > 1) { wx += dx / d * 2 * (1 - d / room); wy += dy / d * 2 * (1 - d / room); }
     }
-    e.ang = ECHO_WORD_TURN * (noise(e.seed + 50, frameCount * 0.0006) - 0.5) * 2 * k;   // turning subtly as it drifts
+    // turning slowly as time goes by, each at its own pace and either way (so they don't all face
+    // the same wall), with a gentle sway; from its age, so the words restored at start are already turned
+    float spin = radians(ECHO_WORD_SPIN) * (0.5 + noise(e.seed + 90)) * ((int) (e.seed * 1000) % 2 == 0 ? 1 : -1);
+    e.ang = spin * (t * k) / 60.0 + ECHO_WORD_TURN * (noise(e.seed + 50, frameCount * 0.0006) - 0.5) * 2 * k;
     float m = 0.12;                                          // and away from the edges
     if (e.x < ROOM_W * m) wx += 1; if (e.x > ROOM_W * (1 - m)) wx -= 1;
     if (e.y < ROOM_D * m) wy += 1; if (e.y > ROOM_D * (1 - m)) wy -= 1;

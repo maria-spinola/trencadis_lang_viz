@@ -159,6 +159,22 @@
     "organic": 7,
     "phenomena_class": 6
   },
+  "orelles": {
+    "es_catala": true,
+    "agency": 2,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 1,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "(forma de orella) Conjunt d\u2019òrgans que permeten el sentit de l'oïda i de l\u2019equilibri. / pavelló de l'orella / oïda",
+    "time_duration": 7,
+    "organic": 7,
+    "phenomena_class": 1
+  },
   "onada": {
     "es_catala": true,
     "agency": 6,
@@ -1256,6 +1272,22 @@
     "organic": 6,
     "phenomena_class": 2
   },
+  "tarda": {
+    "es_catala": true,
+    "agency": 1,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 5,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "Part del dia entre el migdia i el vespre. Convencionalment, de les 14h o 15h, després de dinar, fins les 19h (a l'hivern) o 20h (a l'estiu).",
+    "time_duration": 4,
+    "organic": 6,
+    "phenomena_class": 2
+  },
   "ceràmica": {
     "es_catala": true,
     "agency": 2,
@@ -1382,6 +1414,22 @@
     "time_duration": 5,
     "organic": 5,
     "phenomena_class": 2
+  },
+  "aire": {
+    "es_catala": true,
+    "agency": 4,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 3,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "Gasos de l\u2019atmosfera. / Vent de poca intensitat. / Conjunt de les parts d'una pista de joc de pilota valenciana on la pilota pot impactar o rodolar sense constituir falta.",
+    "time_duration": 5,
+    "organic": 7,
+    "phenomena_class": 4
   },
   "mercat": {
     "es_catala": true,
@@ -1766,6 +1814,22 @@
     "organic": 3,
     "phenomena_class": 1
   },
+  "paranys": {
+    "es_catala": true,
+    "agency": 3,
+    "raresa": 4,
+    "word_class": 1,
+    "abstraction": 2,
+    "color_hex": "#A0522D",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 3,
+    "emotion_label": "Por",
+    "definicio": "(forma de parany) Cosa ideada per fer caure o aturar un animal quan avança pel seu entorn natural.",
+    "time_duration": 4,
+    "organic": 3,
+    "phenomena_class": 1
+  },
   "poble": {
     "es_catala": true,
     "agency": 4,
@@ -1957,6 +2021,22 @@
     "time_duration": 7,
     "organic": 2,
     "phenomena_class": 7
+  },
+  "claror": {
+    "es_catala": true,
+    "agency": 2,
+    "raresa": 3,
+    "word_class": 1,
+    "abstraction": 4,
+    "color_hex": "#F2B04B",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "Grau de llum que permet veure.",
+    "time_duration": 3,
+    "organic": 6,
+    "phenomena_class": 5
   },
   "vi": {
     "es_catala": true,
@@ -2721,6 +2801,22 @@
     "organic": 4,
     "phenomena_class": 4
   },
+  "cançons": {
+    "es_catala": true,
+    "agency": 5,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 3,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "(forma de cançó) Conjunt de notes harmonioses que es poden cantar.",
+    "time_duration": 4,
+    "organic": 6,
+    "phenomena_class": 5
+  },
   "farigola": {
     "es_catala": true,
     "agency": 2,
@@ -2976,6 +3072,22 @@
     "organic": 6,
     "phenomena_class": 2
   },
+  "noms": {
+    "es_catala": true,
+    "agency": 2,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 5,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "(forma de nom) Substantiu, categoria gramatical que designa éssers, accions, estats o conceptes. / Apel·latiu personal.",
+    "time_duration": 6,
+    "organic": 4,
+    "phenomena_class": 1
+  },
   "verd": {
     "es_catala": true,
     "agency": 3,
@@ -3199,6 +3311,21 @@
     "time_duration": 7,
     "organic": 1,
     "phenomena_class": 4
+  },
+  "diverses": {
+    "es_catala": true,
+    "agency": 2,
+    "raresa": 1,
+    "word_class": 3,
+    "abstraction": 4,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "time_duration": 4,
+    "organic": 4,
+    "phenomena_class": 2
   },
   "brutícia": {
     "es_catala": true,
@@ -3439,6 +3566,38 @@
     "time_duration": 7,
     "organic": 4,
     "phenomena_class": 1
+  },
+  "plata": {
+    "es_catala": true,
+    "agency": 1,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 1,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "Plat gran, sovint de forma ovalada, per a servir el menjar a taula. / Planxa de metall. / argent",
+    "time_duration": 5,
+    "organic": 1,
+    "phenomena_class": 1
+  },
+  "ocells": {
+    "es_catala": true,
+    "agency": 6,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 1,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "(forma de ocell) Animal vertebrat que té el cos cobert de plomes, dues ales a la part de dalt del cos, dues potes i bec.",
+    "time_duration": 4,
+    "organic": 7,
+    "phenomena_class": 3
   },
   "espasa": {
     "es_catala": true,
@@ -3760,6 +3919,22 @@
     "organic": 7,
     "phenomena_class": 6
   },
+  "parles": {
+    "es_catala": true,
+    "agency": 5,
+    "raresa": 2,
+    "word_class": 1,
+    "abstraction": 4,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "(forma de parla) Manera d'expressar-se oralment, pròpia d'un lloc o d'una persona. / Capacitat per fer servir l'aparell bucal per comunicar-se a través del llenguatge.",
+    "time_duration": 5,
+    "organic": 6,
+    "phenomena_class": 5
+  },
   "bosc": {
     "es_catala": true,
     "agency": 2,
@@ -3886,6 +4061,22 @@
     "time_duration": 5,
     "organic": 4,
     "phenomena_class": 5
+  },
+  "oliveres": {
+    "es_catala": true,
+    "agency": 2,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 1,
+    "color_hex": "#C8402E",
+    "motiu": "",
+    "culturalitat": 2,
+    "emotion": 4,
+    "emotion_label": "Amor",
+    "definicio": "(forma de olivera) Arbre de la família de les oleàcies, el fruit del qual és l'oliva.",
+    "time_duration": 7,
+    "organic": 7,
+    "phenomena_class": 1
   },
   "estimar": {
     "es_catala": true,
@@ -4703,6 +4894,22 @@
     "organic": 6,
     "phenomena_class": 2
   },
+  "camps": {
+    "es_catala": true,
+    "agency": 1,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 2,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 2,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "(forma de camp) Terreny de conreu en zona no poblada. / Extensió de terrenys fora de la ciutat, ocupats per conreus, boscos, etc. / Extensió o espai real o imaginari",
+    "time_duration": 6,
+    "organic": 6,
+    "phenomena_class": 7
+  },
   "quadrat": {
     "es_catala": true,
     "agency": 1,
@@ -5405,6 +5612,22 @@
     "time_duration": 5,
     "organic": 6,
     "phenomena_class": 3
+  },
+  "senzilla": {
+    "es_catala": true,
+    "agency": 2,
+    "raresa": 1,
+    "word_class": 3,
+    "abstraction": 5,
+    "color_hex": "#F2A64B",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "(forma de senzill) Mancat de complexitat, que es pot fer o entendre amb facilitat. / De caràcter mancat de dolenteria i fàcil de conviure. / Persona de classe baixa.",
+    "time_duration": 5,
+    "organic": 5,
+    "phenomena_class": 2
   },
   "tendre": {
     "es_catala": true,

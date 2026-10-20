@@ -64,6 +64,7 @@ void draw() {
   updateVerse();       // Moments.pde — now and then a verse forms on the floor (old floor)
   updateFloorPoem();
   updateFloorEcho();   // FloorEcho.pde — prototypes   // FloorPoem.pde — the poem written on the floor, verse by verse
+  updateAutoWords();   // AutoWords.pde — with nobody typing, the room writes a word of the poem
   updateMosaic();      // Mosaic.pde — word tiles assembling / travelling / landing
   updateMural();       // Mural.pde — the live light of the mural
   renderFaces();       // Room.pde — draws each wall + floor (camera, words, text input)
@@ -84,6 +85,7 @@ void keyPressed(KeyEvent event) {
   //Keys + Ctrl/Cmd to avoid changes while writing words
   if (!event.isControlDown() && !event.isMetaDown()) {
     if (roomKey()) return;   // RoomView.pde: arrows look around in the room view
+    noteInteraction();    // AutoWords.pde: a visitor is here, the room stops writing by itself
     handleLLMKey(event);  // ClaudeSketch.pde — the text input
     return;
   }
