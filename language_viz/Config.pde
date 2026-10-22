@@ -342,7 +342,7 @@ float   PREFILL_BALANCE   = 0.35;  // …how much it keeps every glaze in its sh
 float   PREFILL_MOTIF     = 2.0;   // …how much it avoids the same motif side by side
 
 // ── SOUND ───────────────────────────────────────────────────
-final String MIDI_PORT = "processing (A)";
+final String MIDI_PORT = "Default App Loopback (A)";
 //final String MIDI_PORT = "Bus 1";
 int CH_LEAD  = 1;
 

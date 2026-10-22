@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════
 
 // ── SOUND ───────────────────────────────────────────────────
-final String MIDI_PORT = "processing (A)";
+final String MIDI_PORT = "Default App Loopback (A)";
 //final String MIDI_PORT = "Bus 1";
 int CH_LEAD  = 1;
 
