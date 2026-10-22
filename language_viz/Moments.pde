@@ -43,7 +43,6 @@ void addLandMark(TrencadisTile t, String word) {
   for (int i = 0; i < t.gx.length; i++) o.add(new PVector(t.gx[i] + t.origin.x, t.gy[i] + t.origin.y));
   marks.add(newMark(t.face, o, word, LAND_GLOW_FRAMES, false));
   if (art(ART_MURAL_LIGHT)) muralImpact(t);   // Mural.pde: local light + wave along the mural
-  pulseFloorWord(word);                       // WordsSystem.pde: its word on the floor answers
   echoImpact(t, java.awt.Color.HSBtoRGB(t.cBase[0] / 360f, t.cBase[1] / 100f, t.cBase[2] / 100f), word);   // FloorEcho.pde
 }
 
@@ -131,21 +130,56 @@ void drawGlossRing(PGraphics pg, Face f, float cx, float cy, float R, float w, f
   pg.blendMode(BLEND);
 }
 
-// A word written on a wall, in the poem's typeface, with a soft dark halo so it reads over the mural
+// A word written on a wall, in the poem's typeface, over a soft blurred shadow so it reads over anything
+PFont poemFont;   // the typeface of the words on the walls and the floor (TEXT_FONT)
+PImage wordShadow;            // the shadow of the word on the wall: the word in black, blurred (made once per word)
+String wordShadowOf = null;
+
+// (JAVA2D, on the CPU: it may be made while a wall is being drawn — never another OpenGL drawing there)
+PImage wordShadowImage(String w) {
+  if (w.equals(wordShadowOf) && wordShadow != null) return wordShadow;
+  PGraphics g = createGraphics(10, 10, JAVA2D);
+  g.beginDraw(); g.textFont(poemFont); g.textSize(96); float tw = g.textWidth(w); g.endDraw();
+  int pad = 48;
+  g = createGraphics(ceil(tw) + 2 * pad, 96 * 2 + 2 * pad, JAVA2D);
+  g.beginDraw();
+  g.clear();
+  g.textFont(poemFont);
+  g.textSize(96);
+  g.textAlign(CENTER, CENTER);
+  g.fill(0);
+  g.text(w, g.width / 2.0, g.height / 2.0);
+  g.filter(BLUR, 10);
+  g.filter(BLUR, 10);
+  g.endDraw();
+  wordShadow = g.get();
+  wordShadowOf = w;
+  return wordShadow;
+}
+
+// Its letters are made at the size they are seen at (in output pixels, at the full size of the big word):
+// a font made smaller and enlarged comes out soft. One size only (OpenGL keeps a texture per size).
+PFont labelFont;
+float labelPx;
 void drawWordLabel(PGraphics pg, String w, float x, float y, float size, float alpha) {
   if (poemFont == null) poemFont = createFont(TEXT_FONT, 96);
+  if (labelFont == null) { labelPx = max(48, ceil(faces[W3].h * WORD_REVEAL_SIZE * RENDER_SCALE)); labelFont = createFont(TEXT_FONT, labelPx); }
+  float P = labelPx;
   pg.pushMatrix();
   pg.translate(x, y);
-  pg.textFont(poemFont);
+  pg.textFont(labelFont);
   pg.textAlign(CENTER, CENTER);
-  pg.textSize(96);                 // always the same size (OpenGL caches a font per size): scaled instead
-  pg.scale(size / 96);
+  pg.textSize(P);                  // always the same size: scaled (down, never up) to the size wanted
+  pg.scale(size / P);
   float ta = 100 * alpha;
-  for (int k = 0; k < 8; k++) {
-    float an = TWO_PI * k / 8, d = 96 * 0.06;
-    pg.fill(hexColor(WORD_HALO_COLOR), ta * 0.45);
-    pg.text(w, cos(an) * d, sin(an) * d);
-  }
+  PImage sh = wordShadowImage(w);  // (made at 96: drawn at this scale)
+  float k = P / 96;
+  pg.imageMode(CENTER);
+  pg.tint(hexColor(WORD_HALO_COLOR), ta * 0.9);
+  pg.image(sh, 0, P * 0.04, sh.width * k, sh.height * k);   // a little below: lifted off the wall
+  pg.image(sh, 0, P * 0.04, sh.width * k, sh.height * k);   // (twice: dense enough under the letters, still soft at its edge)
+  pg.noTint();
+  pg.imageMode(CORNER);
   pg.fill(hexColor(TYPED_WORD_COLOR), ta);
   pg.text(w, 0, 0);
   pg.popMatrix();
@@ -217,73 +251,4 @@ void startCelebration() {
   celebrateStart = frameCount;
   println("The mural is full: celebration, a new layer begins");
   if (midi != null && soundReady) playWord(7, 1, 4, 7, 4, 1, 7);
-}
-
-// ── A verse of the poem forming on the floor ──
-
-String[] verseLines;
-int verseStart = -99999;
-
-void updateVerse() {
-  if (!SHOW_POEM || VERSE_EVERY <= 0 || floorPoemOn() || echoOn()) return;   // (the echo floor has its own verses)
-  if (verseLines == null) {
-    try {
-      String[] l = loadJSONObject("poem_words.json").getString("text", "").split("\n");
-      verseLines = new String[] { l[0].trim(), l.length > 1 ? l[1].trim() : "" };
-    } catch (Exception e) { verseLines = new String[0]; }
-  }
-  if (verseLines.length == 0) return;
-  if (frameCount - verseStart > VERSE_EVERY && frameCount > VERSE_FIRST) verseStart = frameCount;
-}
-
-void drawVerse(PGraphics pg, Face f) {
-  if (verseLines == null || verseLines.length == 0 || floorPoemOn() || echoOn()) return;
-  int age = frameCount - verseStart;
-  int nWords = 0;
-  for (String l : verseLines) nWords += l.split(" ").length;
-  int stagger = 22, fadeIn = 50, life = nWords * stagger + fadeIn + VERSE_HOLD, fadeOut = 150;
-  if (age < 0 || age > life + fadeOut) return;
-  if (HAS_FLOOR ? f.id != FLOOR : f.id != W1) return;
-  if (poemFont == null) poemFont = createFont(TEXT_FONT, 96);
-  float out = 1 - smooth01((age - life) / (float) fadeOut);
-  pg.pushMatrix();
-  float em;
-  if (HAS_FLOOR) {   // in the middle of the floor, read facing the main wall
-    pg.translate(f.w / 2, f.h / 2);
-    pg.rotate(HALF_PI);
-    em = min(f.w, f.h) * 0.028;
-  } else {           // no floor: along the bottom of the mural, over a dark band
-    pg.translate(f.w / 2, f.h * 0.84);
-    em = f.h * 0.05;
-    pg.noStroke();
-    pg.fill(0, 0, 0, 55 * out * smooth01(age / 40.0));
-    pg.rectMode(CENTER);
-    pg.rect(0, 0, f.w * 0.8, em * 3.6, em);
-    pg.rectMode(CORNER);
-  }
-  pg.textFont(poemFont);
-  pg.textSize(96);
-  pg.scale(em / 96);
-  pg.textAlign(LEFT, CENTER);
-  int w = 0;
-  for (int li = 0; li < verseLines.length; li++) {
-    String[] ws = verseLines[li].split(" ");
-    float lineW = pg.textWidth(verseLines[li]), x = -lineW / 2, y = (li - (verseLines.length - 1) / 2.0) * 96 * 1.5;
-    for (String word : ws) {
-      float a = smooth01((age - w * stagger) / (float) fadeIn) * out;
-      float rise = (1 - smooth01((age - w * stagger) / (float) fadeIn)) * 30;
-      if (a > 0.01) {
-        for (int k = 0; k < 8; k++) {
-          float an = TWO_PI * k / 8, d = 96 * 0.05;
-          pg.fill(hexColor(WORD_HALO_COLOR), 100 * a * 0.45);
-          pg.text(word, x + cos(an) * d, y + rise + sin(an) * d);
-        }
-        pg.fill(hexColor(POEM_WORD_COLOR), 100 * a);
-        pg.text(word, x, y + rise);
-      }
-      x += pg.textWidth(word + " ");
-      w++;
-    }
-  }
-  pg.popMatrix();
 }

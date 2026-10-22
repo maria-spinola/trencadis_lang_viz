@@ -32,22 +32,52 @@ void updateFloorEcho() {
   // soft walls: small copies of the mural, refreshed now and then (A and C)
   if (FLOOR_ECHO != 2 && frameCount % 30 == 1) for (int w : new int[] { W1, W2, W4 }) {
     if (mosaicLayers[w] == null) continue;
-    if (wallSmall[w] == null) wallSmall[w] = createGraphics(ECHO_SOFT_PX, max(4, round(ECHO_SOFT_PX * faces[w].h / faces[w].w)), P2D);
+    if (wallSmall[w] == null) wallSmall[w] = layerGraphics(ECHO_SOFT_PX, max(4, round(ECHO_SOFT_PX * faces[w].h / faces[w].w)));
     wallSmall[w].beginDraw(); wallSmall[w].clear(); wallSmall[w].image(mosaicLayers[w], 0, 0, wallSmall[w].width, wallSmall[w].height);
     if (ECHO_PREBLUR > 0) wallSmall[w].filter(BLUR, ECHO_PREBLUR);   // optional extra softness
     wallSmall[w].endDraw();
   }
   if (ECHO_WORDS_DRIFT) driftEchoWords();
   if (ECHO_WORDS_IN_GLAZE && ECHO_REVEAL_STYLE) renderWordLayer();
+  if (SHOW_POEM) renderEchoFloor();
   for (int i = echoWaves.size() - 1; i >= 0; i--) if (frameCount - echoWaves.get(i)[2] > ECHO_WAVE_FRAMES) echoWaves.remove(i);
+  updateEchoPoemWords();
   // a verse now and then, only in calm
-  if (echoLines.length > 0 && frameCount >= echoNextVerse && interactK < 0.1 && frameCount - echoVerseStart > echoVerseLife()) {
+  if (ECHO_VERSES && echoLines.length > 0 && frameCount >= echoNextVerse && interactK < 0.1 && frameCount - echoVerseStart > echoVerseLife()) {
     echoVerseStart = frameCount;
     placeEchoVerse();
     echoCurrent = echoLines[echoLine % echoLines.length].trim();   // the poem's lines, in order
     echoLine++;
     echoNextVerse = frameCount + echoVerseLife() + ECHO_VERSE_GAP;   // one after another, a short silence between them
   }
+}
+
+// The poem always on the floor (instead of its verses): ECHO_POEM_WORDS of its words at once, written in
+// light like the visitors' but paler; each stays ECHO_POEM_LIFE s, fades, and the next one is written elsewhere
+int echoPoemNext = 0, echoPoemAt = 0;
+
+void updateEchoPoemWords() {
+  if (ECHO_POEM_WORDS <= 0 || AUTO_WORDS_LIST.length == 0) return;
+  int alive = 0;
+  for (EchoWord e : echoWords) {
+    if (!e.poem || e.gone >= 0) continue;
+    if (frameCount - e.t0 > wordWriteFrames(e) + ECHO_WORD_STAY + ECHO_POEM_LIFE * 60) e.gone = frameCount;   // its time is over: it fades
+    else alive++;
+  }
+  if (alive >= ECHO_POEM_WORDS || frameCount < echoPoemAt) return;
+  // somewhere clear of the other words
+  float bx = ROOM_W / 2, by = ROOM_D / 2, best = -1;
+  for (int k = 0; k < 24; k++) {
+    float x = ROOM_W * random(0.2, 0.8), y = ROOM_D * random(0.18, 0.82), d = Float.MAX_VALUE;
+    for (EchoWord o : echoWords) if (o.gone < 0) d = min(d, dist(x, y, o.x, o.y));
+    if (d > best) { best = d; bx = x; by = y; }
+  }
+  addEchoWord(AUTO_WORDS_LIST[echoPoemNext % AUTO_WORDS_LIST.length].trim(), bx, by);
+  EchoWord e = echoWords.get(echoWords.size() - 1);
+  e.poem = true;
+  e.t0 = frameCount;
+  echoPoemNext++;
+  echoPoemAt = frameCount + ECHO_POEM_EVERY;
 }
 
 int echoVerseLife() { return ECHO_VERSE_IN + ECHO_VERSE_STAY + ECHO_VERSE_OUT; }
@@ -75,7 +105,7 @@ void echoWaveAt(float x, float y, int col) {
 }
 
 // ── The visitors' words: a brief golden echo from a small opening, then a faint memory ──
-class EchoWord { String w; float x, y; int t0; float vx, vy, seed, ang; int gone = -1; }
+class EchoWord { String w; float x, y; int t0; float vx, vy, seed, ang; int gone = -1; boolean poem; }
 ArrayList<EchoWord> echoWords = new ArrayList<EchoWord>();
 
 void addEchoWord(String w, float x, float y) {
@@ -84,10 +114,10 @@ void addEchoWord(String w, float x, float y) {
   e.t0 = frameCount + ECHO_WORD_DELAY;
   e.seed = random(1000);
   echoWords.add(e);
-  if (ECHO_WORDS_DRIFT) {   // too many on the floor: the oldest fades away
+  if (ECHO_WORDS_DRIFT) {   // too many on the floor: the oldest fades away (the poem's own words are counted apart)
     int alive = 0;
-    for (EchoWord o : echoWords) if (o.gone < 0) alive++;
-    for (EchoWord o : echoWords) if (alive > ECHO_WORDS_KEEP && o.gone < 0) { o.gone = frameCount; alive--; }
+    for (EchoWord o : echoWords) if (o.gone < 0 && !o.poem) alive++;
+    for (EchoWord o : echoWords) if (alive > ECHO_WORDS_KEEP && o.gone < 0 && !o.poem) { o.gone = frameCount; alive--; }
   } else while (echoWords.size() > ECHO_MEMORY + 1) echoWords.remove(0);
 }
 
@@ -112,8 +142,14 @@ float echoDim() {
   return smooth01(t / (float) ECHO_VERSE_IN) * (1 - smooth01((t - ECHO_VERSE_IN - ECHO_VERSE_STAY) / (float) ECHO_VERSE_OUT));   // the window and the dimming
 }
 
-void drawFloorEcho(PGraphics pg, Face f) {
-  if (!echoOn() || f.id != FLOOR) return;
+// The floor's reflection is drawn into its own image, at the detail it really has (it is made from
+// small copies of the walls and a 1024 px layer of words): ECHO_RES of the floor's resolution, then
+// enlarged onto the floor. Drawn before the walls and the floor (never inside another drawing).
+PGraphics echoBuf;
+
+void renderEchoFloor() {
+  Face f = faces[FLOOR];
+  if (echoBuf == null) echoBuf = layerGraphics(max(64, round(f.pg.width * ECHO_RES)), max(64, round(f.pg.height * ECHO_RES)));
   if (echoShader == null) echoShader = loadShader("floor_echo.glsl");
   if (echoDummy == null) { echoDummy = createGraphics(4, 4, P2D); echoDummy.beginDraw(); echoDummy.background(0); echoDummy.endDraw(); }
   PShader sh = echoShader;
@@ -140,7 +176,8 @@ void drawFloorEcho(PGraphics pg, Face f) {
   float va = echoDim();
   O[0] = echoVX; O[1] = echoVY; O[2] = side * ECHO_OPEN_W; O[3] = side * ECHO_OPEN_H;   // the verse's window (its long side along y)
   OK[0] = va;
-  EchoWord last = echoWords.size() > 0 ? echoWords.get(echoWords.size() - 1) : null;
+  EchoWord last = null;   // the warm light gathering where a word is written: only for the visitors' words, not the poem's
+  for (EchoWord e : echoWords) if (!e.poem) last = e;
   if (last != null) {
     O[4] = last.x; O[5] = last.y;
     if (ECHO_REVEAL_STYLE) { O[6] = side * 0.09; O[7] = side * 0.16; OK[1] = echoWordLight(last); }
@@ -189,13 +226,27 @@ void drawFloorEcho(PGraphics pg, Face f) {
     sh.set("wordsTex", wordLayer);
   }
   sh.set("wordsOn", glaze ? 1.0 : 0.0);
-  float[] am = rgb01(TYPED_NEW_COLOR), wl = rgb01(WARM_LIGHT_COLOR);
+  float[] am = rgb01(TYPED_NEW_COLOR), wl = rgb01(WARM_LIGHT_COLOR), pc = rgb01(POEM_FLOOR_COLOR);
   sh.set("amber", am[0], am[1], am[2]);
+  sh.set("poemCol", pc[0], pc[1], pc[2]);
   sh.set("bright", wl[0], wl[1], wl[2]);
   sh.set("wordLight", ECHO_GLAZE_LIGHT);
-  pg.shader(sh);
-  pg.image(echoDummy, 0, 0, f.w, f.h);
-  pg.resetShader();
+  echoBuf.beginDraw();
+  echoBuf.background(0);
+  echoBuf.shader(sh);
+  echoBuf.image(echoDummy, 0, 0, echoBuf.width, echoBuf.height);
+  echoBuf.resetShader();
+  echoBuf.endDraw();
+}
+
+void drawFloorEcho(PGraphics pg, Face f) {
+  if (!echoOn() || f.id != FLOOR) return;
+  if (echoBuf != null) {
+    if (stoneFloor()) pg.blendMode(ADD);   // on the stone floor: the reflection is light on the stone (its black adds nothing)
+    pg.image(echoBuf, 0, 0, f.w, f.h);
+    pg.blendMode(BLEND);
+  }
+  drawBackdropFloor(pg, f);   // Backdrop.pde: the glow behind the walls goes on down into the floor
   drawEchoVerse(pg, f);
   if (!(ECHO_WORDS_IN_GLAZE && ECHO_REVEAL_STYLE)) drawEchoWords(pg, f);
 }
@@ -285,20 +336,21 @@ void drawEchoWords(PGraphics pg, Face f, boolean glaze) {
     // written in light, letter by letter: each letter appears bright and settles to amber
     float life = wordWriteFrames(e) + ECHO_WORD_STAY;
     float fade = smooth01((t - life) / (float) ECHO_WORD_OUT);
-    float mem = ECHO_WORDS_DRIFT ? ECHO_DRIFT_ALPHA * (e.gone >= 0 ? 1 - smooth01((frameCount - e.gone) / 300.0) : 1) * echoAgeFade(e, t - life - ECHO_WORD_OUT)
+    float mem = e.poem ? ECHO_POEM_ALPHA * (e.gone >= 0 ? 1 - smooth01((frameCount - e.gone) / 300.0) : 1)
+              : ECHO_WORDS_DRIFT ? ECHO_DRIFT_ALPHA * (e.gone >= 0 ? 1 - smooth01((frameCount - e.gone) / 300.0) : 1) * echoAgeFade(e, t - life - ECHO_WORD_OUT)
               : (rank < ECHO_MEMORY) ? ECHO_MEMORY_ALPHA * (1 - smooth01((t - life - ECHO_WORD_OUT) / (float) ECHO_MEMORY_FRAMES)) : 0;
     float keep = lerp(1, glaze ? min(1, mem * ECHO_GLAZE_KEEP) : mem, fade);
     if (keep < 0.003) { pg.popMatrix(); continue; }
     float x = -pg.textWidth(e.w) / 2;
-    int amber = hexColor(TYPED_NEW_COLOR), bright = hexColor(WARM_LIGHT_COLOR);
-    float sink = glaze ? 1 - echoAgeFade(e, t - life - ECHO_WORD_OUT) : 0;   // older: sinking under the glaze, softer
+    int amber = hexColor(e.poem ? POEM_FLOOR_COLOR : TYPED_NEW_COLOR), bright = hexColor(WARM_LIGHT_COLOR);
+    float sink = (glaze && !e.poem) ? 1 - echoAgeFade(e, t - life - ECHO_WORD_OUT) : 0;   // older: sinking under the glaze, softer
     for (int k = 0; k < e.w.length(); k++) {
       String ch = e.w.substring(k, k + 1);
       float tk = t - k * ECHO_WORD_WRITE;
       float a = smooth01(tk / (float) ECHO_WORD_IN) * keep;
-      float hot = 1 - smooth01((tk - ECHO_WORD_IN * 0.4) / (ECHO_WORD_IN * 1.6));   // the freshly written letter glows
+      float hot = (1 - smooth01((tk - ECHO_WORD_IN * 0.4) / (ECHO_WORD_IN * 1.6))) * (e.poem ? 0.35 : 1);   // the freshly written letter glows (the poem's, quietly)
       if (a > 0.003 && glaze) {
-        int code = 0xFF00FFFF | (round(255 * hot) << 16);
+        int code = (e.poem ? 0xFF0000FF : 0xFF00FFFF) | (round(255 * hot) << 16);   // R: freshly written; G = 0: a word of the poem (its own colour)
         float soft = 96 * (ECHO_GLAZE_SOFT + ECHO_GLAZE_SINK * sink);
         for (int q = 0; q < 6; q++) {   // a soft edge, wider as it sinks
           float an = TWO_PI * q / 6 + 0.5;

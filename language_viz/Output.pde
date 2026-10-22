@@ -35,10 +35,11 @@ void setupOutputs() {
   for (int g = 0; g < OUTPUT_GROUPS.length; g++) {
     int w = 0, h = 0;
     for (int id : OUTPUT_GROUPS[g]) {
-      w += faces[id].pg.width;
-      h  = max(h, faces[id].pg.height);
+      int[] sz = slotSize(g, id);
+      w += sz[0];
+      h  = max(h, sz[1]);
     }
-    outImgs.add(createGraphics(w, h, P2D));
+    outImgs.add(layerGraphics(w, h));   // (no antialiasing: only images are copied into it)
     println("Output " + (g + 1) + ": " + outputName(g) + "  —  " + w + " x " + h + " px");
 
     if (OUTPUT_WINDOWS) outWins.add(new OutputWindow(g, w, h));   // opened after the first frame (openOutputWindows)
@@ -101,8 +102,36 @@ void sendOut(int i, PImage img) {
 
 String outputName(int g) {
   String s = "";
-  for (int id : OUTPUT_GROUPS[g]) s += (s.length() > 0 ? " + " : "") + faces[id].name;
+  for (int id : OUTPUT_GROUPS[g]) {
+    int rep = floorReplaces(g);
+    s += (s.length() > 0 ? " + " : "") + faces[id].name + (id == FLOOR && rep >= 0 ? " (in place of " + faces[rep].name + ")" : "");
+  }
   return s;
+}
+
+// In the room without a floor (IASLab), FLOOR written among the walls of an output takes the place
+// (and the size) of the wall missing from it; anywhere else every surface keeps its own size
+int floorReplaces(int g) {
+  if (VENUE != 1) return -1;
+  boolean hasFloor = false, walls = false;
+  for (int id : OUTPUT_GROUPS[g]) { if (id == FLOOR) hasFloor = true; else walls = true; }
+  if (!hasFloor || !walls) return -1;
+  for (int w : new int[] { W3, W1, W2, W4 }) {
+    boolean there = false;
+    for (int id : OUTPUT_GROUPS[g]) there |= (id == w);
+    if (!there) return w;
+  }
+  return -1;
+}
+
+int[] slotSize(int g, int id) {
+  PGraphics p = faces[id].pg;
+  if (id != FLOOR || VENUE != 1) return new int[] { p.width, p.height };
+  int rep = floorReplaces(g);
+  if (rep >= 0) return new int[] { faces[rep].pg.width, faces[rep].pg.height };
+  int h = 0;   // with all four walls: as high as them, its own proportion
+  for (int o : OUTPUT_GROUPS[g]) if (o != FLOOR) h = max(h, faces[o].pg.height);
+  return (h > 0) ? new int[] { round(p.width * h / (float) p.height), h } : new int[] { p.width, p.height };
 }
 
 // Opening other windows from setup() hangs Java on macOS (OpenGL), so they open once the sketch runs
@@ -119,8 +148,17 @@ void composeOutputs() {
     o.background(0);
     int x = 0;
     for (int id : OUTPUT_GROUPS[g]) {
-      o.image(faces[id].pg, x, 0);
-      x += faces[id].pg.width;
+      int[] sz = slotSize(g, id);
+      PGraphics src = faces[id].pg;
+      if (sz[0] != src.width || sz[1] != src.height) {   // the floor in a wall's place (IASLab test), fitted
+        float k = OUTPUT_FLOOR_FIT ? min(sz[0] / (float) src.width, sz[1] / (float) src.height)
+                                   : max(sz[0] / (float) src.width, sz[1] / (float) src.height);
+        float fw = src.width * k, fh = src.height * k;
+        o.clip(x, 0, sz[0], sz[1]);
+        o.image(src, x + (sz[0] - fw) / 2, (sz[1] - fh) / 2, fw, fh);
+        o.noClip();
+      } else o.image(src, x, 0);
+      x += sz[0];
     }
     o.endDraw();
     if (OUTPUT_WINDOWS && frameCount > 2) outWins.get(g).push(o);

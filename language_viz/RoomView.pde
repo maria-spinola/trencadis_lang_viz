@@ -44,7 +44,10 @@ void drawRoomView() {
   PVector eye = roomEye(), d = roomLookDir();
   hint(ENABLE_DEPTH_TEST);
   perspective(radians(roomFov), width / (float) height, 5, 40000);
-  camera(eye.x, eye.y, eye.z, eye.x + d.x * 100, eye.y + d.y * 100, eye.z + d.z * 100, 0, 0, -1);   // z is up in the room
+  float zk = roomZK();   // the room at its real height: everything scaled in height (the eye too, at its real 1.6 m)
+  camera(eye.x, eye.y, eye.z * zk, eye.x + d.x * 100, eye.y + d.y * 100, eye.z * zk + d.z * 100, 0, 0, -1);   // z is up in the room
+  pushMatrix();
+  scale(1, 1, zk);
   noLights();
   noStroke();
   textureMode(NORMAL);
@@ -86,6 +89,7 @@ void drawRoomView() {
     quad3(0, 0, top, ROOM_W, 0, top, ROOM_W, ROOM_D, top, 0, ROOM_D, top);
   }
 
+  popMatrix();
   hint(DISABLE_DEPTH_TEST);
 
   // back to 2D for the text

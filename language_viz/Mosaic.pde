@@ -34,8 +34,8 @@ float waveA, waveL, waveP1, waveP2;
 void setupMosaic() {
   buildSlots();
   int[] walls = MOSAIC_SIDES ? new int[] { W1, W2, W4 } : new int[] { W1 };
-  for (int w : walls) mosaicLayers[w] = createGraphics(faces[w].pg.width, faces[w].pg.height, P2D);
-  if (CERAMIC_BAKE && MURAL_SHEEN > 0) for (int w : walls) glossLayers[w] = createGraphics(faces[w].pg.width, faces[w].pg.height, P2D);   // Moments.pde: the light sweeping the mural
+  for (int w : walls) mosaicLayers[w] = layerGraphics(faces[w].pg.width, faces[w].pg.height);
+  if (CERAMIC_BAKE && MURAL_SHEEN > 0) for (int w : walls) glossLayers[w] = layerGraphics(faces[w].pg.width, faces[w].pg.height);   // Moments.pde: the light sweeping the mural
   clearLayer();
   loadMosaic();
   println("Mosaic: " + slots.size() + " slots (" + faces[W1].name + (MOSAIC_SIDES ? " + " + faces[W2].name + " + " + faces[W4].name : "") + "), " + mosaicCount + " tiles placed");
@@ -64,6 +64,7 @@ void spawnWordTile() {
   rec.setInt("culturalitat",    pCultura);
   rec.setInt("raresa",          pRaresa);
   rec.setLong("time",           System.currentTimeMillis());   // when it was typed (the floor keeps a register)
+  makeRoom();      // nearly full: the oldest tiles fade away (the mural never ends)
   allocate(rec);   // where it goes, and how big (raresa)
   mosaicTiles.append(rec);
   rec.setInt("style", pickStyle(rec));   // a variant unlike its neighbours
@@ -76,7 +77,98 @@ void spawnWordTile() {
   addWordMarks(currentWord);                                       // Moments.pde: its older tiles light up
   String badge = specialBadge(pRaresa, pCultura);                  // a rare or very Catalan word is announced
   if (badge.length() > 0) showMessage(msgUntil > 0 && displayText.length() > 0 ? displayText + "   " + badge : badge);
-  dropTypedWord(currentWord);   // WordsSystem.pde: the word also goes down to the floor
+}
+
+// ── The mural never ends ──
+// When fewer than MURAL_FREE_MIN cells are free, the oldest tiles still in the mural fade away
+// one by one, leaving their place to the new ones (which, filling from the centre, often go there).
+class Fading { int face, t0; PImage snap; float x0, y0; float[] xs, ys; }
+ArrayList<Fading> fadings = new ArrayList<Fading>();
+
+float freeCells() {
+  float n = 0;
+  for (int u : slotUse) n += (u == 0) ? 1 : (u == 2 ? 0.5 : 0);
+  return n;
+}
+
+void makeRoom() {
+  if (MURAL_FREE_MIN <= 0 || slotUse == null) return;
+  while (freeCells() < MURAL_FREE_MIN) {
+    // among the oldest tiles, the one farthest from the cells already free: the gaps stay scattered
+    // over the mural instead of opening one big hole
+    int old = -1, seen = 0;
+    float best = -1;
+    for (int i = 0; i < mosaicTiles.size() && seen < 20; i++) {
+      JSONObject r = mosaicTiles.getJSONObject(i);
+      if (!r.hasKey("slot") || r.getInt("cycle", 0) != mosaicCycle) continue;
+      seen++;
+      int sl = r.getInt("slot");
+      PVector c = partPatch(sl, r.getInt("part", PART_WHOLE), r.getInt("slot2", -1)).center();
+      float d = WALL_H * 10;
+      for (int k = 0; k < slots.size(); k++) {
+        if (slotUse[k] == 1 || slotFaces.get(k) != slotFaces.get(sl)) continue;
+        d = min(d, PVector.dist(c, slots.get(k).center()));
+      }
+      if (d > best) { best = d; old = i; }
+    }
+    if (old < 0) return;
+    removeTile(mosaicTiles.getJSONObject(old));
+    mosaicTiles.remove(old);
+  }
+}
+
+// Takes a tile out of the mural: frees its cell(s), wipes it from the layers, and lets it fade away
+void removeTile(JSONObject rec) {
+  int slot = rec.getInt("slot"), part = rec.getInt("part", PART_WHOLE), slot2 = rec.getInt("slot2", -1);
+  if (part == PART_WHOLE) slotUse[slot] = 0;
+  else if (part == PART_MERGED) { slotUse[slot] = 0; if (slot2 >= 0) slotUse[slot2] = 0; }
+  else if (slotUse[slot] == 1) { slotUse[slot] = 2; slotFreeHalf[slot] = part; }   // the other half stays
+  else slotUse[slot] = 0;
+  int face = slotFaces.get(slot);
+  PGraphics L = mosaicLayers[face];
+  if (L == null) return;
+  ArrayList<PVector> o = partPatch(slot, part, slot2).outline();
+  float s = RENDER_SCALE, x0 = Float.MAX_VALUE, y0 = Float.MAX_VALUE, x1 = -Float.MAX_VALUE, y1 = -Float.MAX_VALUE;
+  for (PVector q : o) { x0 = min(x0, q.x); y0 = min(y0, q.y); x1 = max(x1, q.x); y1 = max(y1, q.y); }
+  int px = max(0, floor(x0 * s) - 2), py = max(0, floor(y0 * s) - 2);
+  int pw = min(L.width - px, ceil(x1 * s) + 2 - px), ph = min(L.height - py, ceil(y1 * s) + 2 - py);
+  Fading fd = new Fading();
+  fd.face = face; fd.t0 = frameCount; fd.x0 = px / s; fd.y0 = py / s;
+  fd.snap = L.get(px, py, pw, ph);   // what it looks like now, to fade it away
+  fd.xs = new float[o.size()]; fd.ys = new float[o.size()];
+  for (int i = 0; i < o.size(); i++) { fd.xs[i] = o.get(i).x; fd.ys[i] = o.get(i).y; }
+  if (!restoringMural) fadings.add(fd);
+  for (PGraphics G : new PGraphics[] { L, glossLayers[face] }) {   // wiped from the mural (its cell is clear again)
+    if (G == null) continue;
+    G.beginDraw();
+    G.blendMode(REPLACE);
+    G.noStroke();
+    G.fill(0, 0);
+    G.beginShape();
+    for (PVector q : o) G.vertex(q.x * s, q.y * s);
+    G.endShape(CLOSE);
+    G.blendMode(BLEND);
+    G.endDraw();
+  }
+}
+
+// The old tiles fading away where they were (drawn over the mural, Room.pde)
+void drawFadings(PGraphics pg, Face f) {
+  for (int i = fadings.size() - 1; i >= 0; i--) {
+    Fading fd = fadings.get(i);
+    float t = (frameCount - fd.t0) / (float) MURAL_FADE_FRAMES;
+    if (t >= 1) { fadings.remove(i); continue; }
+    if (fd.face != f.id) continue;
+    float w = fd.snap.width / RENDER_SCALE, h = fd.snap.height / RENDER_SCALE;
+    pg.noStroke();
+    pg.textureMode(NORMAL);
+    pg.beginShape();
+    pg.texture(fd.snap);
+    pg.tint(0, 0, 100, 100 * (1 - smooth01(t)));
+    for (int k = 0; k < fd.xs.length; k++) pg.vertex(fd.xs[k], fd.ys[k], (fd.xs[k] - fd.x0) / w, (fd.ys[k] - fd.y0) / h);
+    pg.endShape(CLOSE);
+    pg.noTint();
+  }
 }
 
 void clearMosaic() {
@@ -514,7 +606,7 @@ void drawHoldPanel(PGraphics pg, Face f) {
   for (int i = 0; i < 6; i++) {   // soft edges: a few growing, fainter rectangles
     float k = 1 + i * 0.05;
     pg.fill(hexColor(HOLD_PANEL_COLOR), panelAlpha * (i == 0 ? 1 : 0.18));
-    pg.rect(f.w / 2, f.h * HOLD_Y, w * k, h * k, f.h * 0.04 * k);
+    pg.rect(f.w / 2, on != null ? on.hv : holdCentreY(), w * k, h * k, f.h * 0.04 * k);
   }
   pg.popStyle();
 }
@@ -802,11 +894,15 @@ class TileFlight {
   boolean landed = false;
   String word = "";
   boolean special = false;          // a rare or very Catalan word: slower, with a golden sheen (Moments.pde)
-  int xStart = -1;                  // the word → tile crossfade starts at this frame (Reveal.pde)
+  int xStart = -1;                  // the tile starts fading in (above the word) at this frame (Reveal.pde)
+  int departFrame = -1;             // when it broke and left the main wall
   float tileA = 1;                  // the tile's opacity while it comes in
+
+  JSONObject wordRec;               // its word's analysis (the moments of the walls answer it: WallMoments.pde)
 
   TileFlight(TrencadisTile tile, JSONObject rec) {
     this.tile = tile;
+    wordRec = rec;
     word = rec.getString("word", "");
     special = rec.getInt("raresa", 0) >= SPECIAL_MIN || rec.getInt("culturalitat", 0) >= SPECIAL_MIN;
     Random r = new Random(tile.seed * 31 + 7);
@@ -821,13 +917,16 @@ class TileFlight {
 
     Face m = faces[W3];
     hu = m.w / 2;
-    hv = m.h * HOLD_Y;   // above the text input
     holdScale = min(m.h * HOLD_HEIGHT / tile.refH, m.w * 0.45 / tile.tileW);   // same scale for all: rare words look bigger
-    // ...but never over the text box and its messages (nor over the border at the top): tall cells shrink a little
-    float msgTop = m.h * UI_Y - 64 * m.h / 900.0 * UI_SCALE - m.h * 0.02;     // top of the message line above the box
-    float halfH = tile.tileH * 0.58;                                           // half its height, with room for the sway
-    float wallTop = (CENEFA ? WALL_H * CENEFA_H * (1 + CENEFA_WAVE) : 0) + m.h * 0.03;   // under the border (Cenefa.pde), at its lowest
-    holdScale = min(holdScale, min((msgTop - hv) / halfH, (hv - wallTop) / halfH));
+    // ...but it fits between the border and the word (or the text box): tall cells shrink a little (Reveal.pde)
+    float top = holdTopY(), bottom = holdBottomY();
+    float up = 0, down = 0;                                                    // how far it reaches above and below its centre
+    for (int i = 0; i < tile.gy.length; i++) { up = max(up, -tile.gy[i]); down = max(down, tile.gy[i]); }
+    up *= 1.06; down *= 1.06;                                                  // (room for the sway)
+    holdScale = min(holdScale, (bottom - top) / (up + down));
+    hv = art(ART_WORD_REVEAL) ? bottom - down * holdScale                      // just over the word
+                              : constrain(m.h * HOLD_Y, top + up * holdScale, bottom - down * holdScale);
+    tile.hideRibbon = true;   // its ribbon only shows once it is in the mural
     makeFragments(r, fragmentsFor(emotion), organic);
     if (art(ART_WORD_REVEAL)) { xStart = revealCrossfadeStart(word); tileA = 0; if (revealWord.equalsIgnoreCase(word)) revealFlight = this; }
   }
@@ -852,6 +951,7 @@ class TileFlight {
     for (int i = 0; i < k; i++) frags.add(new Fragment());
     for (int i = 0; i < tile.pieces.size(); i++) {
       Piece p = tile.pieces.get(i);
+      if (p.kind == KIND_RIBBON) continue;   // the ribbon doesn't fly: it appears once the tile is in the mural
       int g;
       if (k == 1)      g = 0;
       else if (k == 2) g = (p.cx * cos(cutAng) + p.cy * sin(cutAng) < 0) ? 0 : 1;
@@ -935,6 +1035,13 @@ class TileFlight {
         for (int i : f.idx) { f.ox += tile.pieces.get(i).cx / f.idx.size(); f.oy += tile.pieces.get(i).cy / f.idx.size(); }
         for (int i : f.idx) { Piece p = tile.pieces.get(i); for (int j = 0; j < p.x.length; j++) f.rad = max(f.rad, dist(p.x[j], p.y[j], f.ox, f.oy)); }
         f.route = g.route;
+        // Every shard its own way (FLIGHT_ALL_ROUTES): mostly by the side it is on, often the other one,
+        // low across the floor where there is one. (2D travel to a side wall keeps to that wall.)
+        if (FLIGHT_ALL_ROUTES && (TRAVEL_3D || tile.face == W1)) {
+          float q = r.nextFloat();
+          if (HAS_FLOOR && q < 0.28) f.route = ROUTE_FLOOR;
+          else f.route = ((f.ox < 0) != (r.nextFloat() < 0.35)) ? ROUTE_W2 : ROUTE_W4;
+        }
         // Scatter: away from the group's centre, opening into a loose cloud
         float a = atan2(f.oy - g.oy, f.ox - g.ox) + rnd(r, -0.9, 0.9);
         float d = tile.radius * rnd(r, 0.3, 1.3) * SCATTER;
@@ -954,7 +1061,7 @@ class TileFlight {
         if (g.route == ROUTE_W2)      order = (f.ox - gx0) / max(1, gx1 - gx0);
         else if (g.route == ROUTE_W4) order = (gx1 - f.ox) / max(1, gx1 - gx0);
         else                          order = (gy1 - f.oy) / max(1, tile.tileH);
-        f.delay    = (0.14 * order + rnd(r, 0, 0.06)) * travelT;
+        f.delay    = (0.14 * order + rnd(r, 0, 0.06) + (FLIGHT_ALL_ROUTES ? rnd(r, 0, FLIGHT_STAGGER) : 0)) * travelT;
         f.dur      = (travelT - f.delay) * rnd(r, 0.8, 1.0) * (f.route == ROUTE_FLOOR ? 0.85 : 1);
         f.meanderA = map(organic, 1, 7, 60, 260) * rnd(r, 0.5, 1.2) * (r.nextBoolean() ? 1 : -1);
         f.meanderF = rnd(r, 0.5, 1.5);
@@ -983,12 +1090,13 @@ class TileFlight {
       f.a1.z = eyeZ * rnd(r, 0.08, 0.3);                            // low, skimming the floor
       f.a2.z = eyeZ * rnd(r, 0.08, 0.3);
     } else {
-      float side = (f.route == ROUTE_W2 ? -1 : 1) * ROOM_D * rnd(r, 0.15, 0.35);
+      float side = (f.route == ROUTE_W2 ? -1 : 1) * ROOM_D * (FLIGHT_ALL_ROUTES ? rnd(r, 0.04, 0.42) : rnd(r, 0.15, 0.35));   // each its own way through the room
       f.a1.add(0, side, 0);
       f.a2.add(0, side * rnd(r, 0.6, 1.0), 0);
       // Well below the eyes (close to eye level they would stretch hugely over the floor);
       // with no floor, around eye level instead, so they are seen on the walls
       float lo = HAS_FLOOR ? 0.25 : 0.8, hi = HAS_FLOOR ? 0.6 : 1.15;
+      if (FLIGHT_ALL_ROUTES) { lo *= 0.75; hi *= 1.1; }   // at many heights
       f.a1.z = eyeZ * rnd(r, lo, hi);
       f.a2.z = eyeZ * rnd(r, lo, hi);
     }
@@ -1003,6 +1111,7 @@ class TileFlight {
 
   void depart() {
     state = FLIGHT_TRAVEL;
+    departFrame = frameCount;
     age   = 0;
     rotX0 = atan2(sin(rotX), cos(rotX));
     rotY0 = atan2(sin(rotY), cos(rotY));
@@ -1015,10 +1124,11 @@ class TileFlight {
       if (age >= GROUT_SET_FRAMES) {
         stampTile(tile);
         landed = true;
+        wallMomentWord(wordRec, tile.face, tile.origin.x, tile.origin.y);   // WallMoments.pde: the next moment answers this word
       }
       return;
     }
-    if (state == FLIGHT_HOLD && xStart >= 0) {   // the word turns into the tile: crossfade, same place
+    if (state == FLIGHT_HOLD && xStart >= 0) {   // the tile fades in above the word
       float t = frameCount - xStart;
       tileA = smooth01(t / (float) WORD_XFADE_FRAMES);
       assembly = 1;
@@ -1056,6 +1166,7 @@ class TileFlight {
     if (arrived) {
       state = FLIGHT_SET;
       age   = 0;
+      tile.hideRibbon = false;   // in the mural: now its ribbon shows
       addLandMark(tile, word);   // Moments.pde: it lights up in the mural, its word beside it
     }
   }
@@ -1133,6 +1244,14 @@ class TileFlight {
   }
 
   // Still on the main wall in 3D (assembling, swaying or straightening up)
+  // Still being shown on the main wall, or some shard not yet away from it (the text box waits: ClaudeSketch.pde)
+  boolean shardsOnMainWall() {
+    if (state == FLIGHT_HOLD || onMainWall()) return true;
+    if (state != FLIGHT_TRAVEL) return false;
+    for (Fragment f : frags) if (f.p < 0.2) return true;
+    return false;
+  }
+
   boolean onMainWall() {
     return state == FLIGHT_HOLD || (state == FLIGHT_TRAVEL && (assembly < 1 || age < TILT_FRAMES));
   }

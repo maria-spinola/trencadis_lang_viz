@@ -34,6 +34,7 @@ uniform float wordRipple;
 uniform sampler2D wordsTex;   // the visitors' words (A coverage, R freshly written)
 uniform float wordsOn;
 uniform vec3  amber, bright;
+uniform vec3  poemCol;       // the poem's own words: paler (G = 0 in wordsTex)
 uniform float wordLight;
 uniform float nWaves;
 uniform vec4  waves[4];       // x, y, radius, intensity
@@ -169,7 +170,8 @@ void main() {
     vec4 wt = texture2D(wordsTex, vec2(tw.x, flipY > 0.5 ? 1.0 - tw.y : tw.y));
     float wc = wt.a * (0.82 + 0.18 * sin(p.x * 0.004 + p.y * 0.0031 + time * 0.35));
     float lum = dot(c * k, vec3(0.3, 0.59, 0.11));
-    vec3 wcol = amber * (0.42 + 2.0 * lum) * wordLight + c * k * 0.45;
+    float poemK = clamp(1.0 - wt.g / max(wt.b, 0.004), 0.0, 1.0);
+    vec3 wcol = mix(amber, poemCol, poemK) * (0.42 + 2.0 * lum) * wordLight + c * k * 0.45;
     wcol = mix(wcol, bright * 1.25, wt.r);
     col = col * (1.0 - 0.3 * wc) + wcol * wc;
   }

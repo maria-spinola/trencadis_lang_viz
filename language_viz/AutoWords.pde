@@ -16,10 +16,11 @@ int autoTyped = 0, autoNextKey = 0, autoWordNext = 0;
 void noteInteraction() {
   lastInteraction = millis();
   if (autoWord != null) { autoWord = null; inputText = ""; }
+  if (fxActive() && fxAbortAt < 0) fxAbortAt = frameCount;   // WallMoments.pde: everything goes home
 }
 
 boolean roomBusy() {
-  if (isLoading || revealAlpha() > 0.01) return true;
+  if (isLoading || revealAlpha() > 0.01 || fxActive()) return true;
   for (TileFlight fl : flights) if (!fl.landed) return true;
   return false;
 }

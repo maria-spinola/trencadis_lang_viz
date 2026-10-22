@@ -1591,6 +1591,21 @@
     "organic": 6,
     "phenomena_class": 4
   },
+  "saxofo": {
+    "es_catala": false,
+    "agency": 1,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 1,
+    "color_hex": "#000000",
+    "motiu": "falta d'ortografia (saxofó)",
+    "culturalitat": 1,
+    "emotion": 1,
+    "emotion_label": "",
+    "time_duration": 1,
+    "organic": 1,
+    "phenomena_class": 1
+  },
   "fracàs": {
     "es_catala": true,
     "agency": 3,
@@ -1798,6 +1813,22 @@
     "organic": 6,
     "phenomena_class": 2
   },
+  "masia": {
+    "es_catala": true,
+    "agency": 1,
+    "raresa": 2,
+    "word_class": 1,
+    "abstraction": 1,
+    "color_hex": "#C8402E",
+    "motiu": "",
+    "culturalitat": 5,
+    "emotion": 4,
+    "emotion_label": "Amor",
+    "definicio": "mas / casa de pagès, mas",
+    "time_duration": 7,
+    "organic": 3,
+    "phenomena_class": 7
+  },
   "senyera": {
     "es_catala": true,
     "agency": 2,
@@ -1829,6 +1860,38 @@
     "time_duration": 4,
     "organic": 3,
     "phenomena_class": 1
+  },
+  "diumenge": {
+    "es_catala": true,
+    "agency": 2,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 4,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "Setè dia de la setmana, dia festiu en els països de tradició cristiana.",
+    "time_duration": 4,
+    "organic": 4,
+    "phenomena_class": 2
+  },
+  "llimonada": {
+    "es_catala": true,
+    "agency": 2,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 1,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 2,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "Beguda refrescant d'aigua, sucre i suc de llimona. / gasosa",
+    "time_duration": 2,
+    "organic": 6,
+    "phenomena_class": 4
   },
   "poble": {
     "es_catala": true,
@@ -2037,6 +2100,21 @@
     "time_duration": 3,
     "organic": 6,
     "phenomena_class": 5
+  },
+  "queso": {
+    "es_catala": false,
+    "agency": 1,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 1,
+    "color_hex": "#000000",
+    "motiu": "paraula castellana",
+    "culturalitat": 1,
+    "emotion": 1,
+    "emotion_label": "",
+    "time_duration": 1,
+    "organic": 1,
+    "phenomena_class": 1
   },
   "vi": {
     "es_catala": true,
@@ -2274,6 +2352,21 @@
     "time_duration": 3,
     "organic": 5,
     "phenomena_class": 2
+  },
+  "tomaquet": {
+    "es_catala": false,
+    "agency": 1,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 1,
+    "color_hex": "#000000",
+    "motiu": "falta d'ortografia (forma castellana)",
+    "culturalitat": 1,
+    "emotion": 1,
+    "emotion_label": "",
+    "time_duration": 1,
+    "organic": 1,
+    "phenomena_class": 1
   },
   "antic": {
     "es_catala": true,
@@ -3072,6 +3165,22 @@
     "organic": 6,
     "phenomena_class": 2
   },
+  "piano": {
+    "es_catala": true,
+    "agency": 3,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 1,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "Instrument cordòfon en què les cordes, paral·leles a la taula harmònica, són colpejades per martellets maniobrats per mitjà d'un teclat.",
+    "time_duration": 5,
+    "organic": 2,
+    "phenomena_class": 1
+  },
   "noms": {
     "es_catala": true,
     "agency": 2,
@@ -3166,6 +3275,21 @@
     "definicio": "Òrgan reproductiu d'algunes plantes, caracteritzat generalment per tenir colors vius.",
     "time_duration": 3,
     "organic": 7,
+    "phenomena_class": 1
+  },
+  "rio": {
+    "es_catala": false,
+    "agency": 1,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 1,
+    "color_hex": "#000000",
+    "motiu": "paraula castellana o italiana",
+    "culturalitat": 1,
+    "emotion": 1,
+    "emotion_label": "",
+    "time_duration": 1,
+    "organic": 1,
     "phenomena_class": 1
   },
   "mosca": {
@@ -3743,6 +3867,21 @@
     "organic": 6,
     "phenomena_class": 6
   },
+  "peixe": {
+    "es_catala": false,
+    "agency": 1,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 1,
+    "color_hex": "#000000",
+    "motiu": "paraula portuguesa",
+    "culturalitat": 1,
+    "emotion": 1,
+    "emotion_label": "",
+    "time_duration": 1,
+    "organic": 1,
+    "phenomena_class": 1
+  },
   "tambor": {
     "es_catala": true,
     "agency": 4,
@@ -3854,6 +3993,22 @@
     "time_duration": 1,
     "organic": 2,
     "phenomena_class": 7
+  },
+  "netejar": {
+    "es_catala": true,
+    "agency": 6,
+    "raresa": 1,
+    "word_class": 2,
+    "abstraction": 2,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "Treure la brutícia. / Treure els elements inconvenients.",
+    "time_duration": 3,
+    "organic": 4,
+    "phenomena_class": 6
   },
   "baralla": {
     "es_catala": true,
@@ -4398,6 +4553,22 @@
     "organic": 7,
     "phenomena_class": 1
   },
+  "tomat": {
+    "es_catala": true,
+    "agency": 6,
+    "raresa": 5,
+    "word_class": 2,
+    "abstraction": 2,
+    "color_hex": "#E07A1F",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 7,
+    "emotion_label": "Alegria",
+    "definicio": "(forma de tomar) Para la mà, estendre una tela, per agafar al vol una cosa que cau. / Fer caure a cops o empentes.",
+    "time_duration": 1,
+    "organic": 6,
+    "phenomena_class": 6
+  },
   "ma": {
     "es_catala": true,
     "agency": 2,
@@ -4813,6 +4984,22 @@
     "time_duration": 2,
     "organic": 7,
     "phenomena_class": 4
+  },
+  "tomaca": {
+    "es_catala": false,
+    "agency": 0,
+    "raresa": 0,
+    "word_class": 0,
+    "abstraction": 0,
+    "color_hex": "#000000",
+    "motiu": "falta d'accentuació i forma incorrecta (tomàquet)",
+    "culturalitat": 0,
+    "emotion": 0,
+    "emotion_label": "",
+    "definicio": "tomàquet",
+    "time_duration": 0,
+    "organic": 0,
+    "phenomena_class": 0
   },
   "gebre": {
     "es_catala": true,
@@ -5261,6 +5448,22 @@
     "organic": 4,
     "phenomena_class": 2
   },
+  "para": {
+    "es_catala": true,
+    "agency": 6,
+    "raresa": 1,
+    "word_class": 2,
+    "abstraction": 4,
+    "color_hex": "#1F4E9C",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 6,
+    "emotion_label": "Tristesa",
+    "definicio": "(forma de parar) Aturar una cosa perquè no avanci. / Preparar una cosa per al seu funcionament o servei. / Ser el perseguidor en determinats jocs.",
+    "time_duration": 1,
+    "organic": 4,
+    "phenomena_class": 6
+  },
   "mel": {
     "es_catala": true,
     "agency": 2,
@@ -5485,6 +5688,21 @@
     "organic": 6,
     "phenomena_class": 2
   },
+  "lima": {
+    "es_catala": false,
+    "agency": 1,
+    "raresa": 1,
+    "word_class": 1,
+    "abstraction": 1,
+    "color_hex": "#000000",
+    "motiu": "paraula no catalana",
+    "culturalitat": 1,
+    "emotion": 1,
+    "emotion_label": "",
+    "time_duration": 1,
+    "organic": 1,
+    "phenomena_class": 1
+  },
   "cirera": {
     "es_catala": true,
     "agency": 1,
@@ -5548,6 +5766,22 @@
     "time_duration": 5,
     "organic": 1,
     "phenomena_class": 1
+  },
+  "fins": {
+    "es_catala": true,
+    "agency": 1,
+    "raresa": 1,
+    "word_class": 5,
+    "abstraction": 6,
+    "color_hex": "#1F4E9C",
+    "motiu": "",
+    "culturalitat": 1,
+    "emotion": 6,
+    "emotion_label": "Tristesa",
+    "definicio": "fins i tot",
+    "time_duration": 1,
+    "organic": 4,
+    "phenomena_class": 6
   },
   "esbarzer": {
     "es_catala": true,

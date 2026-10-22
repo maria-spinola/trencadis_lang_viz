@@ -45,7 +45,6 @@ void setup() {
   setupMosaic();  // Mosaic.pde — trencadís mural on WALL 1 (restores data/mosaic.json)
   setupCenefa();  // Cenefa.pde — the trencadís border round the top of the room
   setupMotes();   // Motes.pde — little shards floating in the empty parts of the walls
-  setupWords();   // WordsSystem.pde
   setupLLM();     // ClaudeSketch.pde — carga system prompt
   loadJSONFromPath(jsonPath, false);   // last parameters, without adding a tile again
 }
@@ -60,13 +59,13 @@ void draw() {
   checkFileChanged();  // JSONLoader.pde
   updateLLM();         // ClaudeSketch.pde — procesa respuesta API
   updateCameraDrag();  // Room.pde — Ctrl+M mode
-  updateWords();       // WordsSystem.pde — poem tiles
-  updateVerse();       // Moments.pde — now and then a verse forms on the floor (old floor)
-  updateFloorPoem();
-  updateFloorEcho();   // FloorEcho.pde — prototypes   // FloorPoem.pde — the poem written on the floor, verse by verse
+  updateFloorEcho();   // FloorEcho.pde — the floor: the mural's reflection, the poem's words, the visitors' words
   updateAutoWords();   // AutoWords.pde — with nobody typing, the room writes a word of the poem
   updateMosaic();      // Mosaic.pde — word tiles assembling / travelling / landing
   updateMural();       // Mural.pde — the live light of the mural
+  updateWallMoments(); // WallMoments.pde — now and then the walls stop being solid
+  updateBackdrop();    // Backdrop.pde — the smoke behind the mural
+  updateThickSoft();   // Mural.pde — the soft copies the tiles' sides take their colour from
   renderFaces();       // Room.pde — draws each wall + floor (camera, words, text input)
   if (OUTPUT_GROUPS.length == 0 || viewMode == 0) composeMatrix();   // Room.pde — media matrix → matrixOut (only if used)
   composeOutputs();    // Output.pde — the output images, sent out
@@ -102,11 +101,12 @@ void keyPressed(KeyEvent event) {
   if (keyCode == 'N') clearMosaic();   // empty the mural on WALL 1
   if (keyCode == 'E') toggleTestMode(); // real analysis shown on WALL 3, nothing saved
   if (keyCode == 'K') runLanguageTest(); // CatalanLLM.pde: the test word list through both filters and the model
+  if (keyCode == 'W') playNextWallMoment();   // WallMoments.pde: the next moment of the walls, now
   if (keyCode == 'A') analysePrefillWords();   // CatalanLLM.pde: data/prefill_list.txt through the model → data/prefill_words.json (MURAL_PREFILL)
   if (keyCode == 'O') cycleLLMMode();    // LocalLLM.pde: model mode auto → cloud → local
   if (keyCode == 'I') toggleRoomView();    // RoomView.pde: as if standing inside the room
   if (keyCode == 'J') projSim = !projSim;  // RoomView.pde: simulate the projectors (black level, light between walls)
-  if (keyCode == 'F') { FLOOR_ECHO = (FLOOR_ECHO + 1) % 4; println("Floor: " + (FLOOR_ECHO == 0 ? "v4 verses" : "echo " + "ABC".charAt(FLOOR_ECHO - 1))); }
+  if (keyCode == 'F') { FLOOR_ECHO = (FLOOR_ECHO + 1) % 4; println("Floor: " + (FLOOR_ECHO == 0 ? "off" : "echo " + "ABC".charAt(FLOOR_ECHO - 1))); }
   if (keyCode == 'B') { ART_NEW = !ART_NEW; println("New art direction " + (ART_NEW ? "ON" : "OFF") + " (materials: new tiles only)"); }
   if (keyCode == 'D') TRAVEL_3D = !TRAVEL_3D;   // pieces travel along the walls (2D) or through the room (3D)
 }

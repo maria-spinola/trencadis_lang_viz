@@ -40,14 +40,22 @@ void muralImpact(TrencadisTile t) {
 }
 
 // Draws the mural of a wall with the live light
-void drawMuralLit(PGraphics pg, Face f) { drawLitLayer(pg, f, mosaicLayers[f.id], glossLayers[f.id]); }
+void drawMuralLit(PGraphics pg, Face f) { drawLitLayer(pg, f, mosaicLayers[f.id], glossLayers[f.id], f.h); }
 
-// Any layer of baked tiles with its relief (the mural, the border: Cenefa.pde)
-void drawLitLayer(PGraphics pg, Face f, PGraphics colorLayer, PGraphics reliefLayer) {
+// Any layer of baked tiles with its relief (the mural, the border: Cenefa.pde), covering the wall from
+// its top down to h (the border's layer is only as tall as the border)
+void drawLitLayer(PGraphics pg, Face f, PGraphics colorLayer, PGraphics reliefLayer, float h) {
+  pg.shader(muralShaderFor(f, reliefLayer, h));
+  pg.image(colorLayer, 0, 0, f.w, h);
+  pg.resetShader();
+}
+
+// The mural's shader set up for a wall's layer (also used for the tiles moving off the wall: WallMoments.pde)
+PShader muralShaderFor(Face f, PGraphics reliefLayer, float h) {
   if (muralShader == null) muralShader = loadShader("mural.glsl");
   PShader sh = muralShader;
   sh.set("normalMap", reliefLayer);
-  sh.set("faceSize", f.w, f.h);
+  sh.set("faceSize", f.w, h);
   sh.set("flipY", flipYMural);
   sh.set("ringOffset", ringOffsetOf(f.id));
   sh.set("shininess", MURAL_SHININESS);
@@ -64,7 +72,7 @@ void drawLitLayer(PGraphics pg, Face f, PGraphics colorLayer, PGraphics reliefLa
     float ph = (frameCount % AMBIENT_PERIOD) / (float) AMBIENT_PERIOD;
     float X = total * (0.5 - 0.5 * cos(TWO_PI * ph));
     float y = WALL_H * (0.3 + 0.12 * sin(TWO_PI * ph * 3));
-    n = addLight(L, C, n, X - ro, y, WALL_H * 0.75, AMBIENT_LIGHT * (1 - 0.8 * interactK), rgb01(AMBIENT_LIGHT_COLOR));
+    n = addLight(L, C, n, X - ro, y, WALL_H * 0.75, AMBIENT_LIGHT * (1 - 0.8 * max(interactK, fxDim)), rgb01(AMBIENT_LIGHT_COLOR));
   }
   // the travelling stream's light, on this wall
   for (TileFlight fl : flights) {
@@ -101,10 +109,7 @@ void drawLitLayer(PGraphics pg, Face f, PGraphics colorLayer, PGraphics reliefLa
   sh.set("nWaves", (float) nw);
   sh.set("waves", Wv, 4);
   sh.set("waveWidth", WAVE_WIDTH);
-
-  pg.shader(sh);
-  pg.image(colorLayer, 0, 0, f.w, f.h);
-  pg.resetShader();
+  return sh;
 }
 
 int addLight(float[] L, float[] C, int n, float x, float y, float z, float k, float[] col) {
@@ -117,4 +122,73 @@ int addLight(float[] L, float[] C, int n, float x, float y, float z, float k, fl
 float[] rgb01(String hex) {
   int c = hexColor(hex);
   return new float[] { ((c >> 16) & 255) / 255.0, ((c >> 8) & 255) / 255.0, (c & 255) / 255.0 };
+}
+
+// The trencadís has a body (data/thickness.glsl): like a real tile seen a little from above, under every
+// glazed edge of the mural and of the border its fired-clay body shows as a thin, crisp band, the same
+// width and direction everywhere, with a faint shadow past it. One light pass per layer.
+// MURAL_THICK in Config.pde (0 = flat).
+PShader thickShader;
+java.util.HashMap<PGraphics, PGraphics> thickSoft = new java.util.HashMap<PGraphics, PGraphics>();
+
+// a small soft copy of each layer (its colours, for the sides), refreshed now and then (the mural changes
+// slowly) — made BEFORE the walls are drawn (language_viz.pde): never inside another drawing (it flickered)
+void updateThickSoft() {
+  if (MURAL_THICK <= 0 && MURAL_BEVEL <= 0) return;
+  int i = 0;
+  for (PGraphics[] arr : new PGraphics[][] { mosaicLayers, cenefaLayers }) for (PGraphics L : arr) {
+    i++;
+    if (L == null) continue;
+    PGraphics s = thickSoft.get(L);
+    if (s != null && (frameCount + i * 7) % 45 != 0) continue;
+    if (s == null) { s = createGraphics(max(8, L.width / 10), max(4, L.height / 10), P2D); thickSoft.put(L, s); }
+    s.beginDraw();
+    s.clear();
+    s.blendMode(REPLACE);
+    s.image(L, 0, 0, s.width, s.height);
+    s.filter(BLUR, 1.5);   // (the side's colour changes gently from shard to shard: no bands)
+    s.endDraw();
+  }
+}
+PGraphics softOf(PGraphics L) { return thickSoft.get(L); }
+
+void drawThickness(PGraphics pg, Face f) {
+  if (MURAL_THICK <= 0 || f.id == FLOOR) return;
+  if (thickShader == null) thickShader = loadShader("thickness.glsl");
+  float[] cl = rgb01(BODY_TERRACOTTA);
+  PGraphics[] layers = { mosaicLayers[f.id], CENEFA ? cenefaLayers[f.id] : null };
+  for (PGraphics L : layers) {
+    if (L == null) continue;
+    float h = L.height / RENDER_SCALE;
+    // down and a little to the right on the wall (texture y runs the other way when flipped)
+    float ox = MURAL_THICK * 0.38 / f.w, oy = MURAL_THICK * 0.92 / h;
+    thickShader.set("uOff", ox, flipYMural > 0.5 ? -oy : oy);
+    thickShader.set("uClay", cl[0], cl[1], cl[2]);
+    thickShader.set("uShadow", MURAL_THICK_SHADOW);
+    thickShader.set("uGlaze", 1.0);
+    if (softOf(L) == null) continue;
+    thickShader.set("uSoft", softOf(L));   // (all glaze: no clay band)
+    pg.shader(thickShader);
+    pg.image(L, 0, 0, f.w, h);
+    pg.resetShader();
+  }
+}
+
+// The glazed face rounds over at the outer edges of the mural and the border (data/bevel.glsl), drawn
+// over them: a highlight where the edge faces the light, a shade where it faces away. MURAL_BEVEL.
+PShader bevelShader;
+
+void drawBevel(PGraphics pg, Face f, PGraphics L) {
+  if (MURAL_BEVEL <= 0 || L == null) return;
+  if (bevelShader == null) bevelShader = loadShader("bevel.glsl");
+  float h = L.height / RENDER_SCALE;
+  if (softOf(L) == null) return;
+  bevelShader.set("uSoft", softOf(L));
+  bevelShader.set("uR", MURAL_BEVEL / f.w, MURAL_BEVEL / h);
+  bevelShader.set("uFlipY", flipYMural);
+  bevelShader.set("uLight", MURAL_BEVEL_LIGHT);
+  bevelShader.set("uDark", MURAL_BEVEL_LIGHT * 0.9);
+  pg.shader(bevelShader);
+  pg.image(L, 0, 0, f.w, h);
+  pg.resetShader();
 }

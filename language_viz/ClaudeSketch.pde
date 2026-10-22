@@ -27,8 +27,18 @@ void setupLLM() {
 }
 
 // ── Called from main draw() ───────────────────────────────────────
+// Words typed while another is still being analysed or forming on the main wall wait their turn: each
+// goes as soon as the one before it has left the wall (its flight begun)
+ArrayList<String> wordQueue = new ArrayList<String>();
+boolean wordBusy() {
+  if (isLoading) return true;
+  for (TileFlight fl : flights) if (fl.state == FLIGHT_HOLD) return true;
+  return revealAlpha() > 0.01 && revealEnd < 0;   // (the word is up and its tile not yet made)
+}
+
 void updateLLM() {
   if (responseRaw != null) parseResponse();
+  if (wordQueue.size() > 0 && !wordBusy()) submitWord(wordQueue.remove(0));
   if (msgUntil > 0 && frameCount > msgUntil) { displayText = ""; msgUntil = 0; }
   cursorTimer++;
   if (cursorTimer >= 30) { cursorVisible = !cursorVisible; cursorTimer = 0; }
@@ -48,7 +58,7 @@ void drawLLMInterface(PGraphics pg) {
   float mid = y0 + bh * 0.5 + 4 * ui;   // baseline of the input line
 
   // The same typeface as the words on the floor (Colors.pde); made once at its biggest size
-  if (uiFont == null) uiFont = createFont(TEXT_FONT, max(12, round(16 * ui)));
+  if (uiFont == null) uiFont = createFont(TEXT_FONT, max(12, round(14 * ui)));   // made at the size the typed word is seen at: crisp
   pg.textFont(uiFont);
 
   // Switch to 2D for the overlay
@@ -57,16 +67,24 @@ void drawLLMInterface(PGraphics pg) {
   pg.camera();
   pg.noLights();
 
+  // The box steps aside while a word is on the wall (its big word, its tile forming) and comes
+  // back once the tile has left and the place is clear; it shows at once if someone types
+  boolean wordOnWall = isLoading || revealAlpha() > 0.01;
+  for (TileFlight fl : flights) wordOnWall |= fl.shardsOnMainWall();   // until the last of its shards has flown away
+  uiK = lerp(uiK, (wordOnWall && inputText.length() == 0) ? 0 : 1, (wordOnWall && inputText.length() == 0) ? 0.25 : 0.05);
+
   // Input field background
   pg.noStroke();
-  if (UI_BAR_ALPHA > 0) {
-    pg.fill(hexColor(UI_BAR_COLOR), UI_BAR_ALPHA);
+  if (UI_BAR_ALPHA > 0 && uiK > 0.01) {
+    pg.fill(hexColor(UI_BAR_COLOR), UI_BAR_ALPHA * uiK);
     pg.rect(x0, y0, bw, bh);
   }
 
+  boolean onStone = backdropMode() == 2;   // on the stone the text is lighter and stronger, to stand out
+
   // Messages (rejections, "Volies dir…?", "✦ Paraula rara ✦"): small, centred under the field
   if (displayText.length() > 0) {
-    pg.fill(hexColor(UI_MESSAGE_COLOR));
+    pg.fill(hexColor(onStone ? UI_STONE_TEXT_COLOR : UI_MESSAGE_COLOR));
     pg.textSize(13*ui);
     pg.textAlign(CENTER, TOP);
     pg.text(displayText, W / 2, y0 + bh * 0.82);
@@ -78,12 +96,13 @@ void drawLLMInterface(PGraphics pg) {
   pg.textAlign(CENTER, CENTER);
   boolean empty = inputText.length() == 0;
   String shown = empty ? MSG_INVITE + "…" : inputText;
-  pg.fill(hexColor(UI_INPUT_COLOR), empty ? 30 + 18 * breath : 100);
-  if (!(empty && isLoading)) pg.text(shown, W / 2, mid);
+  int inputCol = hexColor(onStone ? UI_STONE_TEXT_COLOR : UI_INPUT_COLOR);
+  pg.fill(inputCol, (empty ? (onStone ? 55 + 20 * breath : 30 + 18 * breath) : 100) * uiK);
+  if (!(empty && isLoading) && uiK > 0.01) pg.text(shown, W / 2, mid);
   float cxp = W / 2 + (empty ? -pg.textWidth(shown) / 2 - 8 * ui : pg.textWidth(shown) / 2 + 3 * ui);
   pg.noStroke();
-  pg.fill(hexColor(UI_INPUT_COLOR), 25 + 75 * breath);
-  pg.rect(cxp, mid - 9 * ui, max(1.5, 1.6 * ui), 18 * ui);
+  pg.fill(inputCol, (25 + 75 * breath) * uiK);
+  if (uiK > 0.01) pg.rect(cxp, mid - 9 * ui, max(1.5, 1.6 * ui), 18 * ui);
 
   // Test mode badge
   if (TEST_MODE) {
@@ -94,7 +113,7 @@ void drawLLMInterface(PGraphics pg) {
   }
 
   // While the model thinks: a few shards turning where the tile will appear ("something is being made")
-  if (revealAlpha() < 0.01) drawThinking(pg, W / 2, H * HOLD_Y, H);   // (the big word itself is the wait)
+  if (revealAlpha() < 0.01) drawThinking(pg, W / 2, holdCentreY(), H);   // (the big word itself is the wait)
 
   // Test mode: the analysis of the last word, category by category, on the left of the wall
   if (TEST_MODE && lastAnalysis.length > 0) {
@@ -115,6 +134,7 @@ void drawLLMInterface(PGraphics pg) {
   }
 }
 
+float uiK = 1;        // how visible the text box is (it steps aside while a word is on the wall)
 PFont wallMonoFont;   // fixed size: the analysis panel on the wall (test mode)
 PFont uiFont;         // the text box's typeface (TEXT_FONT)
 
@@ -122,8 +142,9 @@ PFont uiFont;         // the text box's typeface (TEXT_FONT)
 // Only one word in Catalan: spaces and characters outside the Catalan alphabet can't be typed
 void handleLLMKey(KeyEvent e) {
   if (key == ENTER || key == RETURN) {
-    if (!isLoading && inputText.trim().length() > 0) {
-      submitWord(inputText);   // CatalanLLM.pde: filters, cache, LLM
+    if (inputText.trim().length() > 0) {
+      if (wordBusy()) { if (wordQueue.size() < WORD_QUEUE_MAX) wordQueue.add(inputText); }   // it waits its turn
+      else submitWord(inputText);   // CatalanLLM.pde: filters, cache, LLM
       inputText = "";
     }
     pendingAccent = 0;

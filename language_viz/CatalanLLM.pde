@@ -636,4 +636,3 @@ int raresaFromZipf(int z) {
   for (int i = 0; i < RARESA_ZIPF.length; i++) if (z >= RARESA_ZIPF[i] * 100) return i + 1;
   return 7;
 }
-

@@ -27,6 +27,9 @@ PGraphics matrixOut;   // the full media matrix → send this to PIXERA
 PFont testFont;        // own font so it doesn't share glyph textures with the text input
 
 void setupRoom() {
+  // The room without a floor (IASLab) makes one anyway if FLOOR is in an output (a test: Config.pde)
+  if (!HAS_FLOOR) for (int[] g : OUTPUT_GROUPS) for (int id : g) if (id == FLOOR) HAS_FLOOR = true;
+  if (HAS_FLOOR && VENUE == 1) println("FLOOR is in OUTPUT_GROUPS: the floor is made and sent in place of a wall (test)");
   // Geometry. Each surface is seen upright from inside the room: u → right, v → down.
   //                     id     name      width   height  origin (u=0, v=0)                   u axis                  v axis
   faces[FLOOR] = new Face(FLOOR, "FLOOR",  ROOM_W, ROOM_D, new PVector(0,      0,      0),      new PVector( 1,  0, 0), new PVector(0, 1,  0));
@@ -55,9 +58,10 @@ void setupRoom() {
   for (Face f : faces) {
     boolean unused = (f.id == FLOOR && !HAS_FLOOR);   // no floor in this venue: a tiny black buffer
     f.pg = createGraphics(unused ? 4 : round(f.w * RENDER_SCALE), unused ? 4 : round(f.h * RENDER_SCALE), P3D);
+    if (FACE_SMOOTH > 0) f.pg.smooth(FACE_SMOOTH); else f.pg.noSmooth();
     if (unused) { f.pg.beginDraw(); f.pg.background(0); f.pg.endDraw(); }
   }
-  matrixOut = createGraphics(round(MATRIX_W * RENDER_SCALE), round(MATRIX_H * RENDER_SCALE), P2D);
+  matrixOut = layerGraphics(round(MATRIX_W * RENDER_SCALE), round(MATRIX_H * RENDER_SCALE));
   testFont  = createFont("SansSerif", 96);
 
   println("Media matrix output: " + matrixOut.width + " x " + matrixOut.height + " px");
@@ -67,9 +71,15 @@ void setupRoom() {
 //   Render
 // ********************
 
+// An offscreen image that only receives other images (layers, outputs): no antialiasing, which
+// would multiply its cost for nothing (each pixel would be kept 2–4 times on the graphics card)
+PGraphics layerGraphics(int w, int h) {
+  PGraphics g = createGraphics(w, h, P2D);
+  g.noSmooth();
+  return g;
+}
+
 void renderFaces() {
-  poemByDepth = new ArrayList<PoemWord>(poemWordsList);
-  java.util.Collections.sort(poemByDepth, (a, b) -> Float.compare(b.depth, a.depth));
   for (Face f : faces) {
     if (f.id == FLOOR && !HAS_FLOOR) continue;   // not projected in this venue
     PGraphics pg = f.pg;
@@ -78,22 +88,28 @@ void renderFaces() {
     pg.hint(DISABLE_DEPTH_TEST);
     pg.hint(ENABLE_STROKE_PURE);
     pg.background(hexColor(BACKGROUND_COLOR));   // Colors.pde
+    clearDepth(pg);                              // (background() leaves the depth of the last frame when depth testing is off: things moving away would hide behind their own past)
 
     // Flat world: 1 unit = 1 media matrix unit, shapes cross seams continuously
     flatCamera(pg, f);
-    if (SHOW_POEM) {                                           // the poem goes behind everything else
-      for (PoemWord pw : poemByDepth) pw.display(pg, f);   // far ones first, near ones over them
-      drawFloorPoem(pg, f);                                 // FloorPoem.pde: the poem written on the floor
-      drawFloorEcho(pg, f);                                 // FloorEcho.pde: prototypes of the reflecting floor
-    }
+    drawBackdrop(pg, f);                                       // Backdrop.pde: the stone or the glow behind everything
+    if (SHOW_POEM) drawFloorEcho(pg, f);                       // FloorEcho.pde: the floor (the mural's reflection, the words)
     drawMotes(pg, f);                                          // Motes.pde: little shards floating in the empty parts (behind the mural)
     if (f.id == W3) drawHoldPanel(pg, f);                      // dark window behind the new tile (Mosaic.pde): over the poem and the floating shards, under the border
-    if (muralLit(f)) drawMuralLit(pg, f);                      // Mural.pde: the mural under its live light (shader)
-    else if (mosaicLayers[f.id] != null) pg.image(mosaicLayers[f.id], 0, 0, f.w, f.h);   // the trencadís mural (Mosaic.pde, transparent between tiles)
-    drawCenefa(pg, f);                                         // Cenefa.pde: the trencadís border round the top of the room
+    boolean slab = fxSlab(f.id);                               // StoneMoments.pde: the whole wall moving as a slab of stone, its tiles on it in 3D
+    if (!slab) {
+      drawThickness(pg, f);                                    // Mural.pde: the mural's and the border's body, seen in perspective
+      drawWallMomentsUnder(pg, f);                             // WallMoments.pde: no ghost of the body of a tile that has left
+      if (muralLit(f)) drawMuralLit(pg, f);                    // Mural.pde: the mural under its live light (shader)
+      else if (mosaicLayers[f.id] != null) pg.image(mosaicLayers[f.id], 0, 0, f.w, f.h);   // the trencadís mural (Mosaic.pde, transparent between tiles)
+      if (f.id != FLOOR) drawBevel(pg, f, mosaicLayers[f.id]); // Mural.pde: the glaze rounding over at the mural's edges
+      drawFadings(pg, f);                                      // Mosaic.pde: old tiles fading away to make room
+      drawCenefa(pg, f);                                       // Cenefa.pde: the trencadís border round the top of the room
+      if (CENEFA && f.id != FLOOR) drawBevel(pg, f, cenefaLayers[f.id]);
+    }
+    drawWallMomentsFlat(pg, f);                                // WallMoments.pde: the beds and shadows of the tiles out of the wall
     if (!art(ART_MURAL_LIGHT)) drawSweep(pg, f);               // Moments.pde: the old light sweeping the mural
     drawMarks(pg, f);                                          // …tiles lighting up, with their word
-    drawVerse(pg, f);                                          // …a verse of the poem forming
     for (TileFlight fl : flights) fl.displayFlat(pg, f);      // tiles travelling to WALL 1
     if (showTest) drawTestPattern(pg, f);
 
@@ -103,6 +119,7 @@ void renderFaces() {
       for (TileFlight fl : flights) fl.displayMain(pg, f);
       drawRevealWord(pg, f);                                   // Reveal.pde: the typed word, big, turning into the tile
     }
+    drawWallMoments3D(pg, f);                                  // WallMoments.pde: the tiles out of the wall, seen from the audience
     // Pieces flying through the room (3D travel), seen from the audience
     if (TRAVEL_3D) {
       viewerCamera(pg, f);
@@ -112,6 +129,13 @@ void renderFaces() {
     if (f.id == MAIN_FACE && showUI) drawLLMInterface(pg);
     pg.endDraw();
   }
+}
+
+void clearDepth(PGraphics pg) {
+  PGL pgl = ((PGraphicsOpenGL) pg).beginPGL();
+  pgl.clearDepth(1);
+  pgl.clear(PGL.DEPTH_BUFFER_BIT);
+  ((PGraphicsOpenGL) pg).endPGL();
 }
 
 // Orthographic camera: 1 world unit = 1 media matrix unit, origin top-left

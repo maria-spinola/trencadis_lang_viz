@@ -32,22 +32,6 @@ String loadSystemPrompt(String relativePath) {
 //  the inner object directly — no outer wrapper field.
 // ════════════════════════════════════════════════════════════════
 
-void saveResponse(String responseText, String word) {
-  try {
-    String cleaned = responseText.trim()
-      .replaceAll("(?s)^```json\\s*", "")
-      .replaceAll("(?s)\\s*```$",    "")
-      .trim();
-
-    JSONObject out = parseJSONObject(cleaned);
-    out.setString("word", word);   // the tile's seed uses the typed word
-    saveJSONObject(out, "data/input.json");
-    println("Saved response to data/input.json");
-
-  } catch (Exception e) {
-    println("ERROR saving response: " + e.getMessage());
-  }
-}
 
 
 // ════════════════════════════════════════════════════════════════

@@ -169,6 +169,7 @@ class TrencadisTile {
   PImage bakeGloss;               // how glossy each pixel is (white, alpha = gloss): the light sweeping the mural
   float bakeX0, bakeY0, bakeW, bakeH;   // area of the baked images, tile units
   int pieceKind = KIND_TILE;      // kind of the shard being added (generation only)
+  boolean hideRibbon = false;     // forming on the main wall and flying: no ribbon (it appears in the mural)
   PVector ribA, ribB;             // ribbon: top edge of the piece being added
   ArrayList<PVector> tileOutline;  // the area being broken (the cracks don't bend near its edge)
 
@@ -761,43 +762,6 @@ class TrencadisTile {
     }
   }
 
-  // Phenomenon 6: parallel bands — interlaced chains between plain stripes
-  void paintBands(PGraphics g) {
-    g.background(cLight[0], cLight[1], cLight[2]);
-    mottle(g, cLight, 8, 10);
-    g.pushMatrix();
-    g.translate(W / 2, rib + CH / 2);
-    g.rotate(rnd(r, -0.35, 0.35));
-    float span = dist(0, 0, W, CH), gap = u * rnd(r, 1.6, 2.2), lw = u * 0.035;
-    int k = 0;
-    for (float y0 = -span; y0 < span; y0 += gap, k++) {
-      if (k % 2 == 0) {
-        // stripe pair
-        fillC(g, cBase, 100);
-        g.rect(-span, y0, 2 * span, gap * 0.28);
-        fillC(g, cAcc2, 100);
-        g.rect(-span, y0 + gap * 0.36, 2 * span, gap * 0.1);
-      } else {
-        // chain of links
-        float h = gap * 0.32, step = h * 1.4;
-        g.noFill();
-        for (int pass = 0; pass < 2; pass++) {
-          strokeC(g, pass == 0 ? cDark : cAcc, 100);
-          g.strokeWeight(pass == 0 ? h * 0.42 : h * 0.26);
-          for (float x = -span; x < span; x += step) {
-            g.beginShape();
-            g.vertex(x, y0 + gap * 0.5 - h);
-            g.vertex(x + step / 2, y0 + gap * 0.5);
-            g.vertex(x, y0 + gap * 0.5 + h);
-            g.vertex(x - step / 2, y0 + gap * 0.5);
-            g.endShape(CLOSE);
-          }
-        }
-        g.noStroke();
-      }
-    }
-    g.popMatrix();
-  }
 
   // A six-point star
   void star6(PGraphics g, float x, float y, float rad, float[] c) {
@@ -896,31 +860,7 @@ class TrencadisTile {
     g.popMatrix();
   }
 
-  void dotsOnCircle(PGraphics g, float x, float y, float rad, int n, float d, float[] c) {
-    fillC(g, c, 100);
-    for (int i = 0; i < n; i++) { float a2 = TWO_PI * i / n; g.ellipse(x + cos(a2) * rad, y + sin(a2) * rad, d * 2, d * 2); }
-  }
 
-  void paintChecker(PGraphics g) {
-    g.background(cDark[0], cDark[1], cDark[2]);
-    g.pushMatrix();
-    g.translate(W / 2, rib + CH / 2);
-    g.rotate(rnd(r, -0.5, 0.5));
-    float m = u * rnd(r, 1.0, 1.4), span = dist(0, 0, W, CH);
-    g.noStroke();
-    int i = 0;
-    for (float x = -span; x < span; x += m, i++) {
-      int j = 0;
-      for (float y = -span; y < span; y += m, j++) {
-        float[] c = ((i + j) % 2 == 0) ? cAcc2 : cBase;
-        fillC(g, vary(c, 3, 5, 6), 100);
-        if ((i + j) % 3 == 0) g.triangle(x, y, x + m, y, x, y + m);
-        else                  g.triangle(x + m, y, x + m, y + m, x, y + m);
-      }
-    }
-    g.popMatrix();
-    mottle(g, cDark, 6, 8);
-  }
 
   // ── Ribbon: dark straight pieces along the top edge (the borders of the bands) ──
   // Returns the rest of the cell (where the shards go).
@@ -1182,11 +1122,16 @@ class TrencadisTile {
       c = insetPolyVar(poly, d);
     }
     if (c == null) c = insetPoly(poly, gw);
-    if (c == null && pieceKind == KIND_RIBBON) c = insetPoly(poly, gw * 0.4);   // the ribbon's corner pieces are bent: thinner joint
+    // Never an empty hole of cement where a shard should be: a piece that won't take an even joint
+    // (a bent ribbon corner, a sliver with tiny edges) gets a thinner one, then it is just shrunk
+    if (c == null) c = insetPoly(simplifyPoly(poly, gw * 1.5), gw);
+    if (c == null) c = insetPoly(poly, gw * 0.5);
+    if (c == null) c = insetPoly(simplifyPoly(poly, gw), gw * 0.35);
+    if (c == null) c = shrinkPoly(poly, gw);
     // The cracks are not ruler-straight: shard and joint bend together at odd angles, as real broken
     // ceramic does (a smooth warp, the same for the neighbours; none near the tile's outline, so it fits)
     if (c != null && CUT_WOBBLE > 0 && pieceKind != KIND_RIBBON && tileOutline != null) c = kinkPiece(c, tileOutline);
-    if (c == null || abs(signedArea(c)) < sq(GROUT_WIDTH * 2.5)) return;
+    if (c == null || abs(signedArea(c)) < sq(GROUT_WIDTH * 0.8)) return;   // (only specks smaller than a joint)
     int n = c.size();
     PVector c0 = polyCenter(c);
 
@@ -1437,6 +1382,7 @@ class TrencadisTile {
     pg.noStroke();
     for (int i : idx) {
       Piece p = pieces.get(i);
+      if (hideRibbon && p.kind == KIND_RIBBON) continue;
       pg.fill(c[0], c[1] * 0.9, c[2] * dim * 0.85);
       pg.beginShape();
       for (int j = 0; j < p.x.length; j++) pg.vertex(p.x[j] - ox, p.y[j] - oy);
@@ -1450,6 +1396,7 @@ class TrencadisTile {
     pg.fill(0, 0, 0, 100 * a);
     for (int i : idx) {
       Piece p = pieces.get(i);
+      if (hideRibbon && p.kind == KIND_RIBBON) continue;
       pg.beginShape();
       for (int j = 0; j < p.x.length; j++) pg.vertex(p.x[j] - ox, p.y[j] - oy);
       pg.endShape(CLOSE);
@@ -1463,6 +1410,7 @@ class TrencadisTile {
     pg.blendMode(ADD);
     pg.noStroke();
     for (Piece p : pieces) {
+      if (hideRibbon && p.kind == KIND_RIBBON) continue;   // (no ribbon until it is in the mural)
       pg.beginShape();
       for (int j = 0; j < p.x.length; j++) {
         float sp = (p.x[j] * 0.55 + p.y[j] * 0.83) / max(1, radius);
@@ -1475,20 +1423,6 @@ class TrencadisTile {
     pg.blendMode(BLEND);
   }
 
-  // The cracks lighting up just before the tile breaks (k 0..1); s = the scale it is drawn at
-  void drawCracks(PGraphics pg, float k, float s) {
-    pg.blendMode(ADD);
-    pg.noFill();
-    pg.stroke(40, 30, 100, 85 * k);
-    pg.strokeWeight(3.0 / s);
-    for (Piece p : pieces) {
-      pg.beginShape();
-      for (int j = 0; j < p.x.length; j++) pg.vertex(p.x[j], p.y[j]);
-      pg.endShape(CLOSE);
-    }
-    pg.noStroke();
-    pg.blendMode(BLEND);
-  }
 
   // Only some of the pieces (a travelling fragment), centred on (ox, oy)
   void drawPieces(PGraphics pg, float alpha, IntList idx, float ox, float oy) {
@@ -1551,6 +1485,7 @@ class TrencadisTile {
 
   // dim < 1 darkens the piece (far away while assembling)
   void drawPiece(PGraphics pg, Piece p, float alpha, float ox, float oy, float dim) {
+    if (hideRibbon && p.kind == KIND_RIBBON) return;
     int n = p.x.length;
     if (bakeShards != null && p.bu != null) {   // baked ceramic (Ceramic.pde): one textured polygon
       pg.beginShape();
@@ -1756,6 +1691,28 @@ ArrayList<PVector> insetPolyVar(ArrayList<PVector> src, float[] d) {
 }
 
 // Moves every edge inwards by d (outwards if d < 0). null if it collapses.
+// Without its very short edges (they turn over when the joint is taken off): vertices closer than
+// minEdge to the previous one are dropped
+ArrayList<PVector> simplifyPoly(ArrayList<PVector> src, float minEdge) {
+  ArrayList<PVector> p = new ArrayList<PVector>();
+  for (PVector q : src) if (p.size() == 0 || PVector.dist(q, p.get(p.size() - 1)) >= minEdge) p.add(q);
+  while (p.size() > 3 && PVector.dist(p.get(0), p.get(p.size() - 1)) < minEdge) p.remove(p.size() - 1);
+  return p.size() >= 3 ? p : new ArrayList<PVector>(src);
+}
+
+// The piece shrunk towards its centre so that it leaves about d of joint (never turns over)
+ArrayList<PVector> shrinkPoly(ArrayList<PVector> src, float d) {
+  if (src.size() < 3 || abs(signedArea(src)) < 0.01) return null;
+  PVector c = polyCenter(src);
+  float r = 0;
+  for (PVector q : src) r = max(r, PVector.dist(q, c));
+  if (r < d * 1.5) return null;
+  float k = 1 - min(0.35, d * 1.6 / r);
+  ArrayList<PVector> out = new ArrayList<PVector>();
+  for (PVector q : src) out.add(new PVector(c.x + (q.x - c.x) * k, c.y + (q.y - c.y) * k));
+  return out;
+}
+
 ArrayList<PVector> insetPoly(ArrayList<PVector> src, float d) {
   ArrayList<PVector> p = new ArrayList<PVector>();
   for (PVector q : src) {

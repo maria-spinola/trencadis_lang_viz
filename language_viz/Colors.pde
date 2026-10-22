@@ -11,15 +11,20 @@ String BACKGROUND_COLOR   = "#000000";   // background of every wall and the flo
 
 // ── Text box on the main wall (what the public types) ─────────
 String UI_INPUT_COLOR     = "#9C9C9C";   // the word being typed and its cursor
+String UI_STONE_TEXT_COLOR = "#F1E9DA";   // on the stone backdrop: the text box's words and messages, lighter (they must stand out on it)
 String UI_MESSAGE_COLOR   = "#959595";   // messages: "Aquesta paraula no és catalana", "Volies dir «cafè»?"…
 String UI_TEST_COLOR      = "#FF9F19";   // "TEST MODE" (only in test mode)
 String UI_BAR_COLOR       = "#000000";   // band behind the box (how dark: UI_BAR_ALPHA in Config; 0 = none)
 
 // ── Words on the floor ────────────────────────────────────────
-String POEM_WORD_COLOR    = "#FAF3E6";   // the poem's words
 String TYPED_WORD_COLOR   = "#FAF3E6";
 String TYPED_NEW_COLOR    = "#F2C46A";
-String FOOTPRINT_COLOR    = "#B9B2A6";   // a visitor's word on the floor once it has settled (discreet)
+// The haze of colour behind the mural (Backdrop.pde, BACKDROP "glow"): the trencadís' own glazes
+String[] BACKDROP_COLORS = { "#C08A2E", "#B5502E", "#139F9A", "#E07A1F", "#2455C4", "#DDAE32", "#36954F", "#C8402E" };   // (up to 8; they blend into each other in this order)
+// The natural stone (BACKDROP "stone")
+String[] STONE_COLORS  = { "#9C8870", "#BBA88A", "#7A6A57", "#D4C6AA" };   // two stones of the strata, a darker mottling, the veins
+String FX_BED_COLOR       = "#2B2723";   // the bed of mortar a tile leaves when it comes out of the wall (WallMoments.pde)
+String POEM_FLOOR_COLOR   = "#E9E3D6";   // the poem's words on the floor: paler than the visitors', whitish but not pure white
 String VERSE_COLOR        = "#F3EEE4";   // the poem's verses on the floor   // a visitor's word while it is new on the floor (warm gold)
 String WARM_LIGHT_COLOR   = "#FFD9A0";
 String AMBIENT_LIGHT_COLOR = "#FFF0DA";  // the calm light wandering along the mural   // the light of the stream, the impact and the wave (warm, never white)   // the visitors' words (TYPED_WORDS_TO_FLOOR)
@@ -110,7 +115,6 @@ String ROOM_SHELL_COLOR  = "#0B0A0A";   // the ceiling and the wall above the im
 String ROOM_VIEW_OUTSIDE = "#2B3240";   // background
 String ROOM_VIEW_CEILING = "#3A4354";   // ceiling
 String ROOM_VIEW_FLOOR   = "#323A49";   // floor, when the venue has no floor projection
-String ROOM_VIEW_WALL    = "#3F4859";   // wall above the image (IASLab)
 
 // ── Typeface ──────────────────────────────────────────────────
 // For the words on the floor, the poem and the text box on the main wall

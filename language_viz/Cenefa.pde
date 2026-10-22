@@ -11,6 +11,7 @@
 
 PGraphics[] cenefaLayers = new PGraphics[5];
 PGraphics[] cenefaGloss  = new PGraphics[5];
+ArrayList<float[][]> cenefaCells = new ArrayList<float[][]>();   // { {face}, xs, ys } of every cell (WallMoments.pde)
 
 // Where the mural begins under the border (on average)
 float muralTop() { return CENEFA ? WALL_H * (CENEFA_H + CENEFA_GAP) : 0; }
@@ -31,6 +32,9 @@ float ringStart(int w) {
   return -ROOM_W;   // WALL 4
 }
 
+// The height of the band the border takes at the top of a wall (its lowest edge, the cells' joints)
+float cenefaBandH() { return WALL_H * CENEFA_H * (1 + CENEFA_WAVE) + WALL_H * 0.01; }
+
 void setupCenefa() {
   if (!CENEFA) return;
   int t0 = millis();
@@ -47,8 +51,10 @@ void setupCenefa() {
     for (int w : ring) {
       Face f = faces[w];
       float xo = ringStart(w);
-      cenefaLayers[w] = createGraphics(f.pg.width, f.pg.height, P2D);
-      if (CERAMIC_BAKE) cenefaGloss[w] = createGraphics(f.pg.width, f.pg.height, P2D);
+      // only as tall as the border (its lowest edge and a margin), not the whole wall: drawing it costs that much less
+      int bandPx = min(f.pg.height, ceil((cenefaBandH() + MURAL_THICK * 2.5) * RENDER_SCALE) + 4);   // (room below it for its body: Mural.pde)
+      cenefaLayers[w] = layerGraphics(f.pg.width, bandPx);
+      if (CERAMIC_BAKE) cenefaGloss[w] = layerGraphics(f.pg.width, bandPx);
       // the joins, at odd angles as in the mural (straight at the corners)
       FloatList xs = new FloatList(), sl = new FloatList();
       xs.append(0); sl.append(0);
@@ -68,6 +74,10 @@ void setupCenefa() {
         PVector[] bot = new PVector[n + 1];
         for (int k = 0; k <= n; k++) { float bx = lerp(b0, b1, k / (float) n); bot[k] = new PVector(bx, cenefaEdge(bx + xo)); }
         Patch p = new Patch(new PVector[] { new PVector(a + sa, 0), new PVector(b + sb, 0) }, bot);
+        ArrayList<PVector> po = p.outline();
+        float[] cx = new float[po.size()], cy = new float[po.size()];
+        for (int k = 0; k < po.size(); k++) { cx[k] = po.get(k).x; cy[k] = po.get(k).y; }
+        cenefaCells.add(new float[][] { { w }, cx, cy });
         TrencadisTile t;
         if (poem != null) {
           JSONObject word = poem.getJSONObject(cell % poem.size());
@@ -119,6 +129,7 @@ void stampInto(TrencadisTile tile, PGraphics L, PGraphics G) {
 
 void drawCenefa(PGraphics pg, Face f) {
   if (!CENEFA || cenefaLayers[f.id] == null) return;
-  if (art(ART_MURAL_LIGHT) && cenefaGloss[f.id] != null) drawLitLayer(pg, f, cenefaLayers[f.id], cenefaGloss[f.id]);   // Mural.pde
-  else pg.image(cenefaLayers[f.id], 0, 0, f.w, f.h);
+  float h = cenefaLayers[f.id].height / RENDER_SCALE;   // the band at the top of the wall
+  if (art(ART_MURAL_LIGHT) && cenefaGloss[f.id] != null) drawLitLayer(pg, f, cenefaLayers[f.id], cenefaGloss[f.id], h);   // Mural.pde
+  else pg.image(cenefaLayers[f.id], 0, 0, f.w, h);
 }
