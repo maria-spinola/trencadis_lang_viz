@@ -22,3 +22,4 @@ language_viz/data/ollama_key.txt
 # Local model (≈ 5 GB, downloaded by setup_mac.command / setup_windows.bat) and its server log
 language_viz/models/
 language_viz/data/llama_server.log
+language_viz/Reaper/Backups/
