@@ -28,7 +28,7 @@ final int MAIN_FACE = 3;     // main screen (central word + text input): 0 FLOOR
 
 // Output pixels per matrix unit. 1.0 = native 6650x6700 (venue).
 // PC tests: 0.3. If the venue machine struggles, 0.5 and let PIXERA scale up.
-float RENDER_SCALE = 0.5;   // sharp enough to judge the look on a laptop; 0.3 if it gets slow
+float RENDER_SCALE = 1.0;   // sharp enough to judge the look on a laptop; 0.3 if it gets slow
 // Resolution of the painted motif of each tile, relative to its size on WALL 1.
 // ~3 keeps it sharp also when it is shown big on the main wall. Lower = faster, blurrier.
 float TEXTURE_DETAIL = 3;
@@ -60,7 +60,7 @@ int[][] OUTPUT_GROUPS   = (VENUE == 1) ? new int[][] { {W2, W3, W4, W1} } : new 
 //   "syphon" → macOS, one Syphon stream per output: "language_viz 1", "language_viz 2"…
 //   "spout"  → Windows, one Spout sender per output, same names
 // Needs the library installed and its import line enabled at the top of language_viz.pde.
-String  OUTPUT_SEND     = "none";
+String  OUTPUT_SEND     = "spout";
 boolean OUTPUT_WINDOWS  = false;   // also open each output image in its own window (copies through the CPU: much slower, ~14 fps with 3 outputs on a laptop)
 int[]   OUTPUT_DISPLAYS = {};      // display for each window, full screen (1 = main, 2 = second...); 0 / missing = small window
 

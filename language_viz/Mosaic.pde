@@ -897,6 +897,7 @@ class TileFlight {
   String word = "";
   boolean special = false;          // a rare or very Catalan word: slower, with a golden sheen (Moments.pde)
   int xStart = -1;                  // the tile starts fading in (above the word) at this frame (Reveal.pde)
+  boolean wordSounded = false;      // its word's sound has played (when the tile appears, not when the word is written)
   int departFrame = -1;             // when it broke and left the main wall
   float tileA = 1;                  // the tile's opacity while it comes in
 
@@ -1111,7 +1112,17 @@ class TileFlight {
     f.tumble = rnd(r, -1, 1) * 1.0;
   }
 
+  // the word's sound (SoundEngine.pde), as the tile appears
+  void soundOfWord() {
+    if (wordSounded || xStart < 0) return;
+    wordSounded = true;
+    JSONObject r = wordRec;
+    soundWord(r.getInt("emotion", 4), r.getInt("word_class", 1), r.getInt("abstraction", 4), r.getInt("agency", 4),
+              r.getInt("organic", 4), r.getInt("phenomena_class", 1), r.getInt("time_duration", 4));
+  }
+
   void depart() {
+    soundOfWord();   // (if it leaves before it was due, the sound still plays, before it breaks)
     soundTileBreak();   // SoundEngine.pde
     state = FLIGHT_TRAVEL;
     departFrame = frameCount;
@@ -1134,6 +1145,7 @@ class TileFlight {
     }
     if (state == FLIGHT_HOLD && xStart >= 0) {   // the tile fades in above the word
       float t = frameCount - xStart;
+      if (t >= 0) soundOfWord();   // the word's sound, with the tile
       tileA = smooth01(t / (float) WORD_XFADE_FRAMES);
       assembly = 1;
       sway();

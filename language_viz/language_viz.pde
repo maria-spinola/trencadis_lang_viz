@@ -22,7 +22,7 @@ boolean soundReady = false;
 // other one commented (Syphon only exists on macOS, Spout only on Windows).
 
 // import codeanticode.syphon.*;   // OUTPUT_SEND = "syphon"  (macOS)
-// import spout.*;                 // OUTPUT_SEND = "spout"   (Windows)
+import spout.*;                 // OUTPUT_SEND = "spout"   (Windows)
 
 void settings() {
   if (FULLSCREEN) fullScreen(P3D);

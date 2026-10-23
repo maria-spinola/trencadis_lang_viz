@@ -57,7 +57,7 @@ void loadJSONFromPath(String path, boolean spawn) {
 
     printAnalysis(j);  // CatalanLLM.pde
     spawnWordTile();   // Mosaic.pde
-    soundWord(pEmotion, pWordClass, pAbstract, pAgency, pOrganic, pPhenomenon, pTime);   // SoundEngine.pde
+    if (!art(ART_WORD_REVEAL)) soundWord(pEmotion, pWordClass, pAbstract, pAgency, pOrganic, pPhenomenon, pTime);   // SoundEngine.pde (with the word revealed first, its sound plays when the tile appears: Mosaic.pde, TileFlight)
 
 
     File f = new File(dataPath(path));
