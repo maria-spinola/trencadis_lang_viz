@@ -55,6 +55,7 @@ void draw() {
     setupSoundEngine();
     soundReady = true; 
   }
+  updateSound();       // SoundEngine.pde — samples mode: the ambient bed, the thinking loop, the wall moments' cues
 
   checkFileChanged();  // JSONLoader.pde
   updateLLM();         // ClaudeSketch.pde — procesa respuesta API
@@ -108,7 +109,8 @@ void keyPressed(KeyEvent event) {
   if (keyCode == 'J') projSim = !projSim;  // RoomView.pde: simulate the projectors (black level, light between walls)
   if (keyCode == 'F') { FLOOR_ECHO = (FLOOR_ECHO + 1) % 4; println("Floor: " + (FLOOR_ECHO == 0 ? "off" : "echo " + "ABC".charAt(FLOOR_ECHO - 1))); }
   if (keyCode == 'B') { ART_NEW = !ART_NEW; println("New art direction " + (ART_NEW ? "ON" : "OFF") + " (materials: new tiles only)"); }
-  if (keyCode == 'D') TRAVEL_3D = !TRAVEL_3D;   // pieces travel along the walls (2D) or through the room (3D)
+  if (keyCode == 'D') TRAVEL_3D = !TRAVEL_3D;
+  if (keyCode == 'S') toggleSoundMode();   // SoundEngine.pde: MIDI to Reaper ↔ the WAV files of data/sound   // pieces travel along the walls (2D) or through the room (3D)
 }
 
 void dispose() {

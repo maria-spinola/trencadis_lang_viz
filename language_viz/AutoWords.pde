@@ -72,5 +72,5 @@ String nextAutoWord() {
 }
 
 void autoKeySound() {
-  try { if (soundReady) playNote(7, 48, floor(random(45, 60)), 250); } catch (Exception e) { }   // the same as a visitor's keys
+  try { soundKey(); } catch (Exception e) { }   // the same as a visitor's keys (SoundEngine.pde)
 }

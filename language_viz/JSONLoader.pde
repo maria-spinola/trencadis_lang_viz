@@ -57,9 +57,7 @@ void loadJSONFromPath(String path, boolean spawn) {
 
     printAnalysis(j);  // CatalanLLM.pde
     spawnWordTile();   // Mosaic.pde
-    if (midi != null) {
-      playWord(pEmotion, pWordClass, pAbstract, pAgency, pOrganic, pPhenomenon, pTime);
-    }
+    soundWord(pEmotion, pWordClass, pAbstract, pAgency, pOrganic, pPhenomenon, pTime);   // SoundEngine.pde
 
 
     File f = new File(dataPath(path));

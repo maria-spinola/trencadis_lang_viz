@@ -82,6 +82,7 @@ void submitWord(String typed) {
   String bad  = checkLocalWord(word);
   if (bad != null) {
     showMessage(bad);
+    soundReject();   // SoundEngine.pde
     println("Rejected (local filter): \"" + typed + "\" — " + bad);
     return;
   }
@@ -127,6 +128,7 @@ void applyLLMResult(String word, JSONObject res, boolean store) {
   if (!ok) {
     String why = res.hasKey("motiu") ? res.getString("motiu") : "";
     showMessage(MSG_NOT_CATALAN);
+    soundReject();   // SoundEngine.pde
     endReveal();
     println("Rejected (LLM): \"" + word + "\"" + (why.length() > 0 ? " — " + why : "") + "  [mode: " + llmModeUsed + "]");
     return;

@@ -250,5 +250,5 @@ void startCelebration() {
   if (restoringMural) return;
   celebrateStart = frameCount;
   println("The mural is full: celebration, a new layer begins");
-  if (midi != null && soundReady) playWord(7, 1, 4, 7, 4, 1, 7);
+  soundCelebration();   // SoundEngine.pde
 }

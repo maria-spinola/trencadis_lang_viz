@@ -342,9 +342,43 @@ float   PREFILL_BALANCE   = 0.35;  // …how much it keeps every glaze in its sh
 float   PREFILL_MOTIF     = 2.0;   // …how much it avoids the same motif side by side
 
 // ── SOUND ───────────────────────────────────────────────────
+// Who makes the sound (SoundEngine.pde). Ctrl+S switches midi ↔ samples while it runs.
+//   "midi"    → MIDI notes to Reaper through MIDI_PORT (the main way)
+//   "samples" → the WAV files in data/sound, played by the sketch itself (SampleSound.pde)
+//   "auto"    → midi if MIDI_PORT exists, samples if not
+String SOUND_MODE = "auto";
 final String MIDI_PORT = "Default App Loopback (A)";
 //final String MIDI_PORT = "Bus 1";
 int CH_LEAD  = 1;
+
+// Samples mode. One folder per event in data/sound (see data/sound/SOUND_PROMPTS.md): any number of
+// files in it, one picked at random each time; an empty folder is silent. Files are trimmed of the
+// silence before their attack and levelled to the same peak when they load.
+String SOUND_DIR       = "sound";
+String AMBIENT_FILE    = "Indian pop percussions.wav";   // in data/sound/ambient: the bed, always looping
+float  AMBIENT_FADE_IN = 3;      // seconds, when it starts
+float  AMBIENT_XFADE   = 4;      // seconds the end of the loop overlaps its beginning (no gap, no click)
+float  SND_MASTER      = 0.9;
+// how loud each event is (0…1)
+float  SND_AMBIENT     = 0.35;
+float  SND_KEY         = 0.3;
+float  SND_REJECT      = 0.5;
+float  SND_THINKING    = 0.3;
+float  SND_CHORD       = 0.7;    // the word's chord: × 0.6…1 with its agency
+float  SND_CELEBRATION = 0.8;
+float  SND_SPECIAL     = 0.5;
+float  SND_BREAK       = 0.6;
+float  SND_FLY         = 0.35;
+float  SND_SHARD       = 0.45;
+float  SND_SETTLE      = 0.6;
+float  SND_FADE        = 0.4;
+float  SND_MOMENTS     = 0.7;
+int    SND_VOICES      = 24;     // sounds at once (the oldest one-shot gives way)
+int    SND_HIT_GAP_MS  = 80;     // a burst of impacts in the wall moments: at most one every n ms
+int    SND_SHARD_GAP_MS = 120;   // the pieces of a tile reaching the mural: at most one clink every n ms
+float  SND_TARGET_DB   = -3;     // levelling: every file's peak brought to this…
+float  SND_MAX_BOOST_DB = 24;    // …but a quiet file is raised by this much at most
+float  SND_TRIM_DB     = -40;    // what counts as silence before the attack (below the file's peak)
 
 // ── TEST MODE ───────────────────────────────────────────────
 // Ctrl+E toggles it. Words get their real analysis (cache or LLM), shown category

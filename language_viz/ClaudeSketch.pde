@@ -172,8 +172,7 @@ void handleLLMKey(KeyEvent e) {
     if (typable(key) && inputText.length() < MAX_WORD_LENGTH) inputText += key;
   }
 
-  // Play keyboard sound
-  playNote(7, 48, floor(random(45, 60)), 250);
+  soundKey();   // SoundEngine.pde
 }
 
 // ── While the model thinks: a few real trencadís shards turning, see-through ──

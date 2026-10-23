@@ -76,6 +76,7 @@ void spawnWordTile() {
   flights.add(new TileFlight(tile, rec));
   addWordMarks(currentWord);                                       // Moments.pde: its older tiles light up
   String badge = specialBadge(pRaresa, pCultura);                  // a rare or very Catalan word is announced
+  if (badge.length() > 0) soundSpecial();                          // SoundEngine.pde
   if (badge.length() > 0) showMessage(msgUntil > 0 && displayText.length() > 0 ? displayText + "   " + badge : badge);
 }
 
@@ -112,6 +113,7 @@ void makeRoom() {
       if (d > best) { best = d; old = i; }
     }
     if (old < 0) return;
+    if (!restoringMural) soundFade();   // SoundEngine.pde
     removeTile(mosaicTiles.getJSONObject(old));
     mosaicTiles.remove(old);
   }
@@ -1110,6 +1112,7 @@ class TileFlight {
   }
 
   void depart() {
+    soundTileBreak();   // SoundEngine.pde
     state = FLIGHT_TRAVEL;
     departFrame = frameCount;
     age   = 0;
@@ -1124,6 +1127,7 @@ class TileFlight {
       if (age >= GROUT_SET_FRAMES) {
         stampTile(tile);
         landed = true;
+        soundSettle();   // SoundEngine.pde
         wallMomentWord(wordRec, tile.face, tile.origin.x, tile.origin.y);   // WallMoments.pde: the next moment answers this word
       }
       return;
@@ -1150,6 +1154,7 @@ class TileFlight {
 
     // The fragments only start once the tile has straightened up on WALL 3
     float t = age - TILT_FRAMES;
+    if (t >= 0 && t < 1) soundTileFly();   // SoundEngine.pde: the pieces set off
     boolean arrived = true;
     for (Fragment f : frags) {
       f.p = constrain((t - f.delay) / f.dur, 0, 1);
@@ -1157,7 +1162,7 @@ class TileFlight {
         arrived = false;
       } else if (!f.playedArriveSound /*&& f.p > 0.99*/) {
         // The fragment arriving sound effect
-        playNote(7, 52, floor(random(80, 100)), 500);
+        soundShardLand();   // SoundEngine.pde
         print("piece arrived");
         f.playedArriveSound = true;
       }

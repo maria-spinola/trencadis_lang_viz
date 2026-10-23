@@ -24,6 +24,7 @@
 // ═══════════════════════════════════════════════════════════
 
 final String[] FX_NAMES = { "wave", "", "tilt", "heartbeat", "swap", "", "collapse" };   // ("" : rise and piano, removed)
+final int COLLAPSE_BACK = 340;   // collapse: frames until the border flies back up (SoundEngine.pde plays it then)
 final int FX_WAVE = 0, FX_TILT = 2, FX_HEART = 3, FX_SWAP = 4, FX_COLLAPSE = 6;
 
 class FxTile {
@@ -200,9 +201,9 @@ void endWallMoment() {
   fxNextAt = frameCount + round(random(WALL_MOMENTS_EVERY_MIN, WALL_MOMENTS_EVERY_MAX) * 60);
 }
 
-// Hooks for the sound (nothing here: the sound team can play from them)
+// Hooks for the sound (SoundEngine.pde; the cue sound itself waits for the tiles to move: updateMomentSounds)
 void wallMomentCue(String name) { println("Wall moment: " + name); }
-void wallMomentHit(String name) { }
+void wallMomentHit(String name) { soundMomentHit(name); }
 
 // ── Starting a moment: which tiles take part ────────────────
 
@@ -383,7 +384,7 @@ void poseTile(FxTile ft, int t) {
       break;
     case FX_COLLAPSE: {   // it comes loose, falls, lands and lies there; later the film runs backwards
       float Tf = ft.T1 + 26;
-      float back = constrain((t - 340 - ft.delay2) / 120.0, 0, 1);
+      float back = constrain((t - COLLAPSE_BACK - ft.delay2) / 120.0, 0, 1);
       if (back > 0) poseReturn(ft, back);   // back up into its place, the long way round
       else {
         float tau = constrain(t - ft.delay, 0, Tf);
@@ -392,7 +393,7 @@ void poseTile(FxTile ft, int t) {
           wallPose(ft, 0, 0, 0, 0, 0, wob);
         } else poseFall(ft, tau);
       }
-      if (back >= 1 && t - 340 - ft.delay2 < 122 && ft.cen) fxImpactOnce(ft);
+      if (back >= 1 && t - COLLAPSE_BACK - ft.delay2 < 122 && ft.cen) fxImpactOnce(ft);
       break;
     }
   }
