@@ -31,6 +31,9 @@ void setupLLM() {
 // Words typed while another is still being analysed or forming on the main wall wait their turn: each
 // goes as soon as the one before it has left the wall (its flight begun)
 ArrayList<String> wordQueue = new ArrayList<String>();
+// A word can be written now: nothing else on its way (the box only invites when it can take one)
+boolean wordReady() { return !wordBusy() && wordQueue.size() == 0; }
+
 boolean wordBusy() {
   if (isLoading || fxActive() || fxLandPending) return true;   // (a moment of the walls playing, or about to: the word waits for it)
   for (TileFlight fl : flights) if (fl.state == FLIGHT_HOLD) return true;
@@ -68,11 +71,14 @@ void drawLLMInterface(PGraphics pg) {
   pg.camera();
   pg.noLights();
 
-  // The box steps aside while a word is on the wall (its big word, its tile forming) and comes
-  // back once the tile has left and the place is clear; it shows at once if someone types
+  // The box steps aside while a word is on the wall (its big word, its tile forming) or the room can't
+  // take one yet (a journey, a moment of the walls), and comes back once a word can be written; it stays
+  // while someone is typing, and with a word already sent that waits its turn (dimmed, until it is taken)
   boolean wordOnWall = isLoading || revealAlpha() > 0.01;
   for (TileFlight fl : flights) wordOnWall |= fl.shardsOnMainWall();   // until the last of its shards has flown away
-  uiK = lerp(uiK, (wordOnWall && inputText.length() == 0) ? 0 : 1, (wordOnWall && inputText.length() == 0) ? 0.25 : 0.05);
+  String waiting = wordQueue.size() > 0 ? wordQueue.get(0) : null;
+  boolean showBox = inputText.length() > 0 || waiting != null || (wordReady() && !wordOnWall);
+  uiK = lerp(uiK, showBox ? 1 : 0, showBox ? 0.05 : 0.25);
 
   // Input field background
   pg.noStroke();
@@ -95,15 +101,16 @@ void drawLLMInterface(PGraphics pg) {
   float breath = 0.5 + 0.5 * sin(millis() / 1000.0 * TWO_PI * 0.6);
   pg.textSize(14*ui);
   pg.textAlign(CENTER, CENTER);
-  boolean empty = inputText.length() == 0;
-  String shown = empty ? MSG_INVITE + "…" : inputText;
+  boolean queued = waiting != null && inputText.length() == 0;   // sent, waiting its turn: shown, breathing, no cursor
+  boolean empty = inputText.length() == 0 && !queued;
+  String shown = queued ? waiting : empty ? MSG_INVITE + "…" : inputText;
   int inputCol = hexColor(onStone ? UI_STONE_TEXT_COLOR : UI_INPUT_COLOR);
-  pg.fill(inputCol, (empty ? (onStone ? 55 + 20 * breath : 30 + 18 * breath) : 100) * uiK);
+  pg.fill(inputCol, (empty ? (onStone ? 55 + 20 * breath : 30 + 18 * breath) : queued ? 55 + 30 * breath : 100) * uiK);
   if (!(empty && isLoading) && uiK > 0.01) pg.text(shown, W / 2, mid);
   float cxp = W / 2 + (empty ? -pg.textWidth(shown) / 2 - 8 * ui : pg.textWidth(shown) / 2 + 3 * ui);
   pg.noStroke();
   pg.fill(inputCol, (25 + 75 * breath) * uiK);
-  if (uiK > 0.01) pg.rect(cxp, mid - 9 * ui, max(1.5, 1.6 * ui), 18 * ui);
+  if (uiK > 0.01 && !queued) pg.rect(cxp, mid - 9 * ui, max(1.5, 1.6 * ui), 18 * ui);
 
   // Test mode badge
   if (TEST_MODE) {
@@ -142,6 +149,10 @@ PFont uiFont;         // the text box's typeface (TEXT_FONT)
 // ── Called from main keyPressed() ────────────────────────────────
 // Only one word in Catalan: spaces and characters outside the Catalan alphabet can't be typed
 void handleLLMKey(KeyEvent e) {
+  if (key == ESC) { key = 0; return; }   // (ESC would close the sketch)
+  // Only when a word can be taken (or one is being typed already): otherwise the box isn't there, and
+  // what was typed would vanish into a queue nobody sees
+  if (inputText.length() == 0 && !wordReady()) { pendingAccent = 0; return; }
   if (key == ENTER || key == RETURN) {
     if (inputText.trim().length() > 0) {
       if (wordBusy()) { if (wordQueue.size() < WORD_QUEUE_MAX) wordQueue.add(inputText); }   // it waits its turn

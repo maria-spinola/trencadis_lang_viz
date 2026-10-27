@@ -105,6 +105,7 @@ void keyPressed(KeyEvent event) {
   if (keyCode == 'W') playNextWallMoment();   // WallMoments.pde: the next moment of the walls, now
   if (keyCode == 'A') analysePrefillWords();   // CatalanLLM.pde: data/prefill_list.txt through the model → data/prefill_words.json (MURAL_PREFILL)
   if (keyCode == 'O') cycleLLMMode();    // LocalLLM.pde: model mode auto → cloud → local
+  if (keyCode == 'Y') cycleLocalModel(); // LocalLLM.pde: the next local model (LOCAL_MODELS, Config.pde)
   if (keyCode == 'I') toggleRoomView();    // RoomView.pde: as if standing inside the room
   if (keyCode == 'J') projSim = !projSim;  // RoomView.pde: simulate the projectors (black level, light between walls)
   if (keyCode == 'F') { FLOOR_ECHO = (FLOOR_ECHO + 1) % 4; println("Floor: " + (FLOOR_ECHO == 0 ? "off" : "echo " + "ABC".charAt(FLOOR_ECHO - 1))); }

@@ -43,6 +43,30 @@ void cycleLLMMode() {
   if (LLM_PROVIDER.equals("ollama")) startLlamaServer();   // local / auto: start it if it isn't running (kept running in cloud mode)
 }
 
+// Ctrl+Y: the next local model of LOCAL_MODELS that is on disk; the server restarts with it (the words already
+// analysed stay in the cache, whichever model analysed them)
+void cycleLocalModel() {
+  if (!LOCAL_ENGINE.equals("llamacpp")) return;
+  int cur = 0;
+  for (int i = 0; i < LOCAL_MODELS.length; i++) if (LOCAL_MODELS[i].equals(LLAMA_MODEL_FILE)) cur = i;
+  for (int k = 1; k <= LOCAL_MODELS.length; k++) {
+    String m = LOCAL_MODELS[(cur + k) % LOCAL_MODELS.length];
+    if (m.equals(LLAMA_MODEL_FILE)) { println("Local model: no other model in models/ (LOCAL_MODELS, Config.pde)"); return; }
+    if (!new File(sketchPath(m)).exists()) continue;
+    if (llamaState.equals("starting")) { println("Local model: still starting, try again in a moment"); return; }
+    if (llamaState.equals("ready") && llamaProc == null) { println("Local model: the server running was not started by the sketch: it can't be switched"); return; }
+    LLAMA_MODEL_FILE = m;
+    println("Local model → " + new File(m).getName());
+    new Thread(() -> {   // (stopping waits for the old server: not on the drawing thread)
+      stopLlamaServer();
+      llamaState = "off";
+      llmStatusFrame = -999;
+      startLlamaServer();
+    }).start();
+    return;
+  }
+}
+
 // For the preview window: which mode, and whether each side can answer (refreshed once a second:
 // it reads the key file)
 String llmStatusText = "";
@@ -73,7 +97,9 @@ void startLlamaServer() {
     if (llamaHealth() == 200) {
       llamaProc = findOurLlamaServer();   // left behind by a crash: adopted, so this run stops it on exit
       if (llamaProc != null) Runtime.getRuntime().addShutdownHook(new Thread(() -> stopLlamaServer()));
-      println("Local model: llama-server already running on port " + LLAMA_PORT + ", reused"
+      String served = llamaServedModel();   // (what it really runs: it may not be LLAMA_MODEL_FILE)
+      if (served.length() > 0) for (String m : LOCAL_MODELS) if (new File(m).getName().equals(served)) LLAMA_MODEL_FILE = m;
+      println("Local model: llama-server already running on port " + LLAMA_PORT + " with " + (served.length() > 0 ? served : "an unknown model") + ", reused"
         + (llamaProc != null ? " (left by a previous run; stopped on exit)" : " (not started by this sketch; left running on exit)"));
     } else if (!LLAMA_AUTOSTART) {
       llamaFailed("llama-server is not running on port " + LLAMA_PORT + " (LLAMA_AUTOSTART is off)");
@@ -199,6 +225,18 @@ int llamaHealth() {
     return client.send(req, HttpResponse.BodyHandlers.discarding()).statusCode();
   } catch (Exception e) {
     return -1;
+  }
+}
+
+// The model file the server on LLAMA_PORT runs ("" if it can't tell)
+String llamaServedModel() {
+  try {
+    HttpClient client = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(1)).build();
+    HttpRequest req = HttpRequest.newBuilder().uri(URI.create(llamaURL("/v1/models"))).timeout(java.time.Duration.ofSeconds(2)).GET().build();
+    String id = parseJSONObject(client.send(req, HttpResponse.BodyHandlers.ofString()).body()).getJSONArray("data").getJSONObject(0).getString("id");
+    return new File(id).getName();
+  } catch (Exception e) {
+    return "";
   }
 }
 

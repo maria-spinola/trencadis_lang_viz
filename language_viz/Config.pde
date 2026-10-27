@@ -56,7 +56,8 @@ final int FLOOR = 0, W1 = 1, W2 = 2, W3 = 3, W4 = 4;   // surface ids (Room.pde)
 boolean OUTPUT_FLOOR_FIT = true;   // …true: the whole floor, black at its sides; false: it fills the wall (top and bottom cut off)
 int[][] OUTPUT_GROUPS   = (VENUE == 1)
   ? new int[][] { {W2}, {W3}, {W4}, {W1} }
-  : new int[][] {};   // (this copy, on the Mac: the whole matrix in the preview; in the room: { {W1}, {W2}, {W3}, {W4}, {FLOOR} }, one Spout sender per surface)
+  : (platform == WINDOWS) ? new int[][] { {W1}, {W2}, {W3}, {W4}, {FLOOR} }   // Windows = the room's PC: one Spout sender per surface, "language_viz 1" … "language_viz 5"
+  : new int[][] {};   // a Mac: the whole matrix in the preview
 // How the output images leave Processing (Output.pde):
 //   "none"   → not sent (preview only, or OUTPUT_WINDOWS)
 //   "syphon" → macOS, one Syphon stream per output: "language_viz 1", "language_viz 2"…
@@ -421,7 +422,12 @@ int     CLOUD_TIMEOUT_S  = 25;     // auto: how long a word waits for the cloud 
 final String LOCAL_ENGINE       = "llamacpp";
 boolean LLAMA_AUTOSTART  = true;            // start llama-server with the sketch and stop it on exit (one already running is reused)
 String  LLAMA_SERVER     = "llama-server";  // the program: found on the PATH, in /opt/homebrew/bin, /usr/local/bin or winget's folder; or a full path
-String  LLAMA_MODEL_FILE = "models/Qwen3.5-2B-Q4_K_M.gguf";   // in the sketch folder (not in git: setup_mac.command downloads it)
+// The local models to choose from (in models/, not in git: setup_mac.command / setup_windows.bat download the first).
+// LOCAL_MODEL picks the one used on start; Ctrl+Y switches to the next one there is, live (the server restarts with it).
+String[] LOCAL_MODELS    = { "models/Qwen3.5-2B-Q4_K_M.gguf",                        // Qwen3.5 2B: ≈ 3 s a word, many languages
+                             "models/salamandra-7b-instruct-2606.i1-Q4_K_M.gguf" };  // Salamandra 7B (BSC, trained on Catalan): 12–16 s a word
+int     LOCAL_MODEL      = 0;
+String  LLAMA_MODEL_FILE = LOCAL_MODELS[LOCAL_MODEL];   // the one in use
 int     LLAMA_PORT       = 8091;
 int     LLAMA_CTX        = 8192;            // context tokens: instructions + examples (~5k) + word + answer. More = more memory
 float   LLAMA_START_S    = 90;              // how long to wait for the server to load the model (also how long a word waits for it)

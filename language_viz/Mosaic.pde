@@ -1319,9 +1319,21 @@ class TileFlight {
   // 3D travel: the pieces in the air of the room, with the viewerCamera (Room.pde)
   void display3D(PGraphics pg) {
     if (state != FLIGHT_TRAVEL || onMainWall()) return;
+    PVector E = viewerEye();
     for (Fragment fr : frags) {
       pg.pushMatrix();
       pg.translate(fr.w.x, fr.w.y, fr.w.z);
+      // Low over the floor, upright as on the wall, a piece was seen from above and edge on: on the floor it
+      // shrank to a sliver and the word seemed to vanish. Below the eyes it turns to face the audience,
+      // and turns back to its wall as it comes near it
+      float face = smooth01((E.z - fr.w.z) / (E.z * 0.35)) * (1 - smooth01((fr.p - 0.78) / 0.17));
+      if (face > 0.01) {
+        PVector n0 = new PVector(-cos(fr.theta), -sin(fr.theta), 0), v = PVector.sub(E, fr.w).normalize();
+        if (n0.dot(v) < 0) n0.mult(-1);   // (either side of it will do: the shortest turn)
+        PVector n = PVector.lerp(n0, v, face).normalize(), ax = n0.cross(n);
+        float ang = acos(constrain(n0.dot(n), -1, 1));
+        if (ang > 1e-4 && ax.mag() > 1e-6) { ax.normalize(); pg.rotate(ang, ax.x, ax.y, ax.z); }
+      }
       pg.rotateZ(fr.theta);
       // WALL 3's frame: tile x → room +Y, tile y (down) → room −Z, facing into the room
       pg.applyMatrix(0, 0, -1, 0,
