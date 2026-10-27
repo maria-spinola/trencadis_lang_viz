@@ -18,13 +18,13 @@ String UI_BAR_COLOR       = "#000000";   // band behind the box (how dark: UI_BA
 
 // ── Words on the floor ────────────────────────────────────────
 String TYPED_WORD_COLOR   = "#FAF3E6";
-String TYPED_NEW_COLOR    = "#F2C46A";
+String TYPED_NEW_COLOR    = "#F6F1E6";   // the visitors' words on the floor: almost white (was amber #F2C46A)
 // The haze of colour behind the mural (Backdrop.pde, BACKDROP "glow"): the trencadís' own glazes
 String[] BACKDROP_COLORS = { "#C08A2E", "#B5502E", "#139F9A", "#E07A1F", "#2455C4", "#DDAE32", "#36954F", "#C8402E" };   // (up to 8; they blend into each other in this order)
 // The natural stone (BACKDROP "stone")
 String[] STONE_COLORS  = { "#9C8870", "#BBA88A", "#7A6A57", "#D4C6AA" };   // two stones of the strata, a darker mottling, the veins
 String FX_BED_COLOR       = "#2B2723";   // the bed of mortar a tile leaves when it comes out of the wall (WallMoments.pde)
-String POEM_FLOOR_COLOR   = "#E9E3D6";   // the poem's words on the floor: paler than the visitors', whitish but not pure white
+String POEM_FLOOR_COLOR   = "#FAF8F3";   // the poem's words on the floor: paler than the visitors', whitish but not pure white
 String VERSE_COLOR        = "#F3EEE4";   // the poem's verses on the floor   // a visitor's word while it is new on the floor (warm gold)
 String WARM_LIGHT_COLOR   = "#FFD9A0";
 String AMBIENT_LIGHT_COLOR = "#FFF0DA";  // the calm light wandering along the mural   // the light of the stream, the impact and the wave (warm, never white)   // the visitors' words (TYPED_WORDS_TO_FLOOR)

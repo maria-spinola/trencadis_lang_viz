@@ -102,6 +102,7 @@ void submitWord(String typed) {
     return;
   }
   JSONObject cached = cacheGet(word);
+  if (cached != null && cached.hasKey("es_catala") && !cached.getBoolean("es_catala") && commonCatalan(word)) cached = null;   // rejected once, but it is Catalan: asked again
   if (cached != null) {                  // already analysed: no LLM call, same tile as before
     llmModeUsed = "cache";
     println("From cache: " + word + "  [mode: cache — no LLM call]");
@@ -120,10 +121,22 @@ void submitWord(String typed) {
   for (TileFlight fl : flights) if (fl.state == FLIGHT_HOLD) fl.depart();   // the last tile makes room for the thinking shards
 }
 
+// Catalan for sure: attested in real Catalan texts (data/catalan_freq.tsv, KNOWN_CATALAN_ZIPF), or the
+// Viquidiccionari has it as a Catalan word. Works without internet (the table is on disk).
+volatile boolean forceCatalan = false;
+boolean knownCatalan(String word) { return commonCatalan(word) || pendingDef.length() > 0; }
+boolean commonCatalan(String word) { return KNOWN_CATALAN_ZIPF > 0 && wordZipf(word) >= KNOWN_CATALAN_ZIPF * 100; }
+
 // The model answered with a JSON object for pendingWord (from parseResponse, utils.pde)
 void applyLLMResult(String word, JSONObject res, boolean store) {
   if (store && !res.hasKey("definicio") && pendingDef.length() > 0) res.setString("definicio", pendingDef);
   boolean ok = res.hasKey("es_catala") ? res.getBoolean("es_catala") : true;
+  if (!ok && knownCatalan(word)) {   // (never reject a real Catalan word: with its analysis, or from the word itself)
+    println("The model rejected \"" + word + "\", but it is Catalan: accepted");
+    if (!res.hasKey("emotion")) { if (store) { res.setBoolean("es_catala", true); } generateRandomWord(word); return; }
+    res.setBoolean("es_catala", true);
+    ok = true;
+  }
   if (store) cachePut(word, res);
   if (!ok) {
     String why = res.hasKey("motiu") ? res.getString("motiu") : "";
@@ -201,11 +214,11 @@ String fieldSchema(String k) {
   return "{\"type\":\"integer\",\"minimum\":1,\"maximum\":" + (k.equals("word_class") ? 8 : 7) + "}";
 }
 
-// Every field always (Ollama)
+// Every field always (Ollama); a word that is Catalan for sure can only be accepted (forceCatalan)
 String analysisSchema() {
   String props = "", req = "";
   for (String k : ANSWER_FIELDS) {
-    props += (props.length() > 0 ? "," : "") + "\"" + k + "\":" + fieldSchema(k);
+    props += (props.length() > 0 ? "," : "") + "\"" + k + "\":" + (k.equals("es_catala") && forceCatalan ? "{\"const\":true}" : fieldSchema(k));
     req   += (req.length() > 0 ? "," : "") + "\"" + k + "\"";
   }
   return "{\"type\":\"object\",\"properties\":{" + props + "},\"required\":[" + req + "]}";
@@ -221,9 +234,11 @@ String twoShapeSchema() {
     props += ",\"" + k + "\":" + fieldSchema(k);
     req   += ",\"" + k + "\"";
   }
+  String accepted = "{\"type\":\"object\",\"properties\":{" + props + "},\"required\":[" + req + "]}";
+  if (forceCatalan) return accepted;   // Catalan for sure: only the analysis, no way to reject it
   return "{\"anyOf\":["
     + "{\"type\":\"object\",\"properties\":{\"es_catala\":{\"const\":false},\"motiu\":" + fieldSchema("motiu") + "},\"required\":[\"es_catala\",\"motiu\"]},"
-    + "{\"type\":\"object\",\"properties\":{" + props + "},\"required\":[" + req + "]}]}";
+    + accepted + "]}";
 }
 
 // ── Ollama request ────────────────────────────────────────────────
@@ -265,7 +280,7 @@ String ollamaRequest(String url, String model, String key, String word) throws E
   HttpRequest.Builder b = HttpRequest.newBuilder()
     .uri(URI.create(url))
     .header("Content-Type", "application/json; charset=utf-8")
-    .timeout(java.time.Duration.ofSeconds(120))
+    .timeout(java.time.Duration.ofSeconds(url.equals(OLLAMA_URL_CLOUD) && LLM_MODE.equals("auto") ? CLOUD_TIMEOUT_S : 120))   // (auto: a cloud that doesn't answer soon gives way to the local model)
     .POST(HttpRequest.BodyPublishers.ofString(buildOllamaJSON(word, model), java.nio.charset.StandardCharsets.UTF_8));
   if (key.length() > 0) b.header("Authorization", "Bearer " + key);
   HttpResponse<String> res = client.send(b.build(), HttpResponse.BodyHandlers.ofString(java.nio.charset.StandardCharsets.UTF_8));
@@ -282,21 +297,30 @@ String ollamaRequest(String url, String model, String key, String word) throws E
 // The local model is Salamandra on llama-server (LOCAL_ENGINE "llamacpp", LocalLLM.pde) or Ollama.
 String[] askModelChain(String word) throws Exception {
   String why = "";
+  String typed = word;
   word = userMessage(word);   // the word + its definition from the Viquidiccionari
+  // A word that is Catalan for sure (in the table of Catalan word frequencies, or in the Viquidiccionari)
+  // is never rejected by the model — whatever it means (assassinat, mort…): it may only analyse it
+  forceCatalan = knownCatalan(typed);
+  if (forceCatalan) word += "\n(És una paraula catalana.)";
   boolean tryLocal = !LLM_MODE.equals("cloud"), tryCloud = !LLM_MODE.equals("local");
-  if (tryLocal) {
-    try {
-      String raw = LOCAL_ENGINE.equals("llamacpp") ? llamaRequest(word) : ollamaRequest(OLLAMA_URL_LOCAL, OLLAMA_MODEL_LOCAL, "", word);
-      return new String[] { raw, "local" };
+  boolean cloudFirst = LLM_MODE.equals("auto") && AUTO_CLOUD_FIRST;   // auto: the cloud first, the local model if it fails (or the other way)
+  for (int pass = 0; pass < 2; pass++) {
+    boolean cloud = (pass == 0) == cloudFirst;
+    if (!cloud && tryLocal) {
+      try {
+        String raw = LOCAL_ENGINE.equals("llamacpp") ? llamaRequest(word) : ollamaRequest(OLLAMA_URL_LOCAL, OLLAMA_MODEL_LOCAL, "", word);
+        return new String[] { raw, "local" };
+      }
+      catch (Exception e) { why += (why.length() > 0 ? " · " : "") + "local: " + msgOf(e); }
     }
-    catch (Exception e) { why += "local: " + msgOf(e); }
-  }
-  if (tryCloud) {
-    String key = ollamaKey();
-    if (key.length() == 0) why += (why.length() > 0 ? " · " : "") + "cloud: no key (data/ollama_key.txt)";
-    else {
-      try { return new String[] { ollamaRequest(OLLAMA_URL_CLOUD, OLLAMA_MODEL_CLOUD, key, word), "cloud" }; }
-      catch (Exception e) { why += (why.length() > 0 ? " · " : "") + "cloud: " + msgOf(e); }
+    if (cloud && tryCloud) {
+      String key = ollamaKey();
+      if (key.length() == 0) why += (why.length() > 0 ? " · " : "") + "cloud: no key (data/ollama_key.txt)";
+      else {
+        try { return new String[] { ollamaRequest(OLLAMA_URL_CLOUD, OLLAMA_MODEL_CLOUD, key, word), "cloud" }; }
+        catch (Exception e) { why += (why.length() > 0 ? " · " : "") + "cloud: " + msgOf(e); }
+      }
     }
   }
   throw new Exception(why);

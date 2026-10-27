@@ -36,6 +36,9 @@ uniform float wordsOn;
 uniform vec3  amber, bright;
 uniform vec3  poemCol;       // the poem's own words: paler (G = 0 in wordsTex)
 uniform float wordLight;
+uniform float wordBase;
+uniform float colSat;        // the reflection's colours: saturation (1 = as the mural)
+uniform float colContrast;   // …contrast: the haze between them darker, the colours themselves kept      // the words' own light, even where the floor is dark
 uniform float nWaves;
 uniform vec4  waves[4];       // x, y, radius, intensity
 uniform vec3  waveCols[4];
@@ -159,6 +162,12 @@ void main() {
   d = q.y;          c += sampleWall(w2, q.x, W, d, stretch * 0.45, blur * 5.0) * exp(-d / reach) * 0.8;
   d = D - q.y;      c += sampleWall(w4, W - q.x, W, d, stretch * 0.45, blur * 5.0) * exp(-d / reach) * 0.8;
 
+  // the colours of the reflection: more saturated, and the dull haze between them pushed down
+  float lc = dot(c, vec3(0.3, 0.59, 0.11));
+  c = max(vec3(0.0), lc + (c - lc) * colSat);
+  float pk = max(max(c.r, c.g), max(c.b, 0.0001));
+  c *= pow(min(pk, 1.0), colContrast - 1.0);
+
   float k = strength * (1.0 - 0.4 * dimK) * (1.0 + 0.45 * wordRipple * under);
   if (mode > 2.5) k *= 1.0 + 6.0 * waveBoost;        // mode 3: the reflections wake up where the wave passes
   vec3 col = c * k * grout + waveLight * (mode > 2.5 ? 0.55 : 0.32) * (1.0 - 0.6 * dimK);
@@ -166,12 +175,14 @@ void main() {
   // the words set into the glaze: read where the warped surface puts them, lit by the reflection
   // around them (brighter over the mural's light, faint in the dark), breathing slowly along their letters
   if (wordsOn > 0.5) {
-    vec2 tw = clamp(q / room.xy, vec2(0.0), vec2(1.0));
+    vec2 tu = q / room.xy;
+    vec2 tw = clamp(tu, vec2(0.0), vec2(1.0));
     vec4 wt = texture2D(wordsTex, vec2(tw.x, flipY > 0.5 ? 1.0 - tw.y : tw.y));
-    float wc = wt.a * (0.82 + 0.18 * sin(p.x * 0.004 + p.y * 0.0031 + time * 0.35));
+    float inside = step(0.0, tu.x) * step(tu.x, 1.0) * step(0.0, tu.y) * step(tu.y, 1.0);   // (past the edge of the floor the layer's last row would be stretched into streaks)
+    float wc = wt.a * inside * (0.82 + 0.18 * sin(p.x * 0.004 + p.y * 0.0031 + time * 0.35));
     float lum = dot(c * k, vec3(0.3, 0.59, 0.11));
     float poemK = clamp(1.0 - wt.g / max(wt.b, 0.004), 0.0, 1.0);
-    vec3 wcol = mix(amber, poemCol, poemK) * (0.42 + 2.0 * lum) * wordLight + c * k * 0.45;
+    vec3 wcol = mix(amber, poemCol, poemK) * (wordBase + 2.0 * lum) * wordLight + c * k * 0.45;
     wcol = mix(wcol, bright * 1.25, wt.r);
     col = col * (1.0 - 0.3 * wc) + wcol * wc;
   }

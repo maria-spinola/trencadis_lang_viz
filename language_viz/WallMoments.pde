@@ -24,7 +24,7 @@
 // ═══════════════════════════════════════════════════════════
 
 final String[] FX_NAMES = { "wave", "", "tilt", "heartbeat", "swap", "", "collapse" };   // ("" : rise and piano, removed)
-final int COLLAPSE_BACK = 340;   // collapse: frames until the border flies back up (SoundEngine.pde plays it then)
+final int COLLAPSE_BACK = 420;   // collapse: frames until the border flies back up (SoundEngine.pde plays it then)
 final int FX_WAVE = 0, FX_TILT = 2, FX_HEART = 3, FX_SWAP = 4, FX_COLLAPSE = 6;
 
 class FxTile {
@@ -60,7 +60,7 @@ class FxTile {
 }
 
 ArrayList<FxTile> fxTiles = new ArrayList<FxTile>();
-int fxType = -1, fxStart, fxDur, fxAbortAt = -1, fxNextAt = 0, fxLast = -1, fxQueued = -1;
+int fxType = -1, fxStart, fxDur, fxAbortAt = -1, fxNextAt = 0, fxLast = -1, fxLast2 = -1, fxQueued = -1;
 float fxDim = 0;               // the room dims while a moment comes (Mural.pde)
 float[] fxWallTilt = new float[5];
 
@@ -70,20 +70,30 @@ float fxT() { return max(4, MURAL_THICK); }   // the body of a tile: as thick as
 // ── Scheduling ──────────────────────────────────────────────
 
 void updateWallMoments() {
+  // the copies swap needs are made now, at start: making an OpenGL image in the middle of the show can
+  // flash the screen black for a frame (the first swap of the night did)
+  if (frameCount == 3) for (int w = 1; w <= 4; w++) {
+    if (mosaicLayers[w] != null && swapOld[w] == null) swapOld[w] = copyLayer(null, mosaicLayers[w]);
+    if (glossLayers[w] != null && swapOldGloss[w] == null) swapOldGloss[w] = copyLayer(null, glossLayers[w]);
+  }
+  // the layers are read smoothly (no glitter as tiles move), set once here at start — changing it as each
+  // moment began flashed the screen black for a frame (StoneMoments.pde: fxSmooth)
+  if (frameCount == 15) fxSmooth(true);
   if (fxNextAt == 0) fxNextAt = frameCount + round(random(WALL_MOMENTS_EVERY_MIN, WALL_MOMENTS_EVERY_MAX) * 60);
   boolean running = fxType >= 0 && fxAbortAt < 0;
   fxDim = lerp(fxDim, running && frameCount - fxStart < WALL_MOMENTS_CUE + fxDur - 90 ? WALL_MOMENTS_DIM : 0, 0.035);
   if (fxType < 0) {
     if (fxQueued >= 0 && roomCalm(0)) { startWallMoment(fxQueued); fxQueued = -1; return; }
+    if (fxLandPending) { landMoment(); return; }   // a word has just settled: the room answers it
     if (!WALL_MOMENTS || frameCount < fxNextAt) return;
     if (roomCalm(5000)) startWallMoment(nextWallMoment());
     else fxNextAt = frameCount + 60 * 5;   // not now: try again in a while
     return;
   }
-  // a word on its way or someone typing: everything goes home
-  if (fxAbortAt < 0 && (inputText.length() > 0 || isLoading || flightsBusy())) fxAbortAt = frameCount;
+  // the words wait for the moment to end (wordBusy); only a tile already flying sends everything home
+  if (fxAbortAt < 0 && flightsBusy()) fxAbortAt = frameCount;
   int t = frameCount - fxStart - WALL_MOMENTS_CUE;
-  fxSmooth(true);   // StoneMoments.pde (here, before the walls are drawn)
+  if (fxType == FX_WAVE) waveSounds(t);
   if (fxAbortAt >= 0 && fxAbortT < 0) fxAbortT = t;
   if (fxType == FX_SWAP && fxSwapDone && fxAbortAt >= 0)   // the tiles have already changed places: they finish, quickly
     t = round(fxAbortT + (frameCount - fxAbortAt) * max(1, (fxDur - fxAbortT) / 48.0));
@@ -98,6 +108,15 @@ void updateWallMoments() {
   }
   updateSlabs();   // StoneMoments.pde
   for (FxTile ft : fxTiles) poseTile(ft, t);
+}
+
+// A word has settled: a moment answers it once every word on its way has landed (no new word leaves the
+// main wall meanwhile: wordBusy, ClaudeSketch.pde); the next words wait for it to end
+void landMoment() {
+  if (!WALL_MOMENTS || millis() - fxEndMs < WALL_MOMENTS_LAND_GAP * 1000) { fxLandPending = false; return; }   // one has just played: not now
+  if (flightsBusy() || isLoading || frameCount - fxLandAt < 50) return;   // (the others first; a breath after it lands)
+  fxLandPending = false;
+  startWallMoment(nextWallMoment());
 }
 
 boolean flightsBusy() {
@@ -124,10 +143,16 @@ boolean fxWordFresh = false;    // …and no moment has answered it yet
 PVector fxOrigin;               // where the moment starts: face, x, y (null = anywhere)
 int fxBigAt = -999999;          // when the last big one played (ms)
 
+int fxEndMs = -999999;           // when the last moment ended (ms)
+boolean fxLandPending = false;  // a word has settled: a moment answers it as soon as nothing else is flying
+int fxLandAt = 0;
+int[] fxPlayedAt = new int[16]; // when each moment last played (ms): the ones not seen for a while come first
+
 void wallMomentWord(JSONObject rec, int face, float x, float y) {
   if (rec == null) return;
   fxWord = rec; fxWordFresh = true;
   fxOrigin = new PVector(face, x, y);
+  if (WALL_MOMENTS_ON_LAND && fxType < 0) { fxLandPending = true; fxLandAt = frameCount; }
 }
 boolean fxBig(int type) { return type == FX_TILT || type == FX_COLLAPSE; }
 int momentForWord(JSONObject r) {
@@ -143,21 +168,29 @@ int gentleFor(int type) { return (type == FX_COLLAPSE || type == FX_WAVE) ? FX_H
 
 int nextWallMoment() {
   IntList ok = new IntList();
-  for (String s : WALL_MOMENTS_LIST) for (int i = 0; i < FX_NAMES.length; i++) if (FX_NAMES[i].equalsIgnoreCase(s.trim()) && i != fxLast && fxPlayable(i)) ok.append(i);
+  for (String s : WALL_MOMENTS_LIST) for (int i = 0; i < FX_NAMES.length; i++) if (FX_NAMES[i].equalsIgnoreCase(s.trim()) && i != fxLast && i != fxLast2 && fxPlayable(i)) ok.append(i);   // (neither of the last two)
+  if (ok.size() == 0) for (String s : WALL_MOMENTS_LIST) for (int i = 0; i < FX_NAMES.length; i++) if (FX_NAMES[i].equalsIgnoreCase(s.trim()) && i != fxLast && fxPlayable(i)) ok.append(i);
   if (ok.size() == 0) return fxLast >= 0 ? fxLast : 0;
   boolean bigOk = millis() - fxBigAt > WALL_MOMENTS_BIG_GAP * 1000;
-  if (fxWord != null && fxWordFresh) {
-    int want = momentForWord(fxWord);
-    if (fxBig(want) && !bigOk) want = gentleFor(want);
-    if (ok.hasValue(want)) return want;
-    int g = gentleFor(want);
-    if (ok.hasValue(g)) return g;
+  // every moment gets a chance that grows the longer it hasn't played (so all of them come round, the
+  // walls falling and the swaps too); the one answering the last word's mood, WALL_MOMENTS_MOOD times more
+  int want = -1;
+  if (fxWord != null && fxWordFresh) { want = momentForWord(fxWord); if (fxBig(want) && !bigOk) want = gentleFor(want); }
+  else fxOrigin = null;   // (not an answer to a word: from anywhere)
+  FloatList wt = new FloatList();
+  float sum = 0;
+  for (int i : ok) {
+    float w = 0;
+    if (bigOk || !fxBig(i)) {
+      w = 1 + min(600, (millis() - fxPlayedAt[i]) / 1000.0) / 60.0;   // + 1 for every minute it hasn't played
+      if (i == want) w *= WALL_MOMENTS_MOOD;
+    }
+    wt.append(w); sum += w;
   }
-  fxOrigin = null;   // (not an answer to a word: from anywhere)
-  IntList pick = new IntList();
-  for (int i : ok) if (bigOk || !fxBig(i)) pick.append(i);
-  if (pick.size() == 0) pick = ok;
-  return pick.get((int) random(pick.size()));
+  if (sum <= 0) return ok.get((int) random(ok.size()));
+  float x = random(sum);
+  for (int k = 0; k < ok.size(); k++) { x -= wt.get(k); if (x <= 0) return ok.get(k); }
+  return ok.get(ok.size() - 1);
 }
 
 // how far along the ring of walls from where the moment starts (0 … ring), and both ways (0 … ring/2)
@@ -190,7 +223,6 @@ void playNextWallMoment() {
 }
 
 void endWallMoment() {
-  fxSmooth(false);
   fxType = -1;
   fxAbortAt = -1;
   fxAbortT = -1;
@@ -199,6 +231,7 @@ void endWallMoment() {
   fxTiles.clear();
   for (int w = 0; w < 5; w++) fxWallTilt[w] = 0;
   fxNextAt = frameCount + round(random(WALL_MOMENTS_EVERY_MIN, WALL_MOMENTS_EVERY_MAX) * 60);
+  fxEndMs = millis();
 }
 
 // Hooks for the sound (SoundEngine.pde; the cue sound itself waits for the tiles to move: updateMomentSounds)
@@ -209,9 +242,12 @@ void wallMomentHit(String name) { soundMomentHit(name); }
 
 void startWallMoment(int type) {
   fxTiles.clear();
+  fxLast2 = fxLast;
   fxType = type; fxLast = type; fxStart = frameCount; fxAbortAt = -1; fxAbortT = -1; fxSwapDone = false;
   fxWordFresh = false;
+  fxLandPending = false;
   if (fxBig(type)) fxBigAt = millis();
+  if (type >= 0 && type < fxPlayedAt.length) fxPlayedAt[type] = millis();
   ArrayList<FxTile> mural = fxMuralTiles(), border = fxBorderTiles();
   float ring = 2 * (ROOM_W + ROOM_D);
   switch (type) {
@@ -233,7 +269,7 @@ void startWallMoment(int type) {
         boolean apart = true;
         for (FxTile o : seeds) if (o.face == c.face && dist(o.cx, o.cy, c.cx, c.cy) < WALL_H * 1.3) apart = false;
         if (apart) seeds.add(c);
-        if (seeds.size() >= 4) break;
+        if (seeds.size() >= 6) break;
       }
       float R = WALL_H * 0.55;
       fxSeeds.clear();
@@ -283,7 +319,7 @@ void startWallMoment(int type) {
         t.column = false;
       }
       for (FxTile t : fxTiles) planFall(t);
-      fxDur = 640; break;
+      fxDur = 720; break;
   }
   if (fxTiles.size() == 0) { fxType = -1; return; }
   wallMomentCue(FX_NAMES[type]);
@@ -421,6 +457,20 @@ void poseTile(FxTile ft, int t) {
   ft.moved = ft.moved ? ft.still < 10 : ft.disp > 1.5;
 }
 
+// wave: as its crest passes the middle of each wall, the clatter of its tiles (the cue sound plays as it
+// sets off: SoundEngine.pde)
+float waveCrestPrev = -1e9;
+void waveSounds(int t) {
+  if (t < 0 || fxAbortAt >= 0) { waveCrestPrev = -1e9; return; }
+  float ring = 2 * (ROOM_W + ROOM_D);
+  float X = lerp(-1400, ring + 1400, t / (float) (fxDur - 40));   // (as in poseTile: FX_WAVE)
+  for (int w = 1; w <= 4; w++) {
+    float c = ringFrom(moteRingStart(w) + faces[w].w / 2);
+    if (waveCrestPrev < c && X >= c) wallMomentHit("wave");
+  }
+  waveCrestPrev = X;
+}
+
 // heartbeat: one slow swell — out, a breath, back with a soft settle
 final float HEART_GAP = 55;
 ArrayList<float[]> fxSeeds = new ArrayList<float[]>();   // face, x, y, when
@@ -539,7 +589,7 @@ PVector rotAbout(PVector v, float[] turn, float r) {
 // (opposite each other: their ends slide along the walls that stay up, so no two walls ever go through
 // each other), then — not on stone, where the word stays — the main wall. Each one falls faster and
 // faster, is caught with a jolt, hangs there, and is pushed slowly back up into its place.
-final int TILT_STAGE = 225;
+final int TILT_STAGE = 255;
 void poseTilt(int t) {
   int[][] stages = { { W1 }, { W2, W4 }, { W3 } };
   int n = stoneMode() ? 2 : 3;
@@ -547,7 +597,7 @@ void poseTilt(int t) {
     float x = t - i * TILT_STAGE;
     for (int w : stages[i]) {
       fxWallTilt[w] = radians(34) * S() * (w == W3 ? 0.7 : 1) * fallCatch(x);
-      if (x == 40 || x == 40 + 80 + 95) fxImpact(w, faces[w].w / 2, WALL_H * 0.5);
+      if (x == 40 || x == 40 + 110 + 95) fxImpact(w, faces[w].w / 2, WALL_H * 0.5);
     }
   }
 }
@@ -555,8 +605,8 @@ float fallCatch(float x) {
   if (x <= 0) return 0;
   if (x < 40) return sq(x / 40);                                       // falling
   x -= 40;
-  if (x < 80) return 1 - 0.09 * exp(-x / 9) * cos(x * 0.55) + 0.004 * sin(x * 1.7);   // caught: a jolt, then it hangs, creaking
-  x -= 80;
+  if (x < 110) return 1 - 0.09 * exp(-x / 9) * cos(x * 0.55) + 0.004 * sin(x * 1.7);   // caught: a jolt, then it hangs, creaking
+  x -= 110;
   if (x < 95) return 1 - easeInOutCubic(x / 95);                        // pushed back up
   x -= 95;
   return -0.03 * exp(-x / 6) * sin(x * 0.8);                             // into its place: a thud
@@ -596,7 +646,7 @@ float[] rot3(float x, float y, float z, float rx, float ry, float rz) {
 // like a coin, into its partner's place — for good. The mural itself changes (swapInMural): each word is
 // re-made in the other's place, in its shape. When the tile is edge on in the air it takes that shape
 // and that picture, unseen; it lands in its new place exactly as the mural now has it.
-final int SWAP_OUT = 36, SWAP_FLY = 190, SWAP_IN = 40;
+final int SWAP_OUT = 36, SWAP_FLY = 230, SWAP_IN = 40;
 boolean fxSwapDone = false;
 int fxAbortT = -1;
 PGraphics[] swapOld = new PGraphics[5], swapOldGloss = new PGraphics[5];   // the mural as it was (the tiles' pictures until they turn)
@@ -879,6 +929,9 @@ void drawWallMoments3D(PGraphics pg, Face f) {
   for (FxTile ft : fxTiles) {
     if (!ft.moved && !ft.force && !fxSlab(ft.face)) continue;
     if (ft.face != f.id && !fxReaches(ft, f)) continue;   // only where it is seen (the neighbouring walls near the corners, the floor)
+    // (a tile still on its wall — the wave, the heartbeat — is not drawn on the floor: stretched over it at the
+    // floor's resolution its glaze and edges shimmered, and the stretch only lines up from the viewer's spot)
+    if (f.id == FLOOR && (fxType == FX_WAVE || fxType == FX_HEART)) continue;
     fxDrawList.add(ft);
   }
   if (fxDrawList.size() == 0) { pg.hint(DISABLE_DEPTH_TEST); flatCamera(pg, f); return; }
@@ -954,7 +1007,7 @@ void drawWallMoments3D(PGraphics pg, Face f) {
     if (bk < 0.02) continue;
     PVector ob = PVector.add(PVector.mult(ft.bx, 0.38 * T * bk), PVector.mult(ft.by, 0.92 * T * bk));
     ob.sub(PVector.mult(ft.bz, 0.6 * T * bk));
-    int n = ft.xs.length, N = fxDrawList.size() > 50 ? 3 : 5;   // (many tiles in the air: a lighter body, it still reads)
+    int n = ft.xs.length, N = 5;   // (always the same: a lighter body when many were in the air popped in and out)
     for (int k = N; k >= 1; k--) {
       float fk = k / (float) N;
       pg.tint(0, 0, 100 * lerp(0.62, 0.36, fk), 100 * ft.alpha);

@@ -126,7 +126,10 @@ int floorReplaces(int g) {
 
 int[] slotSize(int g, int id) {
   PGraphics p = faces[id].pg;
-  if (id != FLOOR || VENUE != 1) return new int[] { p.width, p.height };
+  if (id != FLOOR || VENUE != 1) {   // each surface at its own output resolution (OUTPUT_WALL_SCALE / OUTPUT_FLOOR_SCALE), never above the render's
+    float k = min(RENDER_SCALE, id == FLOOR ? OUTPUT_FLOOR_SCALE : OUTPUT_WALL_SCALE);
+    return new int[] { max(4, round(faces[id].w * k)), max(4, round(faces[id].h * k)) };
+  }
   int rep = floorReplaces(g);
   if (rep >= 0) return new int[] { faces[rep].pg.width, faces[rep].pg.height };
   int h = 0;   // with all four walls: as high as them, its own proportion
@@ -140,8 +143,15 @@ void openOutputWindows() {
 }
 
 // After composeMatrix(): fills each output image and sends it
+float nextSendMs = 0;
 void composeOutputs() {
   if (frameCount == 2) openOutputWindows();
+  // sent OUTPUT_FPS times a second (the room is still drawn at full speed: the animation keeps its pace,
+  // and whatever receives the streams — Spout → NDI — has fewer frames to encode). A clock, not "every
+  // other frame": OUTPUT_FPS a second whatever the sketch's own rate (if it is above it)
+  // every other frame (OUTPUT_FPS 30 of 60): always the same step, so movement stays even — a clock
+  // sent some frames 1 apart and others 2, and everything moving went out in jerks
+  if (OUTPUT_FPS > 0 && frameCount % max(1, round(60.0 / OUTPUT_FPS)) != 0) return;
   for (int g = 0; g < outImgs.size(); g++) {
     PGraphics o = outImgs.get(g);
     o.beginDraw();
@@ -150,7 +160,7 @@ void composeOutputs() {
     for (int id : OUTPUT_GROUPS[g]) {
       int[] sz = slotSize(g, id);
       PGraphics src = faces[id].pg;
-      if (sz[0] != src.width || sz[1] != src.height) {   // the floor in a wall's place (IASLab test), fitted
+      if (sz[0] != src.width || sz[1] != src.height) {   // smaller than drawn (OUTPUT_*_SCALE), or the floor in a wall's place (IASLab test): fitted
         float k = OUTPUT_FLOOR_FIT ? min(sz[0] / (float) src.width, sz[1] / (float) src.height)
                                    : max(sz[0] / (float) src.width, sz[1] / (float) src.height);
         float fw = src.width * k, fh = src.height * k;

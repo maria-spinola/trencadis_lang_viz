@@ -57,7 +57,8 @@ void setupRoom() {
 
   for (Face f : faces) {
     boolean unused = (f.id == FLOOR && !HAS_FLOOR);   // no floor in this venue: a tiny black buffer
-    f.pg = createGraphics(unused ? 4 : round(f.w * RENDER_SCALE), unused ? 4 : round(f.h * RENDER_SCALE), P3D);
+    float fs = faceScale(f.id);   // (the floor is drawn at OUTPUT_FLOOR_SCALE: it is soft, and goes out at that size)
+    f.pg = createGraphics(unused ? 4 : round(f.w * fs), unused ? 4 : round(f.h * fs), P3D);
     if (FACE_SMOOTH > 0) f.pg.smooth(FACE_SMOOTH); else f.pg.noSmooth();
     if (unused) { f.pg.beginDraw(); f.pg.background(0); f.pg.endDraw(); }
   }
@@ -70,6 +71,9 @@ void setupRoom() {
 // ********************
 //   Render
 // ********************
+
+// pixels per unit each surface is drawn at: RENDER_SCALE, the floor at most OUTPUT_FLOOR_SCALE
+float faceScale(int id) { return id == FLOOR ? min(RENDER_SCALE, OUTPUT_FLOOR_SCALE) : RENDER_SCALE; }
 
 // An offscreen image that only receives other images (layers, outputs): no antialiasing, which
 // would multiply its cost for nothing (each pixel would be kept 2–4 times on the graphics card)
@@ -189,7 +193,7 @@ void composeMatrix() {
     matrixOut.pushMatrix();
     matrixOut.translate((f.mx + f.matrixW()/2) * RENDER_SCALE, (f.my + f.matrixH()/2) * RENDER_SCALE);
     matrixOut.rotate(radians(f.rot));
-    matrixOut.image(f.pg, 0, 0);
+    matrixOut.image(f.pg, 0, 0, f.w * RENDER_SCALE, f.h * RENDER_SCALE);   // (the floor may be drawn smaller: enlarged to its place)
     matrixOut.popMatrix();
   }
   matrixOut.endDraw();

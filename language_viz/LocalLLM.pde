@@ -57,7 +57,7 @@ String llmStatusNow() {
   String cloud = OLLAMA_MODEL_CLOUD + (ollamaKey().length() > 0 ? "" : " (no key)");
   if (LLM_MODE.equals("cloud")) return "model: cloud " + cloud;
   if (LLM_MODE.equals("local")) return "model: local " + local;
-  return "model: auto · " + local + ", else " + cloud;
+  return AUTO_CLOUD_FIRST ? "model: auto · cloud " + cloud + ", else " + local : "model: auto · " + local + ", else " + cloud;
 }
 
 // ── Starting and stopping the server ──────────────────────────────
@@ -81,26 +81,14 @@ void startLlamaServer() {
       File model = new File(sketchPath(LLAMA_MODEL_FILE));
       if (bin == null)     { llamaFailed("llama-server not found → run setup_mac.command / setup_windows.bat"); return; }
       if (!model.exists()) { llamaFailed("model missing: " + LLAMA_MODEL_FILE + " → run setup_mac.command / setup_windows.bat"); return; }
-      try {
-        ProcessBuilder pb = new ProcessBuilder(bin, "-m", model.getAbsolutePath(),
-          "--host", "127.0.0.1", "--port", "" + LLAMA_PORT,
-          "-c", "" + LLAMA_CTX,     // context: prompt + examples + word + answer; the default (160k) would take GBs
-          "-np", "1",               // one word at a time
-          "-ngl", "99",             // the whole model on the GPU
-          "--temp", "0", "--repeat-penalty", "1.0",   // BSC: temperature 0–0.2, no repetition penalty
-          "--no-webui");
-        pb.redirectErrorStream(true);
-        pb.redirectOutput(new File(dataPath("llama_server.log")));
-        llamaProc = pb.start().toHandle();
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> stopLlamaServer()));
-        println("Local model: starting llama-server with " + model.getName() + "… (log: data/llama_server.log)");
-      } catch (Exception e) {
-        llamaFailed("could not start llama-server: " + msgOf(e));
-        return;
-      }
-      if (!waitForLlama(LLAMA_START_S)) {
+      // GPU first; if it dies (Vulkan driver, not enough video memory…), the same program on the CPU,
+      // then the CPU-only build next to the sketch (llama.cpp-cpu) — slower, but it always runs
+      boolean up = launchLlama(bin, model, true);
+      if (!up) up = launchLlama(bin, model, false);
+      String cpu = findInDirs(new String[] { sketchPath("llama.cpp-cpu"), sketchPath("../llama.cpp-cpu") });
+      if (!up && cpu != null && !cpu.equals(bin)) up = launchLlama(cpu, model, false);
+      if (!up) {
         llamaFailed("llama-server did not start (see data/llama_server.log)");
-        stopLlamaServer();
         return;
       }
     }
@@ -109,10 +97,44 @@ void startLlamaServer() {
   }).start();
 }
 
+// One try at starting llama-server: true when it answers. A server still loading the model (a slow disk,
+// the GPU's first run) is given up to 3 × LLAMA_START_S; one that exits is reported with the end of its log.
+boolean launchLlama(String bin, File model, boolean gpu) {
+  try {
+    ProcessBuilder pb = new ProcessBuilder(bin, "-m", model.getAbsolutePath(),
+      "--host", "127.0.0.1", "--port", "" + LLAMA_PORT,
+      "-c", "" + LLAMA_CTX,     // context: prompt + examples + word + answer; the default (160k) would take GBs
+      "-np", "1",               // one word at a time
+      "-ngl", gpu ? "99" : "0", // the whole model on the GPU, or none of it
+      "--temp", "0", "--repeat-penalty", "1.0",   // BSC: temperature 0–0.2, no repetition penalty
+      "--no-webui");
+    if (!gpu) pb.command().addAll(java.util.Arrays.asList("--device", "none"));
+    pb.redirectErrorStream(true);
+    pb.redirectOutput(new File(dataPath("llama_server.log")));
+    llamaProc = pb.start().toHandle();
+    if (!llamaHook) { llamaHook = true; Runtime.getRuntime().addShutdownHook(new Thread(() -> stopLlamaServer())); }
+    println("Local model: starting llama-server with " + model.getName() + (gpu ? " on the GPU" : " on the CPU") + "… (" + bin + ", log: data/llama_server.log)");
+  } catch (Exception e) {
+    println("Local model: could not start " + bin + ": " + msgOf(e));
+    return false;
+  }
+  for (int i = 0; i < 3; i++) {
+    if (waitForLlama(LLAMA_START_S)) return true;
+    if (llamaProc == null || !llamaProc.isAlive()) break;
+    println("Local model: still loading…");
+  }
+  println("Local model: llama-server " + (gpu ? "on the GPU " : "on the CPU ") + "failed. End of data/llama_server.log:");
+  String[] log = loadStrings(dataPath("llama_server.log"));
+  if (log != null) for (int i = max(0, log.length - 12); i < log.length; i++) if (log[i].trim().length() > 0) println("  | " + log[i]);
+  stopLlamaServer();
+  return false;
+}
+boolean llamaHook = false;
+
 void llamaFailed(String why) {
   llamaState = "failed";
   llamaWhy = why;
-  println("Local model not available: " + why + (LLM_MODE.equals("auto") ? " — words go to the cloud" : ""));
+  println("Local model not available: " + why + (LLM_MODE.equals("auto") ? (AUTO_CLOUD_FIRST ? " — no fallback if the cloud fails" : " — words go to the cloud") : ""));
 }
 
 // Called from dispose() and on JVM exit. Only stops a server the sketch started (or adopted).
@@ -151,8 +173,15 @@ String findLlamaServer() {
   dirs.append("/usr/local/bin");
   String local = System.getenv("LOCALAPPDATA");
   if (local != null) dirs.append(local + "\\Microsoft\\WinGet\\Links");
+  dirs.append(sketchPath("llama.cpp"));      // a copy of llama.cpp next to the sketch, or next to its folder
+  dirs.append(sketchPath("../llama.cpp"));   // (the room's disk carries one: no install needed)
+  return findInDirs(dirs.toArray());
+}
+String findInDirs(String[] dirs) {
+  // (the room's disk carries the Windows build: on a Mac its .exe can't run, Homebrew's llama-server is used)
+  String[] names = platform == WINDOWS ? new String[] { LLAMA_SERVER, LLAMA_SERVER + ".exe" } : new String[] { LLAMA_SERVER };
   for (String d : dirs) {
-    for (String name : new String[] { LLAMA_SERVER, LLAMA_SERVER + ".exe" }) {
+    for (String name : names) {
       File c = new File(d, name);
       if (c.isFile() && c.canExecute()) return c.getAbsolutePath();
     }

@@ -16,7 +16,7 @@ int autoTyped = 0, autoNextKey = 0, autoWordNext = 0;
 void noteInteraction() {
   lastInteraction = millis();
   if (autoWord != null) { autoWord = null; inputText = ""; }
-  if (fxActive() && fxAbortAt < 0) fxAbortAt = frameCount;   // WallMoments.pde: everything goes home
+  // (a moment of the walls keeps playing: the visitor's word waits for it, ClaudeSketch.pde: wordBusy)
 }
 
 boolean roomBusy() {

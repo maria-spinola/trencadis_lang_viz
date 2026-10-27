@@ -33,6 +33,7 @@ Retorna exactament aquests camps, en aquest ordre:
 - Formes flexionades: plurals, femenins, verbs conjugats (*cases*, *bonica*, *cantàvem*).
 - Topònims i noms propis catalans (*Montserrat*, *Canigó*, *Girona*).
 - Les paraules amb **l·l** (ela geminada: *col·legi*, *il·lusió*, *col·lecció*) i amb **ny**, **ix**, **tx**, **ç** són típicament catalanes: no les rebutgis per això.
+- **Totes** les paraules catalanes, també les de significat dur, violent, trist o malsonant (*mort*, *assassinat*, *guerra*, *odi*, *merda*): l'obra les recull totes. Mai no rebutgis una paraula pel seu significat: només si no és catalana.
 
 `es_catala` = **false** si:
 - És d'una altra llengua, encara que s'assembli: *perro*, *hello*, *gatto*, *mañana*, *cuchara*.

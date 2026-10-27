@@ -38,7 +38,7 @@ void updateFloorEcho() {
     wallSmall[w].endDraw();
   }
   if (ECHO_WORDS_DRIFT) driftEchoWords();
-  if (ECHO_WORDS_IN_GLAZE && ECHO_REVEAL_STYLE) renderWordLayer();
+  if (ECHO_WORDS_IN_GLAZE && ECHO_REVEAL_STYLE && (wordLayer == null || frameCount % 2 == 0)) renderWordLayer();   // (every other frame: they move slowly)
   if (SHOW_POEM) renderEchoFloor();
   for (int i = echoWaves.size() - 1; i >= 0; i--) if (frameCount - echoWaves.get(i)[2] > ECHO_WAVE_FRAMES) echoWaves.remove(i);
   updateEchoPoemWords();
@@ -72,12 +72,38 @@ void updateEchoPoemWords() {
     for (EchoWord o : echoWords) if (o.gone < 0) d = min(d, dist(x, y, o.x, o.y));
     if (d > best) { best = d; bx = x; by = y; }
   }
-  addEchoWord(AUTO_WORDS_LIST[echoPoemNext % AUTO_WORDS_LIST.length].trim(), bx, by);
+  // the next of the poem's own words (the whole poem: enough for many at once, none twice on the floor)
+  StringList pool = echoPoemPool();
+  String w = pool.get(echoPoemNext % pool.size());
+  for (int k = 0; k < pool.size(); k++) {
+    String c = pool.get((echoPoemNext + k) % pool.size());
+    boolean there = false;
+    for (EchoWord o : echoWords) if (o.poem && o.gone < 0 && o.w.equalsIgnoreCase(c)) there = true;
+    if (!there) { w = c; echoPoemNext += k; break; }
+  }
+  addEchoWord(w, bx, by);
   EchoWord e = echoWords.get(echoWords.size() - 1);
   e.poem = true;
   e.t0 = frameCount;
   echoPoemNext++;
   echoPoemAt = frameCount + ECHO_POEM_EVERY;
+}
+
+// the poem's words (data/poem_words.json, in the poem's order; the short linking words left out), or
+// AUTO_WORDS_LIST if it can't be read
+StringList echoPoemWords;
+StringList echoPoemPool() {
+  if (echoPoemWords != null) return echoPoemWords;
+  echoPoemWords = new StringList();
+  try {
+    JSONArray a = loadJSONObject("poem_words.json").getJSONArray("words");
+    for (int i = 0; i < a.size(); i++) {
+      String w = a.getJSONObject(i).getString("word", "").trim().toLowerCase();
+      if (w.length() >= 4 && !echoPoemWords.hasValue(w)) echoPoemWords.append(w);
+    }
+  } catch (Exception ex) { }
+  if (echoPoemWords.size() < 4) { echoPoemWords.clear(); for (String s : AUTO_WORDS_LIST) echoPoemWords.append(s.trim()); }
+  return echoPoemWords;
 }
 
 int echoVerseLife() { return ECHO_VERSE_IN + ECHO_VERSE_STAY + ECHO_VERSE_OUT; }
@@ -231,6 +257,9 @@ void renderEchoFloor() {
   sh.set("poemCol", pc[0], pc[1], pc[2]);
   sh.set("bright", wl[0], wl[1], wl[2]);
   sh.set("wordLight", ECHO_GLAZE_LIGHT);
+  sh.set("wordBase", ECHO_WORD_BASE);
+  sh.set("colSat", ECHO_SATURATION);
+  sh.set("colContrast", ECHO_CONTRAST);
   echoBuf.beginDraw();
   echoBuf.background(0);
   echoBuf.shader(sh);
@@ -323,7 +352,7 @@ void drawEchoWords(PGraphics pg, Face f, boolean glaze) {
     pg.rotate((ECHO_VERSE_FACING_MURAL ? -HALF_PI : HALF_PI) + e.ang);
     pg.textFont(poemFont);
     pg.textSize(96);
-    pg.scale(side * ECHO_WORD_EM / 96);
+    pg.scale(side * echoWordEm(e, t) / 96);
     pg.textAlign(LEFT, CENTER);
     if (!ECHO_REVEAL_STYLE) {
       float a = echoWordAlpha(e, rank);
@@ -352,9 +381,9 @@ void drawEchoWords(PGraphics pg, Face f, boolean glaze) {
       if (a > 0.003 && glaze) {
         int code = (e.poem ? 0xFF0000FF : 0xFF00FFFF) | (round(255 * hot) << 16);   // R: freshly written; G = 0: a word of the poem (its own colour)
         float soft = 96 * (ECHO_GLAZE_SOFT + ECHO_GLAZE_SINK * sink);
-        for (int q = 0; q < 6; q++) {   // a soft edge, wider as it sinks
-          float an = TWO_PI * q / 6 + 0.5;
-          pg.fill(code, aK * 100 * a * 0.14);
+        for (int q = 0; q < 3; q++) {   // a soft edge, wider as it sinks (three soft copies: light enough for many words)
+          float an = TWO_PI * q / 3 + 0.5;
+          pg.fill(code, aK * 100 * a * 0.22);
           pg.text(ch, x + cos(an) * soft, sin(an) * soft);
         }
         pg.fill(code, aK * 100 * a * (1 - 0.55 * sink) * ECHO_WORD_ALPHA / 100.0);
@@ -435,6 +464,14 @@ void placeEchoVerse() {
 // ECHO_WORD_LIFE seconds, more and more transparent as they age, then they are gone ──
 
 int echoWordLifeFrames(EchoWord e) { return wordWriteFrames(e) + ECHO_WORD_STAY + ECHO_WORD_OUT + ECHO_WORD_LIFE * 60; }
+
+// Its size: a visitor's word is written big and grows smaller as it ages (ECHO_WORD_EM → ECHO_WORD_EM_OLD);
+// the poem's words, small (ECHO_POEM_EM)
+float echoWordEm(EchoWord e, float t) {
+  if (e.poem) return ECHO_POEM_EM;
+  float settled = t - wordWriteFrames(e) - ECHO_WORD_STAY - ECHO_WORD_OUT;
+  return lerp(ECHO_WORD_EM_OLD, ECHO_WORD_EM, (float) Math.sqrt(echoAgeFade(e, settled)));
+}
 
 // 1 when it has just settled … 0 at the end of its life (eased, so it lingers faintly)
 float echoAgeFade(EchoWord e, float tSettled) {

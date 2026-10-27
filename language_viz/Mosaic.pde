@@ -882,6 +882,7 @@ class Fragment {
   float bx, by;                  // the burst when the tile breaks: outwards from its centre
   float flip, flipAx;            // whole turns over itself on the way (its clay back shows), and about which axis
   float depth;                   // −1 far … 1 near: the plane it travels in
+  PVector via, viaIn, viaOut;    // a detour in front of the mural when its place is near (FLIGHT_MIN_PATH): through via
 }
 
 class TileFlight {
@@ -1110,6 +1111,30 @@ class TileFlight {
     float a = rnd(r, 0, TWO_PI), b = rnd(r, -1, 1);
     f.sc3 = new PVector(sqrt(1 - b * b) * cos(a), sqrt(1 - b * b) * sin(a), b).mult(tile.radius * SCATTER * rnd(r, 0.4, 1.2));
     f.tumble = rnd(r, -1, 1) * 1.0;
+    // A journey worth watching: when its place is near the main wall (the mural nearly full, filling the
+    // side walls towards it), the pieces first cross the room and sweep along in front of the mural, low,
+    // and only then come back to their place — a longer flight, at the same pace
+    f.via = null;
+    if (FLIGHT_MIN_PATH > 0 && dist(f.a0.x, f.a0.y, f.a3.x, f.a3.y) < FLIGHT_MIN_PATH * max(ROOM_W, ROOM_D)) {
+      PVector P = new PVector(ROOM_W * rnd(r, 0.1, 0.28), ROOM_D * rnd(r, 0.15, 0.85),
+                              eyeZ * (f.route == ROUTE_FLOOR ? rnd(r, 0.08, 0.3) : rnd(r, 0.25, 0.6)));
+      float dir = (f.a3.y > P.y) ? 1 : -1;   // sweeping along the mural, towards its own side
+      PVector T = new PVector(-ROOM_W * 0.04, dir * ROOM_D * rnd(r, 0.2, 0.32), 0);
+      f.via = P;
+      f.viaIn = PVector.sub(P, T);
+      f.viaOut = PVector.add(P, T);
+      f.viaIn.z = constrain(f.viaIn.z, WALL_H * 0.03, HAS_FLOOR ? VIEWER_HEIGHT * 0.6 : WALL_H * 0.85);
+      f.viaOut.z = f.viaIn.z;
+      f.dur *= FLIGHT_DETOUR_SLOW;
+    }
+  }
+
+  // a point along its 3D path (0 … 1): one curve, or two joined in front of the mural (the detour)
+  PVector pathPoint(Fragment f, float e) {
+    if (f.via == null) return new PVector(bezierPoint(f.a0.x, f.a1.x, f.a2.x, f.a3.x, e), bezierPoint(f.a0.y, f.a1.y, f.a2.y, f.a3.y, e), bezierPoint(f.a0.z, f.a1.z, f.a2.z, f.a3.z, e));
+    if (e < 0.5) { float s = e / 0.5; return new PVector(bezierPoint(f.a0.x, f.a1.x, f.viaIn.x, f.via.x, s), bezierPoint(f.a0.y, f.a1.y, f.viaIn.y, f.via.y, s), bezierPoint(f.a0.z, f.a1.z, f.viaIn.z, f.via.z, s)); }
+    float s = (e - 0.5) / 0.5;
+    return new PVector(bezierPoint(f.via.x, f.viaOut.x, f.a2.x, f.a3.x, s), bezierPoint(f.via.y, f.viaOut.y, f.a2.y, f.a3.y, s), bezierPoint(f.via.z, f.viaOut.z, f.a2.z, f.a3.z, s));
   }
 
   // the word's sound (SoundEngine.pde), as the tile appears
@@ -1220,9 +1245,7 @@ class TileFlight {
 
     if (TRAVEL_3D) {
       // Through the air: along its curve, scattered on the way, turning round to face WALL 1
-      f.w = new PVector(bezierPoint(f.a0.x, f.a1.x, f.a2.x, f.a3.x, e),
-                        bezierPoint(f.a0.y, f.a1.y, f.a2.y, f.a3.y, e),
-                        bezierPoint(f.a0.z, f.a1.z, f.a2.z, f.a3.z, e));
+      f.w = pathPoint(f, e);
       f.w.add(PVector.mult(f.sc3, apart));
       f.w.add(-0.6 * bk, f.bx * bk, -f.by * bk);   // the burst, out of WALL 3 into the room
       f.w.x = constrain(f.w.x, 0, ROOM_W);

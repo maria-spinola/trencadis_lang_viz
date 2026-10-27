@@ -146,11 +146,13 @@ void updateThickSoft() {
     s.clear();
     s.blendMode(REPLACE);
     s.image(L, 0, 0, s.width, s.height);
-    s.filter(BLUR, 1.5);   // (the side's colour changes gently from shard to shard: no bands)
+    if (softBlur == null) softBlur = loadShader("softblur.glsl");
+    s.filter(softBlur);    // (the side's colour changes gently from shard to shard: no bands; on the GPU, no stall)
     s.endDraw();
   }
 }
 PGraphics softOf(PGraphics L) { return thickSoft.get(L); }
+PShader softBlur;
 
 void drawThickness(PGraphics pg, Face f) {
   if (MURAL_THICK <= 0 || f.id == FLOOR) return;

@@ -26,6 +26,8 @@ void fxSmooth(boolean on) {
   }
   if (smoothList.size() > 0) return;
   ArrayList<PImage> all = new ArrayList<PImage>();
+  all.add(matrixOut);                            // (the preview shows the matrix much smaller: read smoothly, it doesn't shimmer)
+  for (PGraphics o : outImgs) all.add(o);
   for (PGraphics[] arr : new PGraphics[][] { mosaicLayers, glossLayers, cenefaLayers, cenefaGloss, smokeBufs, stoneNormals })
     for (PGraphics g : arr) if (g != null) { all.add(g); if (softOf(g) != null) all.add(softOf(g)); }
   for (PImage g : all) {
@@ -66,7 +68,11 @@ void stoneUniforms(PShader sh, Face f, float k, float alpha) {
   float az = stoneSunAz(), el = radians(STONE_LIGHT_HEIGHT);
   sh.set("uSun", cos(az) * cos(el), sin(az) * cos(el), sin(el));
   sh.set("uSunK", STONE_LIGHT);
-  sh.set("uLevel", STONE_LEVEL * (f.id == FLOOR ? STONE_FLOOR : 1) * k);
+  sh.set("uLevel", STONE_LEVEL * k);
+  boolean fl = f.id == FLOOR;   // the floor: darker in the middle, as the walls at its edges (no seam)
+  sh.set("uFloor", fl ? 1.0 : 0.0, fl ? STONE_FLOOR : 1, fl ? STONE_FLOOR_EDGE : 1, STONE_FLOOR_FADE);
+  sh.set("uFloorMural", STONE_FLOOR_EDGE_MURAL, STONE_FLOOR_WOBBLE);
+  sh.set("uFloorSize", f.w, f.h);
   sh.set("uNormal", stoneNormals[f.id]);
   sh.set("uAlpha", alpha);
 }

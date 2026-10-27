@@ -28,7 +28,7 @@ final int MAIN_FACE = 3;     // main screen (central word + text input): 0 FLOOR
 
 // Output pixels per matrix unit. 1.0 = native 6650x6700 (venue).
 // PC tests: 0.3. If the venue machine struggles, 0.5 and let PIXERA scale up.
-float RENDER_SCALE = 1.0;   // sharp enough to judge the look on a laptop; 0.3 if it gets slow
+float RENDER_SCALE = 0.5;   // sharp enough to judge the look on a laptop; 0.3 if it gets slow
 // Resolution of the painted motif of each tile, relative to its size on WALL 1.
 // ~3 keeps it sharp also when it is shown big on the main wall. Lower = faster, blurrier.
 float TEXTURE_DETAIL = 3;
@@ -54,13 +54,18 @@ final int FLOOR = 0, W1 = 1, W2 = 2, W3 = 3, W4 = 4;   // surface ids (Room.pde)
 // To try the floor in the IASLab, write FLOOR in place of a wall, e.g. { {W2, FLOOR, W4, W1} }: the floor
 // is made (as in the Florida) and sent in that wall's place, at that wall's size.
 boolean OUTPUT_FLOOR_FIT = true;   // …true: the whole floor, black at its sides; false: it fills the wall (top and bottom cut off)
-int[][] OUTPUT_GROUPS   = (VENUE == 1) ? new int[][] { {W2, W3, W4, W1} } : new int[][] {};
+int[][] OUTPUT_GROUPS   = (VENUE == 1)
+  ? new int[][] { {W2}, {W3}, {W4}, {W1} }
+  : new int[][] {};   // (this copy, on the Mac: the whole matrix in the preview; in the room: { {W1}, {W2}, {W3}, {W4}, {FLOOR} }, one Spout sender per surface)
 // How the output images leave Processing (Output.pde):
 //   "none"   → not sent (preview only, or OUTPUT_WINDOWS)
 //   "syphon" → macOS, one Syphon stream per output: "language_viz 1", "language_viz 2"…
 //   "spout"  → Windows, one Spout sender per output, same names
 // Needs the library installed and its import line enabled at the top of language_viz.pde.
-String  OUTPUT_SEND     = "spout";
+String  OUTPUT_SEND     = "none";   // (this copy: the Mac, preview only)
+int     OUTPUT_FPS      = 30;      // the streams are sent this many times a second, as one frame in every 60/OUTPUT_FPS (0 = every frame); the room keeps drawing at full speed
+float   OUTPUT_WALL_SCALE  = 1.0;  // resolution of each wall's output image (× the matrix; never more than RENDER_SCALE)
+float   OUTPUT_FLOOR_SCALE = 0.5;  // …and of the floor's (it is soft: 0.5 halves the heaviest stream)
 boolean OUTPUT_WINDOWS  = false;   // also open each output image in its own window (copies through the CPU: much slower, ~14 fps with 3 outputs on a laptop)
 int[]   OUTPUT_DISPLAYS = {};      // display for each window, full screen (1 = main, 2 = second...); 0 / missing = small window
 
@@ -212,7 +217,9 @@ float   WORD_MAX_WIDTH   = 0.82;   // …never wider than this share of the wall
 // The floor: "the echo of the trencadís" (FloorEcho.pde). 0 = no floor image;
 // 1 = A soft reflections · 2 = B fragmented reflections · 3 = C almost black, strong reaction. Ctrl+F cycles them.
 int     FLOOR_ECHO       = 1;      // chosen: A
-float   ECHO_A_STRENGTH  = 0.8;    // how bright the reflections are, per prototype
+float   ECHO_A_STRENGTH  = 1.5;    // how bright the reflections are, per prototype
+float   ECHO_SATURATION  = 2.0;    // the floor's reflection: how saturated its colours are (1 = as the mural)
+float   ECHO_CONTRAST    = 1.6;    // …how much the dull haze between the colours is pushed down (1 = none)
 float   ECHO_B_STRENGTH  = 0.8;
 float   ECHO_C_STRENGTH  = 0.12;
 float   ECHO_REACH       = 3200;   // how far into the room the reflections reach (room units; the walls are 1200 high)
@@ -220,7 +227,7 @@ float   ECHO_WARP        = 90;     // how much the slow warp bends them
 float   ECHO_STRETCH     = 3.3;    // the reflections reach this many times the wall height into the room
 float   ECHO_BLUR        = 0.012;  // A and C: softness of the reflections
 float   ECHO_CELL        = 330;    // B: size of the reflecting shards
-float   ECHO_WAVE        = 1.0;    // the word's wave across the floor
+float   ECHO_WAVE        = 1.8;    // the word's wave across the floor
 float   ECHO_C_WAVE      = 1.8;    // …stronger in C
 float   ECHO_WAVE_REACH  = 4200;   // …how far it goes
 float   ECHO_WAVE_WIDTH  = 260;
@@ -235,7 +242,7 @@ int     ECHO_VERSE_OUT   = 300;    // fades out
 float   ECHO_VERSE_EM    = 0.025;  // the verse's size (× the smaller floor side)
 boolean ECHO_VERSE_FACING_MURAL = true;   // the verse reads standing in the room facing the mural (false: facing the main wall)
 int     ECHO_SOFT_PX     = 220;
-float   ECHO_RES         = 0.35;   // the floor's reflection is computed at this share of the floor's resolution and enlarged
+float   ECHO_RES         = 0.55;   // the floor's reflection is computed at this share of the floor's resolution and enlarged
                                    //    (it is soft and made from small images: full resolution only cost more, ~5× here)
 int     ECHO_PREBLUR     = 0;      // the reflected walls are blurred this much first (pixels of that small copy)
 boolean ECHO_REVEAL_STYLE = true;  // texts on the floor: true = the verse is revealed, the word is inscribed in light; false = the openings
@@ -250,28 +257,31 @@ int     ECHO_WORD_WRITE  = 7;      // …frames between letters (written in ligh
 float   ECHO_WORD_ALPHA  = 100;    // …how bright (0–100)
 float   ECHO_OPEN_W      = 0.11;   // the verse's window in the reflection: half its width…
 float   ECHO_OPEN_H      = 0.47;   // …and half its length (× the smaller floor side)
-float   ECHO_WORD_EM     = 0.03;   // a visitor's word on the floor: size
+float   ECHO_WORD_EM     = 0.021;  // a visitor's word on the floor: its size when it is written (× the floor's shorter side)…
+float   ECHO_WORD_EM_OLD = 0.011;  // …growing smaller as it ages, to this
+float   ECHO_POEM_EM     = 0.013;  // the poem's words on the floor: their size
 float   ECHO_WORD_INSET  = 0.3;    // …how far from its wall towards the centre
 int     ECHO_WORD_DELAY  = 50;     // …frames after its tile settles
 int     ECHO_WORD_IN     = 40;
 int     ECHO_WORD_STAY   = 60 * 4;
 int     ECHO_WORD_OUT    = 120;
 boolean ECHO_WORDS_DRIFT = true;   // after being written, the visitors' words stay on the floor and drift slowly
-int     ECHO_POEM_WORDS  = 12;     // the poem always on the floor: this many of its words (AUTO_WORDS_LIST) at once, written in light,
+int     ECHO_POEM_WORDS  = 30;     // the poem always on the floor: this many of its words (AUTO_WORDS_LIST) at once, written in light,
 int     ECHO_POEM_LIFE   = 150;    // …each one for this many seconds, then it fades and the next is written somewhere else
-int     ECHO_POEM_EVERY  = 60 * 5; // …new ones appear one by one, this many frames apart
-float   ECHO_POEM_ALPHA  = 0.55;   // …how bright once written (0–1); their colour: POEM_FLOOR_COLOR (Colors.pde), paler than the visitors'
-int     ECHO_WORDS_KEEP  = 40;     // the floor's register: the last 40 words typed stay on the floor (the oldest fades)
+int     ECHO_POEM_EVERY  = 60 * 3; // …new ones appear one by one, this many frames apart
+float   ECHO_POEM_ALPHA  = 0.85;   // …how bright once written (0–1); their colour: POEM_FLOOR_COLOR (Colors.pde), paler than the visitors'
+int     ECHO_WORDS_KEEP  = 90;     // the floor's register: the last 90 words typed stay on the floor (the oldest fades)
 int     ECHO_WORD_LIFE   = 60 * 15;   // …for this many seconds after settling, more and more transparent as they age
 float   ECHO_DRIFT_SPEED = 0.45;   // …how fast they drift (room units per frame)
-float   ECHO_DRIFT_ALPHA = 0.45;   // …how bright once settled (0–1)
-float   ECHO_DRIFT_ROOM  = 0.22;
+float   ECHO_DRIFT_ALPHA = 0.75;   // …how bright once settled (0–1)
+float   ECHO_DRIFT_ROOM  = 0.12;   // …how much room they keep between them (× the floor's shorter side)
 boolean ECHO_WORDS_IN_GLAZE = true; // the words are set into the floor's glaze (shader): lit by the reflection, warped with it, soft edges, sinking as they age; false = drawn on top
 float   ECHO_GLAZE_LIGHT = 1.0;    // …how bright they are in the glaze
+float   ECHO_WORD_BASE   = 0.95;   // …their light even where the floor is dark (they used to dim with the reflection under them: 0.42)
 float   ECHO_GLAZE_KEEP  = 1.8;    // …their opacity once settled, × ECHO_DRIFT_ALPHA (the glaze dims them already)
 float   ECHO_GLAZE_SOFT  = 0.025;  // …softness of their edges (× letter size)
 float   ECHO_GLAZE_SINK  = 0.14;
-int     ECHO_GLAZE_PX    = 1024;   // …resolution of their layer (a power of two)   // …extra softness as they age and sink
+int     ECHO_GLAZE_PX    = 2048;   // …resolution of their layer (a power of two)   // …extra softness as they age and sink
 float   ECHO_WORD_SPIN   = 2.0;    // …they keep turning slowly, each at its own pace and either way (degrees per second, about; 0 = they only sway)
 float   ECHO_WORD_TURN   = 0.35;   // …and sway a little as they drift (radians, either way)
 float   ECHO_WORD_RIPPLE = 1.0;    // …how much they stir the glaze under them (slow rings, the reflection brightening)
@@ -286,6 +296,8 @@ boolean art(boolean b) { return ART_NEW && b; }
 float CHUNK_SHARDS     = 1;       // the tile breaks into chunks of about this many shards (1 = every shard flies on its own, as at first; bigger = fewer, bigger chunks)
 boolean FLIGHT_ALL_ROUTES = true;  // every shard takes its own way round the room (both sides, and the floor where there is one), not one or two ways per tile
 float FLIGHT_STAGGER   = 0.3;     // …how much they leave in turn instead of all at once (× the travel time)
+float FLIGHT_MIN_PATH    = 0.75;    // when a tile's place is nearer the main wall than this (× the room), its pieces first sweep in front of the mural (0 = never)
+float FLIGHT_DETOUR_SLOW = 1.35;   // …and take this much longer, so the longer way keeps its pace
 float BURST            = 0.35;    // how far the chunks are thrown out when the tile breaks (× its radius)
 float CHUNK_TILT       = 0.75;    // how much the chunks tilt in perspective in the air (radians; never show their back)
 float CHUNK_GROW       = 0.12;    // …how much bigger they look mid-flight (closer to us)
@@ -333,7 +345,7 @@ int     MURAL_FADE_FRAMES = 240;  // …how long an old tile takes to fade away
 // 0…100 = this % of the whole mural (WALL 1 first, then WALL 2 / 4) filled with the words of
 // data/prefill_words.json, as if they had been typed, and the last ECHO_WORDS_KEEP of them on the floor.
 // While it is on, the mural is not saved: data/mosaic.json stays as it was. (WALL 1 alone ≈ 32 %.)
-float   MURAL_PREFILL    = 45;
+float   MURAL_PREFILL    = 65;
 String  PREFILL_FILE     = "prefill_words.json";   // in data/: the words, analysed by the model (made with Ctrl+A)…
 String  PREFILL_LIST_FILE = "prefill_list.txt";    // …from this list, one word per line: edit it, then Ctrl+A
 int     PREFILL_PAUSE_MS = 1500;   // …pause between words while analysing (the Viquidiccionari limits fast requests)
@@ -395,10 +407,12 @@ final String LLM_PROVIDER = "ollama";
 // Where the model runs:
 //   "local" → on this computer (LOCAL_ENGINE; setup_mac.command / setup_windows.bat install it)
 //   "cloud" → Ollama Cloud (needs an API key: data/ollama_key.txt, never commit it)
-//   "auto"  → local; if it doesn't answer, the cloud; if there's no network either,
+//   "auto"  → the cloud first (AUTO_CLOUD_FIRST); if it doesn't answer, the local model; if neither,
 //             parameters from the word itself (local filter only) — it never stops
 // Ctrl+O switches it while running: auto → cloud → local (shown in the preview window).
 volatile String LLM_MODE        = "auto";
+boolean AUTO_CLOUD_FIRST = true;   // auto: true = the cloud first, the local model if the cloud fails; false = the local model first
+int     CLOUD_TIMEOUT_S  = 25;     // auto: how long a word waits for the cloud before trying the local model (seconds)
 // The local model:
 //   "llamacpp" → Salamandra 7B Instruct 2606 (BSC, trained on Catalan) on llama.cpp's llama-server,
 //                started by the sketch (LocalLLM.pde). BSC advises against running it with Ollama.
@@ -428,7 +442,7 @@ String SYSTEM_PROMPT;
 
 // Only ONE word in CATALAN is accepted (CatalanLLM.pde)
 int    MAX_WORD_LENGTH   = 30;
-int    WORD_QUEUE_MAX    = 3;    // words typed while another is still forming wait their turn: at most this many
+int    WORD_QUEUE_MAX    = 5;    // words typed while another is still forming wait their turn: at most this many
 
 // ── Behind the mural (Backdrop.pde) ──────────────────────────
 // "stone" = the walls and the floor of natural stone (data/stone_rock, stone_grain, stone_slate .jpg)
@@ -448,7 +462,11 @@ float   BACKDROP_RES      = 0.1;    // it is computed at this share of each surf
 float   BACKDROP_TEXT_SHADE = 0.4;  // on the main wall, a soft shade behind the word and the text box (0 = none)
 float   STONE_LEVEL       = 1.1;    // "stone": how bright the stone is
 float   STONE_ROUGHNESS   = 1.2;    // …how rough its relief is (0.5 smoother · 1.5 rougher; the photographs' detail stays sharp)
-float   STONE_FLOOR       = 0.45;   // …the floor is stone too, this much darker (its reflection of the trencadís over it; 0 = black floor)
+float   STONE_FLOOR       = 0.14;   // …the floor is stone too, darker: this much in the middle of the room (0 = black floor)
+float   STONE_FLOOR_EDGE  = 0.55;   // …and this much at the foot of the walls (1 = as bright as the walls)
+float   STONE_FLOOR_EDGE_MURAL = 0.3; // …at the foot of WALL 1, where the mural's colours are reflected: darker, so they stand out
+float   STONE_FLOOR_FADE  = 0.12;   // …how far from the walls it darkens (× the floor's shorter side; soft)
+float   STONE_FLOOR_WOBBLE = 0.6;   // …how irregular the edge of the dark is (0 = a rounded square; more = more uneven, never straight)
 float   STONE_LIGHT       = 0.45;   // …a low light going slowly round the room, raking the stone (0 = still light)
 float   STONE_LIGHT_PERIOD = 300;   // …seconds for it to go once round the room
 float   STONE_LIGHT_HEIGHT = 20;    // …how high it is (degrees): lower = more raking, the relief stronger
@@ -459,15 +477,18 @@ float   STONE_LIGHT_START = 35;     // …where it starts (degrees round the roo
 // the audience, waves run round the room, the walls fall over the audience, the border falls and rebuilds itself…
 // Ctrl+W plays the next one now.
 boolean  WALL_MOMENTS          = true;
-float    WALL_MOMENTS_EVERY_MIN = 35;    // seconds between moments, from…
-float    WALL_MOMENTS_EVERY_MAX = 45;    // …to (only when the room is calm: they wait for words and visitors)
+float    WALL_MOMENTS_EVERY_MIN = 15;    // seconds between moments, from…
+float    WALL_MOMENTS_EVERY_MAX = 20;    // …to (only when the room is calm: they wait for words and visitors)
 int      WALL_MOMENTS_CUE      = 150;   // the announcement before each one: the light dims (frames)
 float    WALL_MOMENTS_DIM      = 0.6;   // …how much the light dims
 float    WALL_MOMENTS_SCALE    = 1.0;   // how far things go (depth, tilt, height: 0.5 = half, 1.5 = wilder)
 int      WALL_MOMENTS_SWAPS    = 5;     // swap: pairs of tiles changing places
 float    WALL_MOMENTS_BED      = 0.35;  // the bed a tile leaves over the smoke ("glow"): how much of it shows (1 = solid mortar)
-float    WALL_MOMENTS_BIG_GAP = 150;   // the big ones (tilt, collapse) at most once every this many seconds
-String[] WALL_MOMENTS_LIST     = {      // the ones that play — each answers the last word (WallMoments.pde: nextWallMoment); never the same twice in a row
+float    WALL_MOMENTS_BIG_GAP = 45;    // the big ones (tilt, collapse) at most once every this many seconds
+boolean  WALL_MOMENTS_ON_LAND  = true;  // a moment answers each word as it settles in the mural (the next words wait for it to end)
+float    WALL_MOMENTS_LAND_GAP = 5;     // …but not if another moment ended less than this many seconds ago
+float    WALL_MOMENTS_MOOD     = 1.6;   // how much more likely the moment answering the word's mood is (the others come round too)
+String[] WALL_MOMENTS_LIST     = {      // the ones that play — each answers the last word (WallMoments.pde: nextWallMoment); never the same as either of the last two
   "wave", "tilt", "heartbeat", "swap", "collapse"
 };
 
@@ -476,7 +497,7 @@ String[] WALL_MOMENTS_LIST     = {      // the ones that play — each answers t
 // of the poem by itself, letter by letter in the text box, then ENTER: its tile forms, breaks,
 // travels and settles like a visitor's (it goes to the mural and to the floor). A key takes over.
 boolean  AUTO_WORDS        = true;
-float    AUTO_IDLE_SECONDS = 45;    // seconds without interaction before a word appears (and between them while it lasts)
+float    AUTO_IDLE_SECONDS = 15;    // seconds without interaction before a word appears (and between them while it lasts)
 int      AUTO_TYPE_MS      = 230;   // time per letter (a little irregular, like a hand)
 String[] AUTO_WORDS_LIST   = {      // in order, over and over (one already in the mural is skipped); ordered so the colours alternate
   "fràgil", "ocells", "veritat", "plata", "paranys", "cançons", "amor", "orelles",
@@ -498,6 +519,7 @@ String LEXICON_CACHE_FILE = "lexicon_cache.json";
 // raresa is measured, not guessed: how often the word appears in Catalan texts (wordfreq).
 // Zipf scale: 5.8 casa · 4.6 finestra · 4.1 tristesa · 3.1 pessigolles · 2.8 espardenya · 2.2 xiuxiuejar
 boolean USE_WORD_FREQ = true;
+float   KNOWN_CATALAN_ZIPF = 3.0;   // a word at least this common in real Catalan texts (zipf; or in the Viquidiccionari) is never rejected by the model: assassinat 5.0, mort 5.7, pistola 4.0, genital 3.3 (it also takes in foreign words found in Catalan texts: house 4.1, calle 3.7, muerte 3.4, perro 3.0; 0 = the model decides)
 String WORD_FREQ_FILE = "catalan_freq.tsv";
 // Missing or wrong accents are corrected from the same table ("cafe" → "cafè"): only when the
 // accented form is at least ACCENT_FIX_GAP zipf more common (×25), so "mes", "te", "mon" stay

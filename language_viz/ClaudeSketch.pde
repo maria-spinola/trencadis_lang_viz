@@ -31,7 +31,7 @@ void setupLLM() {
 // goes as soon as the one before it has left the wall (its flight begun)
 ArrayList<String> wordQueue = new ArrayList<String>();
 boolean wordBusy() {
-  if (isLoading) return true;
+  if (isLoading || fxActive() || fxLandPending) return true;   // (a moment of the walls playing, or about to: the word waits for it)
   for (TileFlight fl : flights) if (fl.state == FLIGHT_HOLD) return true;
   return revealAlpha() > 0.01 && revealEnd < 0;   // (the word is up and its tile not yet made)
 }
