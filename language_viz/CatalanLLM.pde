@@ -157,7 +157,7 @@ JSONObject cleanParams(JSONObject res, String word) {
   JSONObject out = new JSONObject();
   out.setString("word", word);
   out.setInt("emotion",         constrain(intOr(res, "emotion", 4), 1, 7));
-  out.setString("emotion_label", res.hasKey("emotion_label") ? res.getString("emotion_label") : "");
+  out.setString("emotion_label", EMOTION_NAMES[out.getInt("emotion") - 1]);
   String hex = res.hasKey("color_hex") ? res.getString("color_hex").trim() : "";
   if (!hex.matches("^#[0-9A-Fa-f]{6}$")) hex = emotionHex(out.getInt("emotion"), 0, 70, 80);
   out.setString("color_hex", hex);
@@ -204,7 +204,8 @@ void llmUnavailable(String why) {
 // and its scales, the emotion and its colour last. With the emotion first, Salamandra copied
 // the numbers of the prompt's example with the same emotion.
 String[] ANSWER_FIELDS = { "es_catala", "motiu", "word_class", "phenomena_class", "abstraction", "agency", "organic",
-                           "time_duration", "culturalitat", "raresa", "emotion", "emotion_label", "color_hex" };
+                           "time_duration", "culturalitat", "raresa", "emotion", "color_hex" };
+// (emotion_label is not asked: it comes from the emotion's number, EMOTION_NAMES — fewer tokens to write)
 
 String fieldSchema(String k) {
   if (k.equals("es_catala"))     return "{\"type\":\"boolean\"}";
@@ -294,7 +295,7 @@ String ollamaRequest(String url, String model, String key, String word) throws E
 }
 
 // Local / cloud / auto, in order. Returns { raw answer, mode } or throws with every reason.
-// The local model is Salamandra on llama-server (LOCAL_ENGINE "llamacpp", LocalLLM.pde) or Ollama.
+// The local model is LLAMA_MODEL_FILE on llama-server (LOCAL_ENGINE "llamacpp", LocalLLM.pde) or Ollama.
 String[] askModelChain(String word) throws Exception {
   String why = "";
   String typed = word;
@@ -303,7 +304,7 @@ String[] askModelChain(String word) throws Exception {
   // is never rejected by the model — whatever it means (assassinat, mort…): it may only analyse it
   forceCatalan = knownCatalan(typed);
   if (forceCatalan) word += "\n(És una paraula catalana.)";
-  boolean tryLocal = !LLM_MODE.equals("cloud"), tryCloud = !LLM_MODE.equals("local");
+  boolean tryLocal = !LLM_MODE.equals("cloud"), tryCloud = !LLM_MODE.equals("local") && netOnline;   // offline: straight to the local model
   boolean cloudFirst = LLM_MODE.equals("auto") && AUTO_CLOUD_FIRST;   // auto: the cloud first, the local model if it fails (or the other way)
   for (int pass = 0; pass < 2; pass++) {
     boolean cloud = (pass == 0) == cloudFirst;
@@ -319,10 +320,11 @@ String[] askModelChain(String word) throws Exception {
       if (key.length() == 0) why += (why.length() > 0 ? " · " : "") + "cloud: no key (data/ollama_key.txt)";
       else {
         try { return new String[] { ollamaRequest(OLLAMA_URL_CLOUD, OLLAMA_MODEL_CLOUD, key, word), "cloud" }; }
-        catch (Exception e) { why += (why.length() > 0 ? " · " : "") + "cloud: " + msgOf(e); }
+        catch (Exception e) { netFailed(e); why += (why.length() > 0 ? " · " : "") + "cloud: " + msgOf(e); }
       }
     }
   }
+  if (!netOnline && !LLM_MODE.equals("local")) why += (why.length() > 0 ? " · " : "") + "cloud: offline";
   throw new Exception(why);
 }
 
@@ -525,7 +527,7 @@ volatile String pendingDef = "";   // definition of the word being analysed ("" 
 // The text sent to the model: the word, plus what the dictionary says about it
 String userMessage(String word) {
   pendingDef = "";
-  if (!USE_DICTIONARY) return word;
+  if (!USE_DICTIONARY || !netOnline) return word;   // offline: the model decides alone, at once
   String d = null;
   boolean reached = true;
   try {
@@ -534,6 +536,7 @@ String userMessage(String word) {
     if (d == null) d = lookupDefinition(word.substring(0, 1).toUpperCase() + word.substring(1));   // place names
   } catch (Exception e) {
     reached = false;
+    netFailed(e);
     println("Viquidiccionari not reachable (" + msgOf(e) + "): the model decides alone");
   }
   if (!reached)   return word;
@@ -542,6 +545,46 @@ String userMessage(String word) {
   pendingDef = d;
   println("Viquidiccionari: " + word + " = " + d);
   return word + "\nDefinició del Viquidiccionari: " + d;
+}
+
+// ── Is there internet? ──
+// A background check every NET_CHECK_S seconds (and any dictionary / cloud call that can't connect)
+// says whether the network can be used. Offline, a word never waits for it: no dictionary, no cloud,
+// the local model at once. (A network that connects but leads nowhere could make a word wait
+// 25 s for the cloud and 10 s per dictionary lookup.)
+volatile boolean netOnline = true;
+
+void startNetWatch() {
+  Thread t = new Thread(() -> {
+    HttpClient client = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(3))
+      .followRedirects(HttpClient.Redirect.NEVER).build();
+    while (true) {
+      boolean up;
+      try {
+        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(DICT_URL)).timeout(java.time.Duration.ofSeconds(4))
+          .method("HEAD", HttpRequest.BodyPublishers.noBody()).build();
+        client.send(req, HttpResponse.BodyHandlers.discarding());   // any answer at all: online
+        up = true;
+      } catch (Exception e) {
+        up = false;
+      }
+      setNetOnline(up);
+      try { Thread.sleep(NET_CHECK_S * 1000L); } catch (InterruptedException e) { return; }
+    }
+  }, "net-watch");
+  t.setDaemon(true);
+  t.start();
+}
+
+void setNetOnline(boolean up) {
+  if (up != netOnline) println(up ? "Internet: back — dictionary and cloud in use again"
+                                  : "Internet: offline — no dictionary, no cloud: the local model only");
+  netOnline = up;
+}
+
+// A network call failed: if it couldn't connect (not an error answer), the network is down until the next check
+void netFailed(Exception e) {
+  if (e instanceof java.io.IOException) setNetOnline(false);
 }
 
 // null = no page · "" = page without a Catalan entry · otherwise up to 3 definitions

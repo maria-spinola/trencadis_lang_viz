@@ -28,7 +28,7 @@ final int MAIN_FACE = 3;     // main screen (central word + text input): 0 FLOOR
 
 // Output pixels per matrix unit. 1.0 = native 6650x6700 (venue).
 // PC tests: 0.3. If the venue machine struggles, 0.5 and let PIXERA scale up.
-float RENDER_SCALE = 0.5;   // sharp enough to judge the look on a laptop; 0.3 if it gets slow
+float RENDER_SCALE = (platform == WINDOWS) ? 1.0 : 0.5;   // Windows = the room's PC: native; a Mac: enough to judge the look on a laptop (0.3 if it gets slow)
 // Resolution of the painted motif of each tile, relative to its size on WALL 1.
 // ~3 keeps it sharp also when it is shown big on the main wall. Lower = faster, blurrier.
 float TEXTURE_DETAIL = 3;
@@ -61,8 +61,8 @@ int[][] OUTPUT_GROUPS   = (VENUE == 1)
 //   "none"   → not sent (preview only, or OUTPUT_WINDOWS)
 //   "syphon" → macOS, one Syphon stream per output: "language_viz 1", "language_viz 2"…
 //   "spout"  → Windows, one Spout sender per output, same names
-// Needs the library installed and its import line enabled at the top of language_viz.pde.
-String  OUTPUT_SEND     = "none";   // (this copy: the Mac, preview only)
+// Spout ships with the sketch (code/spout.jar + JNISpout_64.dll): nothing to install. Syphon needs its library.
+String  OUTPUT_SEND     = (platform == WINDOWS) ? "spout" : "none";   // Windows = the room's PC; a Mac: preview only
 int     OUTPUT_FPS      = 30;      // the streams are sent this many times a second, as one frame in every 60/OUTPUT_FPS (0 = every frame); the room keeps drawing at full speed
 float   OUTPUT_WALL_SCALE  = 1.0;  // resolution of each wall's output image (× the matrix; never more than RENDER_SCALE)
 float   OUTPUT_FLOOR_SCALE = 0.5;  // …and of the floor's (it is soft: 0.5 halves the heaviest stream)
@@ -414,13 +414,14 @@ volatile String LLM_MODE        = "auto";
 boolean AUTO_CLOUD_FIRST = true;   // auto: true = the cloud first, the local model if the cloud fails; false = the local model first
 int     CLOUD_TIMEOUT_S  = 25;     // auto: how long a word waits for the cloud before trying the local model (seconds)
 // The local model:
-//   "llamacpp" → Salamandra 7B Instruct 2606 (BSC, trained on Catalan) on llama.cpp's llama-server,
-//                started by the sketch (LocalLLM.pde). BSC advises against running it with Ollama.
+//   "llamacpp" → Qwen3.5 2B Instruct (Alibaba, 201 languages, ≈ 1.3 GB) on llama.cpp's llama-server,
+//                started by the sketch (LocalLLM.pde). ≈ 3 s a word on an M2 (Salamandra 7B took 12–16 s).
+//                Any instruct GGUF works: change LLAMA_MODEL_FILE (and the setup scripts' download).
 //   "ollama"   → OLLAMA_MODEL_LOCAL on a local Ollama
 final String LOCAL_ENGINE       = "llamacpp";
 boolean LLAMA_AUTOSTART  = true;            // start llama-server with the sketch and stop it on exit (one already running is reused)
 String  LLAMA_SERVER     = "llama-server";  // the program: found on the PATH, in /opt/homebrew/bin, /usr/local/bin or winget's folder; or a full path
-String  LLAMA_MODEL_FILE = "models/salamandra-7b-instruct-2606.i1-Q4_K_M.gguf";   // in the sketch folder (not in git: setup_mac.command downloads it)
+String  LLAMA_MODEL_FILE = "models/Qwen3.5-2B-Q4_K_M.gguf";   // in the sketch folder (not in git: setup_mac.command downloads it)
 int     LLAMA_PORT       = 8091;
 int     LLAMA_CTX        = 8192;            // context tokens: instructions + examples (~5k) + word + answer. More = more memory
 float   LLAMA_START_S    = 90;              // how long to wait for the server to load the model (also how long a word waits for it)
@@ -428,6 +429,7 @@ float   LLAMA_START_S    = 90;              // how long to wait for the server t
 // send the model its definition: the models don't know many Catalan words. Needs internet;
 // without it the model decides alone.
 boolean USE_DICTIONARY = true;
+int     NET_CHECK_S    = 20;     // how often the sketch checks the internet (in the background); offline, words skip the dictionary and the cloud
 String  DICT_URL       = "https://ca.wiktionary.org/w/api.php";
 final String OLLAMA_URL_LOCAL   = "http://localhost:11434/api/chat";
 final String OLLAMA_URL_CLOUD   = "https://ollama.com/api/chat";   // Authorization: Bearer <key>

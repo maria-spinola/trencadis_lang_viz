@@ -17,12 +17,11 @@ boolean soundReady = false;
 // The whole media matrix is the image 'matrixOut' (Room.pde); other layouts
 // (one image per surface, 2 + 2 + 1...) are set with OUTPUT_GROUPS in Config.pde.
 // Sending them (windows, Syphon, Spout): see Output.pde.
-// To send by Syphon / Spout (OUTPUT_SEND in Config.pde), install the library and remove
-// the // before its line. Processing needs the import to load the library; leave the
-// other one commented (Syphon only exists on macOS, Spout only on Windows).
+// Spout (OUTPUT_SEND "spout", Windows) needs nothing: spout.jar and its DLLs are in the sketch's code/
+// folder, which Processing always loads (as Minim and The MidiBus: no library to install).
+// Syphon (macOS) is not included: install it and remove the // before its import.
 
 // import codeanticode.syphon.*;   // OUTPUT_SEND = "syphon"  (macOS)
-// import spout.*;                 // OUTPUT_SEND = "spout"   (Windows)
 
 void settings() {
   if (FULLSCREEN) fullScreen(P3D);
@@ -46,6 +45,7 @@ void setup() {
   setupCenefa();  // Cenefa.pde — the trencadís border round the top of the room
   setupMotes();   // Motes.pde — little shards floating in the empty parts of the walls
   setupLLM();     // ClaudeSketch.pde — carga system prompt
+  keepAwake();    // utils.pde — the computer doesn't sleep while the room runs
   loadJSONFromPath(jsonPath, false);   // last parameters, without adding a tile again
 }
 

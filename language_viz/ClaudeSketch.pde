@@ -23,6 +23,7 @@ void setupLLM() {
   SYSTEM_PROMPT = loadSystemPrompt(prompt_path);
   loadLexicon();   // CatalanLLM.pde
   loadWordFreq();
+  startNetWatch();   // CatalanLLM.pde: offline, words go straight to the local model
   if (LLM_PROVIDER.equals("ollama")) startLlamaServer();   // LocalLLM.pde: local model (only with LOCAL_ENGINE "llamacpp")
 }
 

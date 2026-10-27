@@ -75,8 +75,10 @@ Object makeSender(String name) {
     println("OUTPUT_SEND must be \"none\", \"syphon\" or \"spout\" (it is \"" + OUTPUT_SEND + "\"): not sending.");
   } catch (ClassNotFoundException e) {
     println("OUTPUT_SEND = \"" + OUTPUT_SEND + "\" but the library is not loaded. To fix it:");
-    println("  1. Sketch → Import Library → Manage Libraries… → install " + (OUTPUT_SEND.equals("syphon") ? "Syphon" : "Spout"));
-    println("  2. At the top of language_viz.pde, remove the // before: import " + (OUTPUT_SEND.equals("syphon") ? "codeanticode.syphon.*;" : "spout.*;"));
+    if (OUTPUT_SEND.equals("syphon")) {
+      println("  1. Sketch → Import Library → Manage Libraries… → install Syphon");
+      println("  2. At the top of language_viz.pde, remove the // before: import codeanticode.syphon.*;");
+    } else println("  spout.jar should be in language_viz/code/ (it comes with the project): check the folder is complete.");
     println("  The sketch keeps running without sending.");
   } catch (Exception e) {
     println("Could not start " + OUTPUT_SEND + ": " + e);

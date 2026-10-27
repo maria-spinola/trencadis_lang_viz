@@ -3,7 +3,7 @@
 //  API CALL  —  runs on a background thread so draw() never blocks
 // ════════════════════════════════════════════════════════════════
 
-// LLM_PROVIDER "ollama": local (Salamandra / Ollama) / cloud / auto (LLM_MODE, CatalanLLM.pde), on a background thread
+// LLM_PROVIDER "ollama": local (llama-server / Ollama) / cloud / auto (LLM_MODE, CatalanLLM.pde), on a background thread
 void callModel(String word) {
   isLoading = true;
   final String w = word;

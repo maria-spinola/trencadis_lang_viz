@@ -23,3 +23,7 @@ language_viz/data/ollama_key.txt
 language_viz/models/
 language_viz/data/llama_server.log
 language_viz/Reaper/Backups/
+
+# llama.cpp for Windows, next to the sketch (≈ 160 MB, downloaded by setup_windows.bat; bring it on the pen drive)
+language_viz/llama.cpp/
+language_viz/llama.cpp-cpu/

@@ -1,6 +1,6 @@
 // ════════════════════════════════════════════════════════════════
 // LocalLLM.pde
-// The local model: Salamandra 7B Instruct 2606 (BSC, trained on Catalan), run by
+// The local model: Qwen3.5 2B Instruct (LLAMA_MODEL_FILE; it was Salamandra 7B, too slow), run by
 // llama.cpp's llama-server. The sketch starts the server when it opens and stops it
 // on exit (LLAMA_AUTOSTART); one already running on LLAMA_PORT is reused.
 //
@@ -10,9 +10,11 @@
 // (In llama.cpp b11429 a JSON schema on /v1/chat/completions fails with this model:
 // "Failed to initialize samplers" — the grammar includes the template's <|im_start|>.)
 //
-// Salamandra has no system role: its template puts the instructions at the start of the
-// first user message. The examples of the prompt go as real turns (word → JSON): written
-// inside the instructions, the 7B model copied the first one for most words.
+// The model's own chat template places the instructions (a system role, or the first user message
+// for models without one). The examples of the prompt go as real turns (word → JSON): written
+// inside the instructions, small models copy the first one for most words.
+// Qwen3.5 thinks before answering by default: chat_template_kwargs enable_thinking=false skips it
+// (models without thinking ignore it).
 // ════════════════════════════════════════════════════════════════
 
 ProcessHandle llamaProc;               // the server the sketch started or adopted (null = not ours)
@@ -53,7 +55,7 @@ String llmStatus() {
 
 String llmStatusNow() {
   if (!LLM_PROVIDER.equals("ollama")) return "model " + LLM_PROVIDER;
-  String local = LOCAL_ENGINE.equals("llamacpp") ? "Salamandra " + llamaState : "ollama " + OLLAMA_MODEL_LOCAL;
+  String local = LOCAL_ENGINE.equals("llamacpp") ? new File(LLAMA_MODEL_FILE).getName().replace(".gguf", "") + " " + llamaState : "ollama " + OLLAMA_MODEL_LOCAL;
   String cloud = OLLAMA_MODEL_CLOUD + (ollamaKey().length() > 0 ? "" : " (no key)");
   if (LLM_MODE.equals("cloud")) return "model: cloud " + cloud;
   if (LLM_MODE.equals("local")) return "model: local " + local;
@@ -106,7 +108,7 @@ boolean launchLlama(String bin, File model, boolean gpu) {
       "-c", "" + LLAMA_CTX,     // context: prompt + examples + word + answer; the default (160k) would take GBs
       "-np", "1",               // one word at a time
       "-ngl", gpu ? "99" : "0", // the whole model on the GPU, or none of it
-      "--temp", "0", "--repeat-penalty", "1.0",   // BSC: temperature 0–0.2, no repetition penalty
+      "--temp", "0", "--repeat-penalty", "1.0",   // the same word always gives the same answer (the same tile)
       "--no-webui");
     if (!gpu) pb.command().addAll(java.util.Arrays.asList("--device", "none"));
     pb.redirectErrorStream(true);
@@ -216,7 +218,7 @@ boolean waitForLlama(float seconds) {
 void llamaWarmUp() {
   try {
     long t = System.currentTimeMillis();
-    JSONObject tpl = llamaPost("/apply-template", "{\"messages\":" + llamaMessages("casa") + "}", 10);
+    JSONObject tpl = llamaPost("/apply-template", llamaTemplateBody("casa"), 10);
     llamaPost("/completion", "{\"prompt\":\"" + escapeJson(tpl.getString("prompt")) + "\",\"n_predict\":0,\"cache_prompt\":true}", 600);
     println("Local model ready: " + localModelName() + " · instructions read in " + nf((System.currentTimeMillis() - t) / 1000.0, 0, 1) + " s");
   } catch (Exception e) {
@@ -230,7 +232,7 @@ void llamaWarmUp() {
 String llamaRequest(String userMsg) throws Exception {
   if (llamaState.equals("starting") && !waitForLlama(LLAMA_START_S)) throw new Exception("llama-server still starting");
   if (llamaState.equals("failed") || llamaState.equals("off")) throw new Exception(llamaWhy.length() > 0 ? llamaWhy : "llama-server not running");
-  JSONObject tpl = llamaPost("/apply-template", "{\"messages\":" + llamaMessages(userMsg) + "}", 10);
+  JSONObject tpl = llamaPost("/apply-template", llamaTemplateBody(userMsg), 10);
   String body = "{"
     + "\"prompt\":\"" + escapeJson(tpl.getString("prompt")) + "\","
     + "\"temperature\":0,"
@@ -258,6 +260,11 @@ JSONObject llamaPost(String path, String body, int timeoutS) throws Exception {
     throw new Exception(m);
   }
   return j;
+}
+
+// The body of /apply-template: the messages, and no thinking (Qwen3.5)
+String llamaTemplateBody(String userMsg) {
+  return "{\"messages\":" + llamaMessages(userMsg) + ",\"chat_template_kwargs\":{\"enable_thinking\":false}}";
 }
 
 // System prompt + the prompt's examples as turns + the word, as a JSON array of messages

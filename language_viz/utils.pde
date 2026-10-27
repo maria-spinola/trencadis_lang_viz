@@ -177,3 +177,24 @@ void generateRandomWord(String word) {
   loadJSONFromPath(jsonPath);
   println("Params generated for: " + word + " (cult " + out.getInt("culturalitat") + ", rare " + out.getInt("raresa") + ")");
 }
+
+// The computer must not sleep (nor its screens go dark) while the room runs: asleep, a word waiting for
+// the local model froze for minutes. A helper process holds it awake and ends by itself with the sketch.
+//   Windows: PowerShell asks SetThreadExecutionState (system + display required) and waits for the sketch
+//   macOS:   caffeinate
+// (setup_windows.bat also sets the power plan to never sleep.)
+void keepAwake() {
+  String pid = "" + ProcessHandle.current().pid();
+  try {
+    if (platform == WINDOWS) {
+      String ps = "Add-Type -Name P -Namespace W -MemberDefinition '[DllImport(\"kernel32.dll\")] public static extern uint SetThreadExecutionState(uint f);';"
+                + "[W.P]::SetThreadExecutionState([uint32]2147483651) | Out-Null; Wait-Process -Id " + pid;   // ES_CONTINUOUS | SYSTEM | DISPLAY
+      String enc = java.util.Base64.getEncoder().encodeToString(ps.getBytes(java.nio.charset.StandardCharsets.UTF_16LE));   // (no quoting trouble)
+      new ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-EncodedCommand", enc).start();
+    } else if (platform == MACOS) {
+      new ProcessBuilder("caffeinate", "-dimsu", "-w", pid).start();
+    }
+  } catch (Exception e) {
+    println("Keep awake: " + e.getMessage());
+  }
+}
