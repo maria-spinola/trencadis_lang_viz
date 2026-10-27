@@ -24,7 +24,7 @@ String[] BACKDROP_COLORS = { "#C08A2E", "#B5502E", "#139F9A", "#E07A1F", "#2455C
 // The natural stone (BACKDROP "stone")
 String[] STONE_COLORS  = { "#9C8870", "#BBA88A", "#7A6A57", "#D4C6AA" };   // two stones of the strata, a darker mottling, the veins
 String FX_BED_COLOR       = "#2B2723";   // the bed of mortar a tile leaves when it comes out of the wall (WallMoments.pde)
-String POEM_FLOOR_COLOR   = "#FAF8F3";   // the poem's words on the floor: paler than the visitors', whitish but not pure white
+String POEM_FLOOR_COLOR   = "#E9BD62";   // the poem's words on the floor: a soft gold, to tell them from the visitors' (almost white); was #FAF8F3
 String VERSE_COLOR        = "#F3EEE4";   // the poem's verses on the floor   // a visitor's word while it is new on the floor (warm gold)
 String WARM_LIGHT_COLOR   = "#FFD9A0";
 String AMBIENT_LIGHT_COLOR = "#FFF0DA";  // the calm light wandering along the mural   // the light of the stream, the impact and the wave (warm, never white)   // the visitors' words (TYPED_WORDS_TO_FLOOR)

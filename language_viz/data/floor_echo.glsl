@@ -182,7 +182,10 @@ void main() {
     float wc = wt.a * inside * (0.82 + 0.18 * sin(p.x * 0.004 + p.y * 0.0031 + time * 0.35));
     float lum = dot(c * k, vec3(0.3, 0.59, 0.11));
     float poemK = clamp(1.0 - wt.g / max(wt.b, 0.004), 0.0, 1.0);
-    vec3 wcol = mix(amber, poemCol, poemK) * (wordBase + 2.0 * lum) * wordLight + c * k * 0.45;
+    vec3 wcol = mix(amber, poemCol, poemK) * (wordBase + 2.0 * lum) * wordLight;
+    float wmax = max(max(wcol.r, wcol.g), wcol.b);
+    wcol = mix(wcol, wcol / max(wmax, 1.0), poemK);   // the poem's gold keeps its hue when bright (scaled to fit, not burnt to white)
+    wcol += c * k * 0.45 * (1.0 - 0.6 * poemK);
     wcol = mix(wcol, bright * 1.25, wt.r);
     col = col * (1.0 - 0.3 * wc) + wcol * wc;
   }
