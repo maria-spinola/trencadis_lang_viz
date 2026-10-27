@@ -125,7 +125,10 @@ void submitWord(String typed) {
 // Viquidiccionari has it as a Catalan word. Works without internet (the table is on disk).
 volatile boolean forceCatalan = false;
 boolean knownCatalan(String word) { return commonCatalan(word) || pendingDef.length() > 0; }
-boolean commonCatalan(String word) { return KNOWN_CATALAN_ZIPF > 0 && wordZipf(word) >= KNOWN_CATALAN_ZIPF * 100; }
+boolean commonCatalan(String word) {   // (offline there is no dictionary to vouch for the rarer words: the table reaches further)
+  float z = netOnline ? KNOWN_CATALAN_ZIPF : KNOWN_CATALAN_ZIPF_OFFLINE;
+  return z > 0 && wordZipf(word) >= z * 100;
+}
 
 // The model answered with a JSON object for pendingWord (from parseResponse, utils.pde)
 void applyLLMResult(String word, JSONObject res, boolean store) {
@@ -527,19 +530,22 @@ volatile String pendingDef = "";   // definition of the word being analysed ("" 
 // The text sent to the model: the word, plus what the dictionary says about it
 String userMessage(String word) {
   pendingDef = "";
-  if (!USE_DICTIONARY || !netOnline) return word;   // offline: the model decides alone, at once
-  String d = null;
+  if (!USE_DICTIONARY) return word;
+  String d = localDefinition(word);   // the copy on disk first: at once, and with no internet too
   boolean reached = true;
-  try {
-    d = lookupDefinition(word);
-    if (d == null && !word.equals(word.toLowerCase())) d = lookupDefinition(word.toLowerCase());
-    if (d == null) d = lookupDefinition(word.substring(0, 1).toUpperCase() + word.substring(1));   // place names
-  } catch (Exception e) {
-    reached = false;
-    netFailed(e);
-    println("Viquidiccionari not reachable (" + msgOf(e) + "): the model decides alone");
-  }
-  if (!reached)   return word;
+  if (d == null && netOnline) {        // not there: the Viquidiccionari online (a newer entry)
+    try {
+      d = lookupDefinition(word);
+      if (d == null && !word.equals(word.toLowerCase())) d = lookupDefinition(word.toLowerCase());
+      if (d == null) d = lookupDefinition(word.substring(0, 1).toUpperCase() + word.substring(1));   // place names
+    } catch (Exception e) {
+      reached = false;
+      netFailed(e);
+      println("Viquidiccionari not reachable (" + msgOf(e) + "): " + (localDict != null ? "not in the copy on disk either" : "the model decides alone"));
+    }
+  } else if (d == null && localDict == null) reached = false;   // offline, and no copy on disk: the model decides alone
+  if (!reached && localDict == null) return word;
+  if (!reached) d = null;   // (the copy on disk didn't have it)
   if (d == null)  { println("Viquidiccionari: \"" + word + "\" not found"); return word + "\n(Aquesta paraula no és al Viquidiccionari.)"; }
   if (d.isEmpty()) { println("Viquidiccionari: \"" + word + "\" is not a Catalan entry"); return word + "\n(El Viquidiccionari té aquesta pàgina, però no com a paraula catalana.)"; }
   pendingDef = d;
@@ -585,6 +591,37 @@ void setNetOnline(boolean up) {
 // A network call failed: if it couldn't connect (not an error answer), the network is down until the next check
 void netFailed(Exception e) {
   if (e instanceof java.io.IOException) setNetOnline(false);
+}
+
+// ── The Viquidiccionari on disk (DICT_LOCAL_FILE, made by tools/make_viquidiccionari.py) ──
+// word <tab> definition · word <tab> @base (an inflected form: its base word's) · word <tab> >target (a redirect)
+volatile HashMap<String, String> localDict;
+
+void loadLocalDictionary() {
+  if (!USE_DICTIONARY || DICT_LOCAL_FILE.length() == 0) return;
+  new Thread(() -> {   // (11 MB: in the background, the room starts at once)
+    long t = millis();
+    String[] lines = loadStrings(DICT_LOCAL_FILE);
+    if (lines == null) { println("Viquidiccionari on disk: data/" + DICT_LOCAL_FILE + " not found (online only)"); return; }
+    HashMap<String, String> m = new HashMap<String, String>(lines.length * 2);
+    for (String l : lines) { int i = l.indexOf('\t'); if (i > 0) m.put(l.substring(0, i), l.substring(i + 1)); }
+    localDict = m;
+    println("Viquidiccionari on disk: " + m.size() + " Catalan words (" + (millis() - t) + " ms)");
+  }).start();
+}
+
+// As lookupDefinition, from the copy on disk: null = not a Catalan word there (or no copy)
+String localDefinition(String word) {
+  if (localDict == null) return null;
+  for (String w : new String[] { word, word.toLowerCase(), word.substring(0, 1).toUpperCase() + word.substring(1) }) {
+    String v = localDict.get(w);
+    if (v == null) continue;
+    if (v.startsWith(">")) v = localDict.get(v.substring(1));   // a redirect
+    if (v == null) continue;
+    if (v.startsWith("@")) { String base = v.substring(1), d = localDict.get(base); if (d != null && !d.startsWith("@") && !d.startsWith(">")) return "(forma de " + base + ") " + d; continue; }
+    return v;
+  }
+  return null;
 }
 
 // null = no page · "" = page without a Catalan entry · otherwise up to 3 definitions

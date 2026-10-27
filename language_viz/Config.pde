@@ -435,6 +435,7 @@ float   LLAMA_START_S    = 90;              // how long to wait for the server t
 // send the model its definition: the models don't know many Catalan words. Needs internet;
 // without it the model decides alone.
 boolean USE_DICTIONARY = true;
+String  DICT_LOCAL_FILE = "viquidiccionari_ca.tsv";   // its Catalan words, in data/ (tools/make_viquidiccionari.py): looked up first, also offline ("" = online only)
 int     NET_CHECK_S    = 20;     // how often the sketch checks the internet (in the background); offline, words skip the dictionary and the cloud
 String  DICT_URL       = "https://ca.wiktionary.org/w/api.php";
 final String OLLAMA_URL_LOCAL   = "http://localhost:11434/api/chat";
@@ -528,6 +529,7 @@ String LEXICON_CACHE_FILE = "lexicon_cache.json";
 // Zipf scale: 5.8 casa · 4.6 finestra · 4.1 tristesa · 3.1 pessigolles · 2.8 espardenya · 2.2 xiuxiuejar
 boolean USE_WORD_FREQ = true;
 float   KNOWN_CATALAN_ZIPF = 3.0;   // a word at least this common in real Catalan texts (zipf; or in the Viquidiccionari) is never rejected by the model: assassinat 5.0, mort 5.7, pistola 4.0, genital 3.3 (it also takes in foreign words found in Catalan texts: house 4.1, calle 3.7, muerte 3.4, perro 3.0; 0 = the model decides)
+float   KNOWN_CATALAN_ZIPF_OFFLINE = 2.0;   // …the same with no internet (no Viquidiccionari to vouch for the rarer words): ≈ 71,000 words instead of ≈ 27,500 (more foreign words found in Catalan texts get in too)
 String WORD_FREQ_FILE = "catalan_freq.tsv";
 // Missing or wrong accents are corrected from the same table ("cafe" → "cafè"): only when the
 // accented form is at least ACCENT_FIX_GAP zipf more common (×25), so "mes", "te", "mon" stay
