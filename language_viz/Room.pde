@@ -208,7 +208,7 @@ void drawPreview() {
   PImage img = (outIdx >= 0) ? outImgs.get(outIdx) : (shown == null) ? matrixOut : shown.pg;
   float s = min(width / (float) img.width, height / (float) img.height);
   imageMode(CENTER);
-  image(img, width/2, height/2, img.width * s, img.height * s);
+  image(previewOf(img, s), width/2, height/2, img.width * s, img.height * s);
   if (showOutlines && outIdx < 0) drawOutlines(img, s);
 
   fill(0, 0, 50);
@@ -223,6 +223,30 @@ void drawPreview() {
 
 // What you type and the messages, big, at the bottom of the preview window (not in the output)
 PFont previewFont;
+
+// The window shows the matrix several times smaller than it is: shrunk by halves first (each step reads
+// 2×2 pixels into 1), never in one jump — that skipped pixels, and every moving edge shimmered in the window
+HashMap<PImage, PGraphics[]> previewSteps = new HashMap<PImage, PGraphics[]>();
+PImage previewOf(PImage img, float s) {
+  int n = 0;
+  while (s * (1 << n) < 0.5 && n < 5) n++;   // halvings until the last step shrinks it less than 2×
+  if (n == 0) return img;
+  PGraphics[] steps = previewSteps.get(img);
+  if (steps == null || steps.length != n) {
+    steps = new PGraphics[n];
+    for (int k = 0; k < n; k++) steps[k] = createGraphics(max(1, img.width >> (k + 1)), max(1, img.height >> (k + 1)), P2D);
+    previewSteps.put(img, steps);
+  }
+  PImage src = img;
+  for (PGraphics g : steps) {
+    g.beginDraw();
+    g.blendMode(REPLACE);
+    g.image(src, 0, 0, g.width, g.height);
+    g.endDraw();
+    src = g;
+  }
+  return src;
+}
 
 void drawPreviewInput() {
   if (previewFont == null) previewFont = createFont("SansSerif", 30);   // sharp at this size (the default font is tiny and gets blurry)

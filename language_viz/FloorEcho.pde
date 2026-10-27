@@ -237,6 +237,7 @@ void renderEchoFloor() {
   for (float[] w : echoWaves) {
     if (n >= 4) break;
     float t = (frameCount - w[2]) / (float) ECHO_WAVE_FRAMES;
+    if (t < 0 || t >= 1) continue;   // (its last frame came a frame late: pow(1 - t) of a negative is NaN, and the whole floor's reflection went black)
     Wv[n * 4] = w[0]; Wv[n * 4 + 1] = w[1];
     Wv[n * 4 + 2] = ECHO_WAVE_REACH * (0.2 * (1 - pow(1 - t, 3)) + 0.8 * t);
     Wv[n * 4 + 3] = ECHO_WAVE * boost * pow(1 - t, 1.4) * smooth01(t / 0.04);

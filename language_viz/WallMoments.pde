@@ -319,6 +319,7 @@ void startWallMoment(int type) {
         t.column = false;
       }
       for (FxTile t : fxTiles) planFall(t);
+      stackLandings();
       fxDur = 720; break;
   }
   if (fxTiles.size() == 0) { fxType = -1; return; }
@@ -425,7 +426,7 @@ void poseTile(FxTile ft, int t) {
       else {
         float tau = constrain(t - ft.delay, 0, Tf);
         if (tau <= 0) {
-          float wob = (t - ft.delay > -24) ? sin(frameCount * 1.3 + ft.a * 9) * 0.04 : 0;   // loosening
+          float wob = (t - ft.delay > -24) ? sin(frameCount * 0.45 + ft.a * 9) * 0.04 : 0;   // loosening (slow enough to read as a shiver at 30 fps out, not a flicker)
           wallPose(ft, 0, 0, 0, 0, 0, wob);
         } else poseFall(ft, tau);
       }
@@ -512,6 +513,23 @@ void planFall(FxTile t) {
   }
   t.turn = turnBetween(bx0, by0, bz0, bx1, by1, bz1);
 }
+
+// A piece landing on one already lying there comes to rest on top of it, a body's thickness higher (two
+// glazes in the same plane fought for the same depth and flickered through each other)
+void stackLandings() {
+  if (!HAS_FLOOR) return;
+  ArrayList<FxTile> order = new ArrayList<FxTile>(fxTiles);
+  java.util.Collections.sort(order, (p, q) -> Float.compare(p.delay + p.T1, q.delay + q.T1));   // in the order they land
+  for (int i = 0; i < order.size(); i++) {
+    FxTile t = order.get(i);
+    for (int j = 0; j < i; j++) {
+      FxTile o = order.get(j);
+      if (PVector.dist(restOf(t), restOf(o)) < t.rad + o.rad) t.landC.z = max(t.landC.z, o.landC.z + fxT() + 1);
+    }
+  }
+}
+// where it lies at the end of its little slide (on the floor's plane)
+PVector restOf(FxTile t) { PVector r = PVector.add(t.landC, PVector.mult(faces[t.face].n, 16)); r.z = 0; return r; }
 
 // the tile at tau frames into its fall (deterministic: the way back is the same path)
 void poseFall(FxTile ft, float tau) {
@@ -935,7 +953,7 @@ void drawWallMoments3D(PGraphics pg, Face f) {
     fxDrawList.add(ft);
   }
   if (fxDrawList.size() == 0) { pg.hint(DISABLE_DEPTH_TEST); flatCamera(pg, f); return; }
-  java.util.Collections.sort(fxDrawList, (p, q) -> Float.compare(PVector.dist(q.C, E), PVector.dist(p.C, E)));   // the furthest first
+  java.util.Collections.sort(fxDrawList, (p, q) -> Float.compare(drawOrder(p, E), drawOrder(q, E)));
   viewerCamera(pg, f);
   pg.noStroke();
   pg.textureMode(NORMAL);
@@ -1114,3 +1132,11 @@ void drawWallMoments3D(PGraphics pg, Face f) {
 }
 
 boolean facesEye(FxTile ft, PVector E) { return ft.bz.dot(PVector.sub(E, ft.C)) > 0; }
+
+// The order the tiles are drawn in: the furthest first; but the pieces lying on the floor first of all, the
+// lowest first. Their soft edges hide what is drawn after them, and by distance the order of two pieces
+// lying almost on the same plane swapped from frame to frame: the one under showed through, flickering
+float drawOrder(FxTile ft, PVector E) {
+  if (fxType == FX_COLLAPSE && HAS_FLOOR && ft.C.z < fxT() * 6) return -1e7 + ft.C.z;
+  return -PVector.dist(ft.C, E);
+}
